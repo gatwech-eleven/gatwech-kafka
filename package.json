@@ -1,0 +1,91 @@
+{
+  "name": "@payvo/kafka",
+  "version": "1.0.0",
+  "description": "Payvo Node.js Kafka Client for Microservices Messaging",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "unbuild --clean",
+    "dev": "pnpm build --watch",
+    "lint": "biome lint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:e2e": "tsx ./e2e/run-e2e.ts",
+    "generate:kafka-config": "tsx ./scripts/generate-kafka-config.ts",
+    "init:kafka-topics": "bash scripts/kafka-init.sh",
+    "setup:kafka": "pnpm run generate:kafka-config && pnpm run init:kafka-topics"
+  },
+  "keywords": [
+    "kafka",
+    "microservices",
+    "messaging",
+    "event-driven",
+    "payvo"
+  ],
+  "author": "Gatwech Tap Nguth",
+  "license": "ISC",
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com/"
+  },
+  "dependencies": {
+    "@payvo/utils": "workspace:*",
+    "@types/node": "^22.10.0",
+    "buffer": "^6.0.3",
+    "kafkajs": "^2.2.4",
+    "winston": "^3.17.0",
+    "zod": "^4.1.5",
+    "prom-client": "^15.1.2"
+  },
+  "devDependencies": {
+    "biome": "^0.3.3",
+    "ts-node": "^10.9.2",
+    "typescript": "catalog:default",
+    "unbuild": "catalog:default",
+    "vitest": "catalog:default",
+    "tsup": "catalog:default",
+    "nodemon": "catalog:default",
+    "supertest": "catalog:default"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
+    },
+    "./topics": {
+      "types": "./dist/config/topics/index.d.ts",
+      "import": "./dist/config/topics/index.mjs",
+      "require": "./dist/config/topics/index.cjs"
+    },
+    "./client": {
+      "types": "./dist/client/index.d.ts",
+      "import": "./dist/client/index.mjs",
+      "require": "./dist/client/index.cjs"
+    },
+    "./types": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/types/index.mjs",
+      "require": "./dist/types/index.cjs"
+    },
+    "./ensure-topics": {
+      "types": "./dist/config/ensure-topics.d.ts",
+      "import": "./dist/config/ensure-topics.mjs",
+      "require": "./dist/config/ensure-topics.cjs"
+    }
+  },
+  "unbuild": {
+    "entries": [
+      "src/index",
+      "src/client",
+      "src/types",
+      "src/config/topics",
+      "src/config/ensure-topics"
+    ],
+    "failOnWarn": false
+  },
+  "files": [
+    "dist"
+  ]
+}
