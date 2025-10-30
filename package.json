@@ -30,7 +30,7 @@
     "registry": "https://npm.pkg.github.com/"
   },
   "dependencies": {
-    "@payvo/utils": "workspace:*",
+    "@payvo/utils": "git+https://github.com/JeremyG11/payvo-utils.git#main",
     "@types/node": "^22.10.0",
     "buffer": "^6.0.3",
     "kafkajs": "^2.2.4",
