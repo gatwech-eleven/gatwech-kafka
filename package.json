@@ -8,7 +8,7 @@
   "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsup",
-    "prepare": "pnpm run build",
+    "prepare": "node -e \"const fs=require('fs'); if (fs.existsSync('./dist/index.cjs')) process.exit(0); if (process.env.ALLOW_BUILD_ON_INSTALL==='true'){ try{ require('child_process').execSync('pnpm run build',{stdio:'inherit'}); }catch(e){ console.error('Build failed:', e); process.exit(1); } } else { console.warn('Skipping build during git install: dist missing and ALLOW_BUILD_ON_INSTALL not set. To enable building during install set ALLOW_BUILD_ON_INSTALL=true'); }\"",
     "dev": "pnpm build --watch",
     "lint": "biome lint",
     "typecheck": "tsc --noEmit",
