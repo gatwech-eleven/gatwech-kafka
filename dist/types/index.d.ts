@@ -1,5 +1,5 @@
 import { CompressionTypes, logLevel } from 'kafkajs';
-export { ConsumerConfig } from 'kafkajs';
+export { Consumer, ConsumerConfig } from 'kafkajs';
 
 interface KafkaClientOptions {
     allowAutoTopicCreation?: boolean;

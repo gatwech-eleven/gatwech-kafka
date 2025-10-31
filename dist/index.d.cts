@@ -6,7 +6,7 @@ import { TKafkaMessage } from './types/index.cjs';
 export { ISerializer, JsonSerializer, KafkaClientOptions, KafkaMetrics, WithMetadata } from './types/index.cjs';
 import { z } from '@payvo/utils';
 import { z as z$1 } from '@payvo/utils/zod';
-export { ConsumerConfig, Producer } from 'kafkajs';
+export { Consumer, ConsumerConfig, Producer } from 'kafkajs';
 import './topic-config-schema-CWgKTEuX.cjs';
 
 type ValidationResult<T> = {

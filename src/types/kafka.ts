@@ -53,4 +53,4 @@ export type WithMetadata = {
   [key: string]: unknown;
 };
 
-export type { ConsumerConfig } from "kafkajs";
+export type { ConsumerConfig, Consumer, Producer } from "kafkajs";
