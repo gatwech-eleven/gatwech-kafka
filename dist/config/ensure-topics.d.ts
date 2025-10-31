@@ -1,5 +1,5 @@
 import { Admin } from 'kafkajs';
-import { T as TopicConfig } from '../shared/kafka.TtePgHi5.js';
+import { T as TopicConfig } from '../topic-config-schema-CWgKTEuX.js';
 import '@payvo/utils/zod';
 
 /**
@@ -55,5 +55,4 @@ type TopicMap = Record<string, {
  */
 declare function ensureTopicsWithConfig(admin: Admin, opts?: EnsureOpts, manageConnection?: boolean): Promise<void>;
 
-export { ensureTopicsWithConfig };
-export type { TopicMap };
+export { type TopicMap, ensureTopicsWithConfig };
