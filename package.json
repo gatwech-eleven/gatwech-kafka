@@ -1,6 +1,6 @@
 {
   "name": "@payvo/kafka",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "Payvo Node.js Kafka Client for Microservices Messaging",
   "type": "module",
   "main": "./dist/index.cjs",
