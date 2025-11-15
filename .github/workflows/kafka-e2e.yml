@@ -83,6 +83,8 @@ jobs:
           done
 
       - name: Run E2E Kafka Test
+        env:
+          KAFKA_BOOTSTRAP: localhost:9092
         run: |
           echo "Starting Kafka E2E test"
           pnpm dlx tsx e2e/run-e2e.ts

@@ -1,6 +1,6 @@
 import { nanoid } from "nanoid";
-import { KafkaClient } from "../src/client/kafka-client";
-import { createEventPublisher } from "../src/client/event.factory";
+import { KafkaClient } from "../src/client/kafka-client.ts";
+import { createEventPublisher } from "../src/client/event.factory.ts";
 import { z } from "@gatwech/utils/zod";
 import assert from "node:assert";
 import crypto from "node:crypto";
@@ -18,6 +18,23 @@ const e2eSchema = z.object({
     .optional(),
 });
 
+async function waitForBroker(client: KafkaClient, timeoutMs = 30000) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const admin = client.getAdmin();
+      await admin.connect();
+      const info = await admin.describeCluster();
+      await admin.disconnect();
+      if (info.controller) return;
+    } catch (_) {
+      // ignore and retry
+    }
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  throw new Error("Broker readiness timeout");
+}
+
 async function main() {
   const bootstrap = process.env.KAFKA_BOOTSTRAP || "localhost:9092";
   const topic = process.env.E2E_TOPIC || `e2e-test-${Date.now()}`;
@@ -27,6 +44,7 @@ async function main() {
     metricsEnabled: false,
   });
   await client.connect();
+  await waitForBroker(client, 30000);
 
   const producer = client.getProducer();
 

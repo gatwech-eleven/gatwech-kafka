@@ -7,6 +7,17 @@ import { generateCorrelationId } from "../utils/helpers";
 
 type KeyDeriver<T> = (payload: T) => string;
 
+type EventMetadata = {
+  correlationId?: string;
+  source?: string;
+  schemaHash?: string;
+};
+
+type BaseEventFields = {
+  timestamp?: Date | string | number;
+  metadata?: EventMetadata | Record<string, unknown>;
+};
+
 type StringifiableHeaders = Record<string, string | number | boolean | Date>;
 
 interface TReadyToPublishMessage<T>
@@ -40,16 +51,44 @@ class GenericKafkaProducer<
   ): TReadyToPublishMessage<z.infer<TSchema>> {
     const key = this.generateKey(payload);
 
-    const rawTimestamp = (payload as any).timestamp;
-    const timestamp =
-      rawTimestamp instanceof Date
-        ? rawTimestamp
-        : new Date(String(rawTimestamp));
+    const withBase = payload as z.infer<TSchema> & BaseEventFields;
+    const rawTimestamp = withBase.timestamp;
 
-    const metadata = (payload as any).metadata ?? {};
-    const correlationId = metadata.correlationId;
-    const schemaHash = metadata.schemaHash;
-    const source = metadata.source;
+    function parseTimestamp(value: unknown): Date {
+      if (value instanceof Date) return value;
+      if (typeof value === "number" && Number.isFinite(value)) {
+        const d = new Date(value);
+        if (!isNaN(d.getTime())) return d;
+      }
+      if (typeof value === "string" && value.trim() !== "") {
+        const d = new Date(value);
+        if (!isNaN(d.getTime())) return d;
+      }
+      if (value !== undefined) {
+        logger.warn("Invalid event timestamp, defaulting to now", {
+          rawTimestamp: value as any,
+        });
+      }
+      return new Date();
+    }
+
+    const timestamp = parseTimestamp(rawTimestamp);
+
+    const metaCandidate = withBase.metadata;
+    const metadata: EventMetadata =
+      metaCandidate &&
+      typeof metaCandidate === "object" &&
+      !Array.isArray(metaCandidate)
+        ? (metaCandidate as EventMetadata)
+        : {};
+    const correlationId =
+      typeof metadata.correlationId === "string"
+        ? metadata.correlationId
+        : undefined;
+    const schemaHash =
+      typeof metadata.schemaHash === "string" ? metadata.schemaHash : undefined;
+    const source =
+      typeof metadata.source === "string" ? metadata.source : undefined;
 
     const headers: StringifiableHeaders = {
       "event-version": "1.0",
@@ -90,7 +129,7 @@ class GenericKafkaProducer<
 
     logger.info(`Published event to topic ${this.topic}`, {
       key: enriched.key,
-      timestamp: (enriched.value as any).timestamp?.toString(),
+      timestamp: stringifiedHeaders?.timestamp,
     });
   }
 }
@@ -114,20 +153,20 @@ export function createEventPublisher<TSchema extends z.ZodObject<any, any>>(
   return async (payload: z.input<TSchema>): Promise<void> => {
     const validated = schema.parse(payload);
 
-    const rawMeta = (validated as z.infer<TSchema>)?.metadata;
-    const safeMeta =
+    const rawMeta = (validated as Partial<{ metadata?: unknown }>)?.metadata;
+    const safeMeta: EventMetadata =
       rawMeta && typeof rawMeta === "object" && !Array.isArray(rawMeta)
-        ? (rawMeta as Record<string, unknown>)
-        : ({} as Record<string, unknown>);
+        ? (rawMeta as EventMetadata)
+        : {};
 
-    const event: z.infer<TSchema> = {
-      ...validated,
+    const event = {
+      ...(validated as Record<string, unknown>),
       metadata: {
         source,
         correlationId: generateCorrelationId("evt"),
         ...safeMeta,
       },
-    };
+    } as z.infer<TSchema>;
 
     await producerInstance.send(event);
   };
