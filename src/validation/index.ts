@@ -1,4 +1,4 @@
-import { z } from "@payvo/utils";
+import { z } from "@gatwech/utils";
 import { logger } from "../utils/logger";
 
 export type ValidationResult<T> =

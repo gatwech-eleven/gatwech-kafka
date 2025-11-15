@@ -1,3 +1,7 @@
+import {
+  ResetPasswordRequestUnionSchema,
+  UserRegisteredSchema,
+} from "../../schemas";
 import { TopicConfigSchema } from "./topic-config-schema";
 
 export const userTopics = {
@@ -5,6 +9,7 @@ export const userTopics = {
 
   USER_REGISTERED: TopicConfigSchema.parse({
     name: "user.registered",
+    schema: UserRegisteredSchema,
   }),
   USER_UPDATED: TopicConfigSchema.parse({
     name: "user.updated",
@@ -23,6 +28,7 @@ export const userTopics = {
   USER_RESET_PASSWORD_REQUEST: TopicConfigSchema.parse({
     name: "user.reset.password.request",
     config: { retentionMs: 604800000, cleanupPolicy: "compact" },
+    schema: ResetPasswordRequestUnionSchema,
   }),
   USER_VERIFIED: TopicConfigSchema.parse({
     name: "user.verified",

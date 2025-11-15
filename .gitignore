@@ -16,7 +16,16 @@ node_modules/
 .env.*.local
 
 # Build outputs
-!dist/
+dist/
+build/
+.out/
+.next/
+
+# Prevent accidental in-place emits alongside sources
+src/**/*.js
+src/**/*.d.ts
+__tests__/**/*.js
+__tests__/**/*.d.ts
 build/
 .out/
 .next/

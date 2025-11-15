@@ -1,22 +1,20 @@
-import type { z } from "@payvo/utils/zod";
-import { userTopics } from "./user-topics";
+import { chatTopics } from "./chat-topic";
+import { orderTopics } from "./order-topics";
 import { paymentTopics } from "./payment-topics";
+import { userTopics } from "./user-topics";
 import { notificationTopics } from "./notification-topics";
-import type { TopicConfigSchema } from "./topic-config-schema";
-
-export type TopicConfig = z.infer<typeof TopicConfigSchema>;
-
-export * from "./chat-topic";
-export * from "./user-topics";
-export * from "./payment-topics";
-export * from "./order-topics";
-export * from "./notification-topics";
 
 export const topics = {
-  user: userTopics,
-  payment: paymentTopics,
-  notification: notificationTopics,
+  ...userTopics,
+  ...notificationTopics,
+  ...orderTopics,
+  ...paymentTopics,
+  ...chatTopics,
 };
 
-export type TopicGroups = typeof topics;
-export type TopicNames = keyof TopicGroups[keyof TopicGroups];
+export * from "./user-topics";
+export * from "./notification-topics";
+export * from "./order-topics";
+export * from "./payment-topics";
+export * from "./chat-topic";
+export * from "./topic-config-schema";

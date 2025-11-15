@@ -12,7 +12,7 @@ jobs:
 
     services:
       zookeeper:
-        image: wurstmeister/zookeeper:3.4.6
+        image: zookeeper:3.8
         ports:
           - 2181:2181
 
@@ -35,14 +35,40 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: "npm"
+          cache: "pnpm"
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          # Prefer pnpm if a pnpm lockfile exists
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pnpm-lock.yaml found — running pnpm install --frozen-lockfile"
+            pnpm install --frozen-lockfile
+          elif [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
+            echo "npm lockfile found — running npm ci"
+            npm ci
+          else
+            echo "No lockfile found — running npm install"
+            npm install
+          fi
+
+      - name: Debug repo layout
+        run: |
+          pwd
+          ls -la
+          ls -la src || true
+          ls -la src/client || true
+
+      - name: Assert required files exist
+        run: |
+          test -f src/client/kafka-client.ts && echo "OK: src/client/kafka-client.ts" || (echo "Missing src/client/kafka-client.ts" && exit 1)
+          test -f e2e/run-e2e.ts && echo "OK: e2e/run-e2e.ts" || (echo "Missing e2e/run-e2e.ts" && exit 1)
 
       - name: Wait for Kafka readiness
         run: |
@@ -57,9 +83,11 @@ jobs:
           done
 
       - name: Run E2E Kafka Test
+        env:
+          KAFKA_BOOTSTRAP: localhost:9092
         run: |
           echo "Starting Kafka E2E test"
-          node --loader ts-node/esm scripts/e2e-kafka.ts
+          pnpm dlx tsx e2e/run-e2e.ts
 
       - name: Upload logs on failure
         if: failure()

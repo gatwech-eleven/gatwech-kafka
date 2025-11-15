@@ -1,23 +1,31 @@
 {
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "esnext",
-    "moduleResolution": "bundler",
-    "outDir": "build",
-    "sourceMap": true,
-    "noImplicitAny": true,
+    "esModuleInterop": true,
     "skipLibCheck": true,
+    "target": "es2022",
+    "allowJs": true,
+    "resolveJsonModule": true,
+    "moduleDetection": "force",
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "outDir": "./dist",
+    "strict": true,
+    "noEmit": true,
+    "module": "preserve",
+    "types": ["node", "vitest"],
+    "lib": ["es2022", "dom", "dom.iterable"],
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"]
     },
-
-    "esModuleInterop": true,
-    "resolveJsonModule": true
+    "allowImportingTsExtensions": true
   },
-  "include": ["./src/**/*", "src/types.ts", "index.d.ts"],
-  "ts-node": {
-    "files": true
-  },
-  "exclude": ["node_modules"]
+  "include": [
+    "src",
+    "e2e",
+    "__tests__",
+    "tsdown.config.ts",
+    "vitest.config.ts"
+  ],
+  "exclude": ["node_modules", "dist"]
 }
