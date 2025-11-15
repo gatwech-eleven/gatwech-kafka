@@ -39,7 +39,15 @@ jobs:
           TURBO_CACHE: remote:rw
         run: pnpm build
 
-      - name: Publish packages (pkg-pr-new)
+      - name: Verify package presence
+        run: |
+          if [ ! -f "package.json" ]; then
+            echo "No package.json found in repo root. Nothing to publish."
+            exit 1
+          fi
+          echo "Found package.json; proceeding to publish current package."
+
+      - name: Publish package (pkg-pr-new)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: pnpm dlx pkg-pr-new publish --pnpm ./packages/*
+        run: pnpm dlx pkg-pr-new publish --pnpm .
