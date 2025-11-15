@@ -58,6 +58,18 @@ jobs:
             npm install
           fi
 
+      - name: Debug repo layout
+        run: |
+          pwd
+          ls -la
+          ls -la src || true
+          ls -la src/client || true
+
+      - name: Assert required files exist
+        run: |
+          test -f src/client/kafka-client.ts && echo "OK: src/client/kafka-client.ts" || (echo "Missing src/client/kafka-client.ts" && exit 1)
+          test -f e2e/run-e2e.ts && echo "OK: e2e/run-e2e.ts" || (echo "Missing e2e/run-e2e.ts" && exit 1)
+
       - name: Wait for Kafka readiness
         run: |
           echo "Waiting for Kafka to be healthy..."
