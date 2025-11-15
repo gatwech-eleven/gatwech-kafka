@@ -6,6 +6,8 @@ export const TopicConfigSchema = z.object({
   cleanupPolicy: z
     .enum(["delete", "compact", "compact,delete"])
     .default("delete"),
+  // Allow attaching any zod schema object for validation, but keep it optional
+  schema: z.any().optional(),
 });
 
 export type TopicConfig = z.infer<typeof TopicConfigSchema>;

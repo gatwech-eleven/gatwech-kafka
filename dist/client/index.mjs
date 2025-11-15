@@ -1,5 +1,6 @@
 import "../logger-BCcyae9U.mjs";
 import "../types-BaLVca0q.mjs";
-import { a as KafkaError, i as KafkaClient, n as createEventPublisher, r as BaseProducer, t as connectWithRetry } from "../client-D7A2EpKK.mjs";
+import { a as KafkaClient, i as BaseProducer, n as connectWithRetry, o as KafkaError, r as createEventPublisher, t as consumeWithRetryAndDLQ } from "../client-CEgJz8dZ.mjs";
+import "../dlq.schema-DdQ9wUZ4.mjs";
 
-export { BaseProducer, KafkaClient, KafkaError, connectWithRetry, createEventPublisher };
+export { BaseProducer, KafkaClient, KafkaError, connectWithRetry, consumeWithRetryAndDLQ, createEventPublisher };

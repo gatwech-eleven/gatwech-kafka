@@ -1,8 +1,22 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { validateMessage } from "../src/validation";
 import { ResetPasswordRequestEmailSchema } from "../src/schemas/user-schemas";
+import { logger } from "../src/utils/logger";
 
 describe("validation.validateMessage", () => {
+  let warnSpy: any;
+
+  beforeEach(() => {
+    warnSpy = vi
+      .spyOn(logger as any, "warn")
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      .mockImplementation((_msg: any, _meta?: any) => logger as any);
+  });
+
+  afterEach(() => {
+    warnSpy.mockRestore();
+  });
+
   it("returns success for a valid email reset payload", () => {
     const payload = {
       identifier: "email",
@@ -34,5 +48,6 @@ describe("validation.validateMessage", () => {
       expect(err.properties.email).toBeDefined();
       expect(Array.isArray(err.properties.email.errors)).toBe(true);
     }
+    expect(warnSpy).toHaveBeenCalled();
   });
 });

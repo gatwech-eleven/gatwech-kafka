@@ -1,11 +1,12 @@
-import { a as KafkaClientOptions, c as TKafkaMessage, i as JsonSerializer, l as WithMetadata, n as ConsumerConfig, o as KafkaMetrics, r as ISerializer, t as Consumer } from "./index-C7NjCkE7.mjs";
-import { a as KafkaError, i as KafkaClient, n as connectWithRetry, o as BaseProducer, r as createEventPublisher, t as ConnectRetryOptions } from "./index-DzCF09Mx.mjs";
-import "./topic-config-schema-C3sdggSX.mjs";
-import { n as ensureTopicsWithConfig, t as TopicMap } from "./ensure-topics-C9acnqF1.mjs";
-import { a as notificationTopics, c as userTopics, i as topics, l as chatTopics, n as TopicGroups, o as orderTopics, r as TopicNames, s as paymentTopics, t as TopicConfig } from "./index-DC7erwwf.mjs";
+import { a as JsonSerializer, i as ISerializer, l as TKafkaMessage, n as ConsumerConfig, o as KafkaClientOptions, r as DLQOptions, s as KafkaMetrics, t as Consumer, u as WithMetadata } from "./index-DMVsbRDw.mjs";
+import { a as createEventPublisher, c as BaseProducer, i as connectWithRetry, n as consumeWithRetryAndDLQ, o as KafkaClient, r as ConnectRetryOptions, s as KafkaError, t as ConsumeHandlerContext } from "./index-EZl-dInR.mjs";
+import { n as TopicConfigSchema, t as TopicConfig } from "./topic-config-schema-B-xz1L2k.mjs";
+import { n as ensureTopicsWithConfig, t as TopicMap } from "./ensure-topics-VBQ977ar.mjs";
+import { a as notificationTopics, i as orderTopics, n as chatTopics, o as userTopics, r as paymentTopics, t as topics } from "./index-BC75ktkO.mjs";
 import { Producer } from "kafkajs";
 import { z } from "@gatwech/utils";
 import { z as z$1 } from "@gatwech/utils/zod";
+import { z as z$2 } from "zod";
 
 //#region src/validation/index.d.ts
 declare namespace index_d_exports$1 {
@@ -26,13 +27,19 @@ declare namespace validate_and_send_d_exports {
   export { _default$2 as default, validateAndSend, validateAndSendMany };
 }
 /** Validate and send a single message using KafkaClient. Throws on invalid payload. */
-declare function validateAndSend<T>(client: KafkaClient, topic: string, schema: z.ZodType<T>, message: TKafkaMessage<T>): Promise<void>;
+declare function validateAndSend<T>(client: KafkaClient, topic: TopicConfig, message: TKafkaMessage<T>): Promise<void>;
 /** Validate and send multiple messages. Any invalid message will abort sending. */
-declare function validateAndSendMany<T>(client: KafkaClient, topic: string, schema: z.ZodType<T>, messages: TKafkaMessage<T>[]): Promise<void>;
+declare function validateAndSendMany<T>(client: KafkaClient, topic: TopicConfig, messages: TKafkaMessage<T>[]): Promise<void>;
 declare const _default$2: {
   validateAndSend: typeof validateAndSend;
   validateAndSendMany: typeof validateAndSendMany;
 };
+//#endregion
+//#region src/schemas/base.schema.d.ts
+declare const BaseProducerSchema: z$1.ZodObject<{
+  timestamp: z$1.ZodDefault<z$1.ZodOptional<z$1.ZodDate>>;
+  metadata: z$1.ZodOptional<z$1.ZodAny>;
+}, z$1.core.$strip>;
 //#endregion
 //#region src/schemas/user-schemas.d.ts
 declare const UserRegisteredSchema: z$1.ZodObject<{
@@ -176,17 +183,91 @@ declare const _default$1: {
     }, z$1.core.$strip>>;
   }, z$1.core.$strip>;
 };
+//#endregion
+//#region src/schemas/order-schemas.d.ts
+declare const OrderCreatedSchema: z$2.ZodObject<{
+  timestamp: z$2.ZodDefault<z$2.ZodOptional<z$2.ZodDate>>;
+  metadata: z$2.ZodOptional<z$2.ZodAny>;
+  id: z$2.ZodString;
+  userId: z$2.ZodString;
+  amount: z$2.ZodNumber;
+  items: z$2.ZodArray<z$2.ZodObject<{
+    productId: z$2.ZodString;
+    quantity: z$2.ZodNumber;
+    price: z$2.ZodNumber;
+  }, z$2.core.$strip>>;
+}, z$2.core.$strip>;
+declare const OrderUpdatedSchema: z$2.ZodObject<{
+  timestamp: z$2.ZodDefault<z$2.ZodOptional<z$2.ZodDate>>;
+  metadata: z$2.ZodOptional<z$2.ZodAny>;
+  id: z$2.ZodString;
+  status: z$2.ZodString;
+}, z$2.core.$strip>;
+declare const OrderCancelledSchema: z$2.ZodObject<{
+  timestamp: z$2.ZodDefault<z$2.ZodOptional<z$2.ZodDate>>;
+  metadata: z$2.ZodOptional<z$2.ZodAny>;
+  id: z$2.ZodString;
+  reason: z$2.ZodOptional<z$2.ZodString>;
+}, z$2.core.$strip>;
+type TOrderCreated = z$2.infer<typeof OrderCreatedSchema>;
+type TOrderUpdated = z$2.infer<typeof OrderUpdatedSchema>;
+type TOrderCancelled = z$2.infer<typeof OrderCancelledSchema>;
+//#endregion
+//#region src/schemas/payment-schemas.d.ts
+declare const PaymentInitiatedSchema: z$2.ZodObject<{
+  timestamp: z$2.ZodDefault<z$2.ZodOptional<z$2.ZodDate>>;
+  metadata: z$2.ZodOptional<z$2.ZodAny>;
+  orderId: z$2.ZodString;
+  amount: z$2.ZodNumber;
+  method: z$2.ZodString;
+}, z$2.core.$strip>;
+declare const PaymentCompletedSchema: z$2.ZodObject<{
+  timestamp: z$2.ZodDefault<z$2.ZodOptional<z$2.ZodDate>>;
+  metadata: z$2.ZodOptional<z$2.ZodAny>;
+  transactionId: z$2.ZodString;
+  orderId: z$2.ZodString;
+  amount: z$2.ZodNumber;
+}, z$2.core.$strip>;
+declare const PaymentFailedSchema: z$2.ZodObject<{
+  timestamp: z$2.ZodDefault<z$2.ZodOptional<z$2.ZodDate>>;
+  metadata: z$2.ZodOptional<z$2.ZodAny>;
+  orderId: z$2.ZodString;
+  reason: z$2.ZodString;
+}, z$2.core.$strip>;
+type TPaymentInitiated = z$2.infer<typeof PaymentInitiatedSchema>;
+type TPaymentCompleted = z$2.infer<typeof PaymentCompletedSchema>;
+type TPaymentFailed = z$2.infer<typeof PaymentFailedSchema>;
+//#endregion
+//#region src/schemas/chat-schemas.d.ts
+declare const ChatMessageSentSchema: z$2.ZodObject<{
+  timestamp: z$2.ZodDefault<z$2.ZodOptional<z$2.ZodDate>>;
+  metadata: z$2.ZodOptional<z$2.ZodAny>;
+  chatId: z$2.ZodString;
+  userId: z$2.ZodString;
+  message: z$2.ZodString;
+}, z$2.core.$strip>;
+type TChatMessageSent = z$2.infer<typeof ChatMessageSentSchema>;
+//#endregion
+//#region src/schemas/dlq.schema.d.ts
+declare const DlqMessageSchema: z$1.ZodObject<{
+  timestamp: z$1.ZodDefault<z$1.ZodOptional<z$1.ZodDate>>;
+  metadata: z$1.ZodOptional<z$1.ZodAny>;
+  originalTopic: z$1.ZodString;
+  originalPartition: z$1.ZodNumber;
+  originalOffset: z$1.ZodString;
+  consumerGroup: z$1.ZodString;
+  errorMessage: z$1.ZodString;
+  stackTrace: z$1.ZodOptional<z$1.ZodString>;
+  originalKey: z$1.ZodOptional<z$1.ZodString>;
+  originalHeaders: z$1.ZodOptional<z$1.ZodRecord<z$1.ZodString, z$1.ZodString>>;
+  originalValue: z$1.ZodAny;
+}, z$1.core.$strip>;
+type TDlqMessage = z$1.infer<typeof DlqMessageSchema>;
 declare namespace index_d_exports {
-  export { NotificationEmailSentSchema, ResetPasswordRequestEmailSchema, ResetPasswordRequestPhoneSchema, ResetPasswordRequestUnionSchema, TNotificationEmailSent, TResetPasswordRequest, TUserRegistered, UserRegisteredSchema, _default$1 as notificationSchemas, _default as userSchemas };
+  export { BaseProducerSchema, ChatMessageSentSchema, DlqMessageSchema, NotificationEmailSentSchema, OrderCancelledSchema, OrderCreatedSchema, OrderUpdatedSchema, PaymentCompletedSchema, PaymentFailedSchema, PaymentInitiatedSchema, ResetPasswordRequestEmailSchema, ResetPasswordRequestPhoneSchema, ResetPasswordRequestUnionSchema, TChatMessageSent, TDlqMessage, TNotificationEmailSent, TOrderCancelled, TOrderCreated, TOrderUpdated, TPaymentCompleted, TPaymentFailed, TPaymentInitiated, TResetPasswordRequest, TUserRegistered, UserRegisteredSchema, _default$1 as notificationSchemas, _default as userSchemas };
 }
 //#endregion
 //#region src/utils/brokers.d.ts
 declare function resolveBrokersFromEnv(): string[];
 //#endregion
-//#region src/schemas/base.schema.d.ts
-declare const BaseProducerSchema: z$1.ZodObject<{
-  timestamp: z$1.ZodDefault<z$1.ZodOptional<z$1.ZodDate>>;
-  metadata: z$1.ZodOptional<z$1.ZodAny>;
-}, z$1.core.$strip>;
-//#endregion
-export { BaseProducer, BaseProducerSchema, ConnectRetryOptions, Consumer, ConsumerConfig, ISerializer, JsonSerializer, KafkaClient, KafkaClientOptions, KafkaError, KafkaMetrics, type Producer, TKafkaMessage, TopicConfig, TopicGroups, TopicMap, TopicNames, WithMetadata, chatTopics, connectWithRetry, createEventPublisher, ensureTopicsWithConfig, notificationTopics, orderTopics, paymentTopics, validate_and_send_d_exports as producer, resolveBrokersFromEnv, index_d_exports as schemas, topics, userTopics, index_d_exports$1 as validation };
+export { BaseProducer, BaseProducerSchema, ConnectRetryOptions, ConsumeHandlerContext, Consumer, ConsumerConfig, DLQOptions, ISerializer, JsonSerializer, KafkaClient, KafkaClientOptions, KafkaError, KafkaMetrics, type Producer, TKafkaMessage, TopicConfig, TopicConfigSchema, TopicMap, WithMetadata, chatTopics, connectWithRetry, consumeWithRetryAndDLQ, createEventPublisher, ensureTopicsWithConfig, notificationTopics, orderTopics, paymentTopics, validate_and_send_d_exports as producer, resolveBrokersFromEnv, index_d_exports as schemas, topics, userTopics, index_d_exports$1 as validation };

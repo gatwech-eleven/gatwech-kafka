@@ -54,3 +54,13 @@ export type WithMetadata = {
 };
 
 export type { ConsumerConfig, Consumer, Producer } from "kafkajs";
+
+export interface DLQOptions {
+  dlqEnabled?: boolean;
+  /** Number of total attempts (1 original + retries - 1). Default 3 */
+  maxRetries?: number;
+  /** Initial backoff in ms for exponential backoff. Default 500 */
+  retryBackoffMs?: number;
+  /** Suffix appended to original topic for DLQ topic name. Default ".dlq" */
+  dlqSuffix?: string;
+}

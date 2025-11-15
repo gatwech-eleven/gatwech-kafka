@@ -8,10 +8,10 @@
     "moduleDetection": "force",
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
+    "outDir": "./dist",
     "strict": true,
-    "module": "preserve",
     "noEmit": true,
-    "declaration": true,
+    "module": "preserve",
     "types": ["node", "vitest"],
     "lib": ["es2022", "dom", "dom.iterable"],
     "baseUrl": ".",
@@ -20,16 +20,11 @@
     }
   },
   "include": [
-    "./src/**/*",
-    "src/types.ts",
-    "index.d.ts",
-    "./e2e/**/*",
+    "src",
+    "e2e",
+    "__tests__",
     "tsdown.config.ts",
-    "vitest.config.ts",
-    "./__tests__/**/*"
+    "vitest.config.ts"
   ],
-  "ts-node": {
-    "files": true
-  },
   "exclude": ["node_modules", "dist"]
 }

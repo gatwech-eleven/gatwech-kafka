@@ -1,2 +1,2 @@
-import { a as KafkaClientOptions, c as TKafkaMessage, i as JsonSerializer, l as WithMetadata, n as ConsumerConfig, o as KafkaMetrics, r as ISerializer, s as Producer, t as Consumer } from "../index-C7NjCkE7.mjs";
-export { Consumer, ConsumerConfig, ISerializer, JsonSerializer, KafkaClientOptions, KafkaMetrics, Producer, TKafkaMessage, WithMetadata };
+import { a as JsonSerializer, c as Producer, i as ISerializer, l as TKafkaMessage, n as ConsumerConfig, o as KafkaClientOptions, r as DLQOptions, s as KafkaMetrics, t as Consumer, u as WithMetadata } from "../index-DMVsbRDw.mjs";
+export { Consumer, ConsumerConfig, DLQOptions, ISerializer, JsonSerializer, KafkaClientOptions, KafkaMetrics, Producer, TKafkaMessage, WithMetadata };
