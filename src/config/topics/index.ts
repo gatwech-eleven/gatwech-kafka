@@ -1,4 +1,4 @@
-import type { z } from "@payvo/utils/zod";
+import type { z } from "@gatwech/utils/zod";
 import { userTopics } from "./user-topics";
 import { paymentTopics } from "./payment-topics";
 import { notificationTopics } from "./notification-topics";

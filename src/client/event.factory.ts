@@ -1,4 +1,4 @@
-import { z } from "@payvo/utils";
+import { z } from "@gatwech/utils";
 import type { Producer } from "kafkajs";
 import { logger } from "../utils/logger";
 import { BaseProducer } from "../client/base";
@@ -17,7 +17,7 @@ interface TReadyToPublishMessage<T>
 }
 
 class GenericKafkaProducer<
-  TSchema extends z.ZodObject<any, any>,
+  TSchema extends z.ZodObject<any, any>
 > extends BaseProducer<z.infer<TSchema>> {
   protected readonly topic: string;
   private readonly keyDeriver: KeyDeriver<z.infer<TSchema>>;
@@ -114,12 +114,18 @@ export function createEventPublisher<TSchema extends z.ZodObject<any, any>>(
   return async (payload: z.input<TSchema>): Promise<void> => {
     const validated = schema.parse(payload);
 
+    const rawMeta = (validated as z.infer<TSchema>)?.metadata;
+    const safeMeta =
+      rawMeta && typeof rawMeta === "object" && !Array.isArray(rawMeta)
+        ? (rawMeta as Record<string, unknown>)
+        : ({} as Record<string, unknown>);
+
     const event: z.infer<TSchema> = {
       ...validated,
       metadata: {
         source,
         correlationId: generateCorrelationId("evt"),
-        ...(validated.metadata ?? {}),
+        ...safeMeta,
       },
     };
 

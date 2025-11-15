@@ -1,7 +1,7 @@
 import { nanoid } from "nanoid";
 import { KafkaClient } from "../src/client/kafka-client";
 import { createEventPublisher } from "../src/client/event.factory";
-import { z } from "@payvo/utils/zod";
+import { z } from "@gatwech/utils/zod";
 import assert from "node:assert";
 import crypto from "node:crypto";
 import clientProm from "prom-client";

@@ -1,80 +1,192 @@
-import { KafkaClient } from './client/index.cjs';
-export { BaseProducer, ConnectRetryOptions, KafkaError, connectWithRetry, createEventPublisher } from './client/index.cjs';
-export { TopicConfig, TopicGroups, TopicNames, chatTopics, notificationTopics, orderTopics, paymentTopics, topics, userTopics } from './config/topics/index.cjs';
-export { TopicMap, ensureTopicsWithConfig } from './config/ensure-topics.cjs';
-import { TKafkaMessage } from './types/index.cjs';
-export { ISerializer, JsonSerializer, KafkaClientOptions, KafkaMetrics, WithMetadata } from './types/index.cjs';
-import { z } from '@payvo/utils';
-import { z as z$1 } from '@payvo/utils/zod';
-export { Consumer, ConsumerConfig, Producer } from 'kafkajs';
-import './topic-config-schema-CWgKTEuX.cjs';
+import { a as KafkaClientOptions, c as TKafkaMessage, i as JsonSerializer, l as WithMetadata, n as ConsumerConfig, o as KafkaMetrics, r as ISerializer, t as Consumer } from "./index-yRuFPNLk.cjs";
+import { a as KafkaError, i as KafkaClient, n as connectWithRetry, o as BaseProducer, r as createEventPublisher, t as ConnectRetryOptions } from "./index-BLude3KN.cjs";
+import "./topic-config-schema-Byptn_Fn.cjs";
+import { n as ensureTopicsWithConfig, t as TopicMap } from "./ensure-topics-zoW4URwW.cjs";
+import { a as notificationTopics, c as userTopics, i as topics, l as chatTopics, n as TopicGroups, o as orderTopics, r as TopicNames, s as paymentTopics, t as TopicConfig } from "./index-BPvyXETC.cjs";
+import { Producer } from "kafkajs";
+import { z } from "@gatwech/utils";
+import { z as z$1 } from "@gatwech/utils/zod";
 
+//#region rolldown:runtime
+declare namespace index_d_exports$1 {
+  export { ValidationResult, _default$3 as default, validateMessage };
+}
 type ValidationResult<T> = {
-    success: true;
-    data: T;
+  success: true;
+  data: T;
 } | {
-    success: false;
-    error: ReturnType<typeof z.treeifyError>;
+  success: false;
+  error: ReturnType<typeof z.treeifyError>;
 };
 declare function validateMessage<T>(schema: z.ZodType<T>, value: unknown, context?: Record<string, unknown>): ValidationResult<T>;
 declare const _default$3: {
-    validateMessage: typeof validateMessage;
+  validateMessage: typeof validateMessage;
 };
-
-type index$1_ValidationResult<T> = ValidationResult<T>;
-declare const index$1_validateMessage: typeof validateMessage;
-declare namespace index$1 {
-  export { type index$1_ValidationResult as ValidationResult, _default$3 as default, index$1_validateMessage as validateMessage };
+declare namespace validate_and_send_d_exports {
+  export { _default$2 as default, validateAndSend, validateAndSendMany };
 }
-
 /** Validate and send a single message using KafkaClient. Throws on invalid payload. */
 declare function validateAndSend<T>(client: KafkaClient, topic: string, schema: z.ZodType<T>, message: TKafkaMessage<T>): Promise<void>;
 /** Validate and send multiple messages. Any invalid message will abort sending. */
 declare function validateAndSendMany<T>(client: KafkaClient, topic: string, schema: z.ZodType<T>, messages: TKafkaMessage<T>[]): Promise<void>;
 declare const _default$2: {
-    validateAndSend: typeof validateAndSend;
-    validateAndSendMany: typeof validateAndSendMany;
+  validateAndSend: typeof validateAndSend;
+  validateAndSendMany: typeof validateAndSendMany;
 };
-
-declare const validateAndSend$1_validateAndSend: typeof validateAndSend;
-declare const validateAndSend$1_validateAndSendMany: typeof validateAndSendMany;
-declare namespace validateAndSend$1 {
-  export { _default$2 as default, validateAndSend$1_validateAndSend as validateAndSend, validateAndSend$1_validateAndSendMany as validateAndSendMany };
-}
-
-declare const UserRegisteredSchema: any;
-declare const ResetPasswordRequestEmailSchema: any;
-declare const ResetPasswordRequestPhoneSchema: any;
-declare const ResetPasswordRequestUnionSchema: any;
+//#endregion
+//#region src/schemas/user-schemas.d.ts
+declare const UserRegisteredSchema: z$1.ZodObject<{
+  id: z$1.ZodString;
+  email: z$1.ZodEmail;
+  name: z$1.ZodOptional<z$1.ZodString>;
+  otp: z$1.ZodOptional<z$1.ZodString>;
+  timestamp: z$1.ZodDefault<z$1.ZodDate>;
+  metadata: z$1.ZodOptional<z$1.ZodObject<{
+    correlationId: z$1.ZodOptional<z$1.ZodString>;
+    source: z$1.ZodOptional<z$1.ZodString>;
+  }, z$1.core.$strip>>;
+}, z$1.core.$strip>;
+declare const ResetPasswordRequestEmailSchema: z$1.ZodObject<{
+  userId: z$1.ZodOptional<z$1.ZodUUID>;
+  identifier: z$1.ZodLiteral<"email">;
+  email: z$1.ZodEmail;
+  token: z$1.ZodString;
+  timestamp: z$1.ZodDefault<z$1.ZodDate>;
+  metadata: z$1.ZodOptional<z$1.ZodObject<{
+    correlationId: z$1.ZodOptional<z$1.ZodString>;
+    source: z$1.ZodOptional<z$1.ZodString>;
+  }, z$1.core.$strip>>;
+}, z$1.core.$strip>;
+declare const ResetPasswordRequestPhoneSchema: z$1.ZodObject<{
+  userId: z$1.ZodOptional<z$1.ZodUUID>;
+  identifier: z$1.ZodLiteral<"phone">;
+  phoneNumber: z$1.ZodString;
+  otp: z$1.ZodOptional<z$1.ZodString>;
+  token: z$1.ZodOptional<z$1.ZodString>;
+  timestamp: z$1.ZodDefault<z$1.ZodDate>;
+  metadata: z$1.ZodOptional<z$1.ZodObject<{
+    correlationId: z$1.ZodOptional<z$1.ZodString>;
+    source: z$1.ZodOptional<z$1.ZodString>;
+  }, z$1.core.$strip>>;
+}, z$1.core.$strip>;
+declare const ResetPasswordRequestUnionSchema: z$1.ZodUnion<readonly [z$1.ZodObject<{
+  userId: z$1.ZodOptional<z$1.ZodUUID>;
+  identifier: z$1.ZodLiteral<"email">;
+  email: z$1.ZodEmail;
+  token: z$1.ZodString;
+  timestamp: z$1.ZodDefault<z$1.ZodDate>;
+  metadata: z$1.ZodOptional<z$1.ZodObject<{
+    correlationId: z$1.ZodOptional<z$1.ZodString>;
+    source: z$1.ZodOptional<z$1.ZodString>;
+  }, z$1.core.$strip>>;
+}, z$1.core.$strip>, z$1.ZodObject<{
+  userId: z$1.ZodOptional<z$1.ZodUUID>;
+  identifier: z$1.ZodLiteral<"phone">;
+  phoneNumber: z$1.ZodString;
+  otp: z$1.ZodOptional<z$1.ZodString>;
+  token: z$1.ZodOptional<z$1.ZodString>;
+  timestamp: z$1.ZodDefault<z$1.ZodDate>;
+  metadata: z$1.ZodOptional<z$1.ZodObject<{
+    correlationId: z$1.ZodOptional<z$1.ZodString>;
+    source: z$1.ZodOptional<z$1.ZodString>;
+  }, z$1.core.$strip>>;
+}, z$1.core.$strip>]>;
 type TUserRegistered = z$1.infer<typeof UserRegisteredSchema>;
 type TResetPasswordRequest = z$1.infer<typeof ResetPasswordRequestUnionSchema>;
-declare const _default$1: {
-    UserRegisteredSchema: any;
-    ResetPasswordRequestEmailSchema: any;
-    ResetPasswordRequestPhoneSchema: any;
-    ResetPasswordRequestUnionSchema: any;
-};
-
-declare const NotificationEmailSentSchema: any;
-type TNotificationEmailSent = z$1.infer<typeof NotificationEmailSentSchema>;
 declare const _default: {
-    NotificationEmailSentSchema: any;
+  UserRegisteredSchema: z$1.ZodObject<{
+    id: z$1.ZodString;
+    email: z$1.ZodEmail;
+    name: z$1.ZodOptional<z$1.ZodString>;
+    otp: z$1.ZodOptional<z$1.ZodString>;
+    timestamp: z$1.ZodDefault<z$1.ZodDate>;
+    metadata: z$1.ZodOptional<z$1.ZodObject<{
+      correlationId: z$1.ZodOptional<z$1.ZodString>;
+      source: z$1.ZodOptional<z$1.ZodString>;
+    }, z$1.core.$strip>>;
+  }, z$1.core.$strip>;
+  ResetPasswordRequestEmailSchema: z$1.ZodObject<{
+    userId: z$1.ZodOptional<z$1.ZodUUID>;
+    identifier: z$1.ZodLiteral<"email">;
+    email: z$1.ZodEmail;
+    token: z$1.ZodString;
+    timestamp: z$1.ZodDefault<z$1.ZodDate>;
+    metadata: z$1.ZodOptional<z$1.ZodObject<{
+      correlationId: z$1.ZodOptional<z$1.ZodString>;
+      source: z$1.ZodOptional<z$1.ZodString>;
+    }, z$1.core.$strip>>;
+  }, z$1.core.$strip>;
+  ResetPasswordRequestPhoneSchema: z$1.ZodObject<{
+    userId: z$1.ZodOptional<z$1.ZodUUID>;
+    identifier: z$1.ZodLiteral<"phone">;
+    phoneNumber: z$1.ZodString;
+    otp: z$1.ZodOptional<z$1.ZodString>;
+    token: z$1.ZodOptional<z$1.ZodString>;
+    timestamp: z$1.ZodDefault<z$1.ZodDate>;
+    metadata: z$1.ZodOptional<z$1.ZodObject<{
+      correlationId: z$1.ZodOptional<z$1.ZodString>;
+      source: z$1.ZodOptional<z$1.ZodString>;
+    }, z$1.core.$strip>>;
+  }, z$1.core.$strip>;
+  ResetPasswordRequestUnionSchema: z$1.ZodUnion<readonly [z$1.ZodObject<{
+    userId: z$1.ZodOptional<z$1.ZodUUID>;
+    identifier: z$1.ZodLiteral<"email">;
+    email: z$1.ZodEmail;
+    token: z$1.ZodString;
+    timestamp: z$1.ZodDefault<z$1.ZodDate>;
+    metadata: z$1.ZodOptional<z$1.ZodObject<{
+      correlationId: z$1.ZodOptional<z$1.ZodString>;
+      source: z$1.ZodOptional<z$1.ZodString>;
+    }, z$1.core.$strip>>;
+  }, z$1.core.$strip>, z$1.ZodObject<{
+    userId: z$1.ZodOptional<z$1.ZodUUID>;
+    identifier: z$1.ZodLiteral<"phone">;
+    phoneNumber: z$1.ZodString;
+    otp: z$1.ZodOptional<z$1.ZodString>;
+    token: z$1.ZodOptional<z$1.ZodString>;
+    timestamp: z$1.ZodDefault<z$1.ZodDate>;
+    metadata: z$1.ZodOptional<z$1.ZodObject<{
+      correlationId: z$1.ZodOptional<z$1.ZodString>;
+      source: z$1.ZodOptional<z$1.ZodString>;
+    }, z$1.core.$strip>>;
+  }, z$1.core.$strip>]>;
 };
-
-declare const index_NotificationEmailSentSchema: typeof NotificationEmailSentSchema;
-declare const index_ResetPasswordRequestEmailSchema: typeof ResetPasswordRequestEmailSchema;
-declare const index_ResetPasswordRequestPhoneSchema: typeof ResetPasswordRequestPhoneSchema;
-declare const index_ResetPasswordRequestUnionSchema: typeof ResetPasswordRequestUnionSchema;
-type index_TNotificationEmailSent = TNotificationEmailSent;
-type index_TResetPasswordRequest = TResetPasswordRequest;
-type index_TUserRegistered = TUserRegistered;
-declare const index_UserRegisteredSchema: typeof UserRegisteredSchema;
-declare namespace index {
-  export { index_NotificationEmailSentSchema as NotificationEmailSentSchema, index_ResetPasswordRequestEmailSchema as ResetPasswordRequestEmailSchema, index_ResetPasswordRequestPhoneSchema as ResetPasswordRequestPhoneSchema, index_ResetPasswordRequestUnionSchema as ResetPasswordRequestUnionSchema, type index_TNotificationEmailSent as TNotificationEmailSent, type index_TResetPasswordRequest as TResetPasswordRequest, type index_TUserRegistered as TUserRegistered, index_UserRegisteredSchema as UserRegisteredSchema, _default as notificationSchemas, _default$1 as userSchemas };
+//#endregion
+//#region src/schemas/notification-schemas.d.ts
+declare const NotificationEmailSentSchema: z$1.ZodObject<{
+  to: z$1.ZodString;
+  subject: z$1.ZodString;
+  body: z$1.ZodString;
+  timestamp: z$1.ZodDefault<z$1.ZodDate>;
+  metadata: z$1.ZodOptional<z$1.ZodObject<{
+    correlationId: z$1.ZodOptional<z$1.ZodString>;
+    source: z$1.ZodOptional<z$1.ZodString>;
+  }, z$1.core.$strip>>;
+}, z$1.core.$strip>;
+type TNotificationEmailSent = z$1.infer<typeof NotificationEmailSentSchema>;
+declare const _default$1: {
+  NotificationEmailSentSchema: z$1.ZodObject<{
+    to: z$1.ZodString;
+    subject: z$1.ZodString;
+    body: z$1.ZodString;
+    timestamp: z$1.ZodDefault<z$1.ZodDate>;
+    metadata: z$1.ZodOptional<z$1.ZodObject<{
+      correlationId: z$1.ZodOptional<z$1.ZodString>;
+      source: z$1.ZodOptional<z$1.ZodString>;
+    }, z$1.core.$strip>>;
+  }, z$1.core.$strip>;
+};
+declare namespace index_d_exports {
+  export { NotificationEmailSentSchema, ResetPasswordRequestEmailSchema, ResetPasswordRequestPhoneSchema, ResetPasswordRequestUnionSchema, TNotificationEmailSent, TResetPasswordRequest, TUserRegistered, UserRegisteredSchema, _default$1 as notificationSchemas, _default as userSchemas };
 }
-
+//#endregion
+//#region src/utils/brokers.d.ts
 declare function resolveBrokersFromEnv(): string[];
-
-declare const BaseProducerSchema: any;
-
-export { BaseProducerSchema, KafkaClient, TKafkaMessage, validateAndSend$1 as producer, resolveBrokersFromEnv, index as schemas, index$1 as validation };
+//#endregion
+//#region src/schemas/base.schema.d.ts
+declare const BaseProducerSchema: z$1.ZodObject<{
+  timestamp: z$1.ZodDefault<z$1.ZodOptional<z$1.ZodDate>>;
+  metadata: z$1.ZodOptional<z$1.ZodAny>;
+}, z$1.core.$strip>;
+//#endregion
+export { BaseProducer, BaseProducerSchema, ConnectRetryOptions, Consumer, ConsumerConfig, ISerializer, JsonSerializer, KafkaClient, KafkaClientOptions, KafkaError, KafkaMetrics, type Producer, TKafkaMessage, TopicConfig, TopicGroups, TopicMap, TopicNames, WithMetadata, chatTopics, connectWithRetry, createEventPublisher, ensureTopicsWithConfig, notificationTopics, orderTopics, paymentTopics, validate_and_send_d_exports as producer, resolveBrokersFromEnv, index_d_exports as schemas, topics, userTopics, index_d_exports$1 as validation };

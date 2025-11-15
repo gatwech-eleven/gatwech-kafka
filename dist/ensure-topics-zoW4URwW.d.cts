@@ -1,17 +1,18 @@
-import { Admin } from 'kafkajs';
-import { T as TopicConfig } from '../topic-config-schema-CWgKTEuX.js';
-import '@payvo/utils/zod';
+import { t as TopicConfig } from "./topic-config-schema-Byptn_Fn.cjs";
+import { Admin } from "kafkajs";
+
+//#region src/config/ensure-topics.d.ts
 
 /**
  * Options for topic provisioning defaults.
  */
 type EnsureOpts = {
-    /** Default number of partitions for new topics (overridden by per-topic config if provided). */
-    partitions?: number;
-    /** Default replication factor for new topics (overridden by per-topic config if provided). */
-    replicationFactor?: number;
-    /** Max time to wait for leaders after create/partition increase, in milliseconds. */
-    waitForLeadersMs?: number;
+  /** Default number of partitions for new topics (overridden by per-topic config if provided). */
+  partitions?: number;
+  /** Default replication factor for new topics (overridden by per-topic config if provided). */
+  replicationFactor?: number;
+  /** Max time to wait for leaders after create/partition increase, in milliseconds. */
+  waitForLeadersMs?: number;
 };
 /**
  * Convert the exported `TOPICS` map to normalized topic definitions.
@@ -19,8 +20,8 @@ type EnsureOpts = {
  * @returns Array of normalized {@link TopicDef}.
  */
 type TopicMap = Record<string, {
-    name: string;
-    config: TopicConfig;
+  name: string;
+  config: TopicConfig;
 }>;
 /**
  * Ensure all topics declared in `TOPICS` exist with the desired partition counts and configs.
@@ -54,5 +55,5 @@ type TopicMap = Record<string, {
  * @throws Propagates unexpected admin errors (topic creation races are handled gracefully).
  */
 declare function ensureTopicsWithConfig(admin: Admin, opts?: EnsureOpts, manageConnection?: boolean): Promise<void>;
-
-export { type TopicMap, ensureTopicsWithConfig };
+//#endregion
+export { ensureTopicsWithConfig as n, TopicMap as t };

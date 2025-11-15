@@ -1,4 +1,4 @@
-import { z } from "@payvo/utils";
+import { z } from "@gatwech/utils";
 import type { TKafkaMessage } from "../types";
 import { logger } from "../utils/logger";
 import { KafkaClient, KafkaError } from "../client/kafka-client";
