@@ -73,7 +73,7 @@ jobs:
       - name: Run E2E Kafka Test
         run: |
           echo "Starting Kafka E2E test"
-          node --loader ts-node/esm scripts/e2e-kafka.ts
+          node --loader ts-node/esm e2e/run-e2e.ts
 
       - name: Upload logs on failure
         if: failure()
