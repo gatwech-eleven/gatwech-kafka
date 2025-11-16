@@ -14,6 +14,18 @@ type EnsureOpts = {
   replicationFactor?: number;
   /** Max time to wait for leaders after create/partition increase, in milliseconds. */
   waitForLeadersMs?: number;
+  /**
+   * Additional topics to ensure beyond the built-in TOPICS map.
+   * Useful for tests/E2E that need ephemeral topics.
+   */
+  additionalTopics?:
+    | TopicMap
+    | Array<{
+        name: string;
+        config: TopicConfig;
+      }>;
+  /** If false, only ensure additionalTopics (skip built-in TOPICS). Default: true */
+  includeBuiltIn?: boolean;
 };
 
 /**
@@ -204,14 +216,28 @@ export async function ensureTopicsWithConfig(
   const waitForLeadersMs = opts.waitForLeadersMs ?? 15_000;
 
   // Flatten nested topics map to a flat TopicMap
-  const flatTopics: TopicMap = Object.fromEntries(
-    Object.values(topics).flatMap((group: any) =>
-      Object.values(group).map((t: any) => [
-        t.name,
-        { name: t.name, config: t },
-      ])
-    )
-  );
+  const flatTopics: TopicMap = opts.includeBuiltIn === false
+    ? {}
+    : Object.fromEntries(
+        Object.values(topics).flatMap((group: any) =>
+          Object.values(group).map((t: any) => [
+            t.name,
+            { name: t.name, config: t },
+          ])
+        )
+      );
+  // Merge in any caller-provided additional topics
+  if (opts.additionalTopics) {
+    if (Array.isArray(opts.additionalTopics)) {
+      for (const t of opts.additionalTopics) {
+        flatTopics[t.name] = { name: t.name, config: t.config };
+      }
+    } else {
+      for (const [k, v] of Object.entries(opts.additionalTopics)) {
+        flatTopics[k] = v as any;
+      }
+    }
+  }
   const defs = asTopicDefs(flatTopics);
   validateTopics(defs);
 
