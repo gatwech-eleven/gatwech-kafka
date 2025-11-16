@@ -5,7 +5,6 @@ import { connectWithRetry } from "../src/client/connect-with-retry";
 import { ResetPasswordRequestEmailSchema } from "../src/schemas/user-schemas";
 import { logger } from "../src/utils/logger";
 import * as helpers from "../src/utils/helpers";
-import { vi } from "vitest";
 
 describe("usage snapshots", () => {
   afterEach(() => {
@@ -41,6 +40,8 @@ describe("usage snapshots", () => {
 
   it("consumeWithRetryAndDLQ publishes DLQ message after retries (snapshot)", async () => {
     const sendMessage = vi.fn().mockResolvedValue(undefined);
+    // use real timers for this test because the code awaits setTimeout-based backoffs
+    vi.useRealTimers();
     vi.setSystemTime(new Date("2025-01-01T00:00:00.000Z"));
 
     // fake client with createConsumer and sendMessage
@@ -85,10 +86,14 @@ describe("usage snapshots", () => {
       } as any
     );
 
-    // ensure DLQ publish attempted
-    expect(sendMessage).toHaveBeenCalled();
-    // snapshot the DLQ call args (topic, message)
-    expect(sendMessage.mock.calls[0]).toMatchSnapshot();
+    try {
+      // ensure DLQ publish attempted
+      expect(sendMessage).toHaveBeenCalled();
+      // snapshot the DLQ call args (topic, message)
+      expect(sendMessage.mock.calls[0]).toMatchSnapshot();
+    } finally {
+      vi.useFakeTimers();
+    }
 
     // cleanup: if consumer exposes disconnect, call it
     if (consumer && typeof consumer.disconnect === "function") {
@@ -113,11 +118,17 @@ describe("usage snapshots", () => {
       .spyOn(logger, "info")
       .mockImplementation(() => undefined as any);
 
-    await connectWithRetry(flaky, {
-      maxAttempts: 5,
-      initialDelayMs: 0,
-      factor: 1,
-    });
+    // use real timers to allow the retry timeouts to run
+    vi.useRealTimers();
+    try {
+      await connectWithRetry(flaky, {
+        maxAttempts: 5,
+        initialDelayMs: 0,
+        factor: 1,
+      });
+    } finally {
+      vi.useFakeTimers();
+    }
 
     // capture logger calls of interest
     const warnCalls = warnSpy.mock.calls.map((c) => c.slice(0, 2));

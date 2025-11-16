@@ -32,80 +32,91 @@ describe("consumer DLQ wrapper", () => {
     warnSpy.mockRestore();
   });
   it("publishes to DLQ after retries exhausted", async () => {
-    const fakeConsumer = {
-      subscribe: vi.fn().mockResolvedValue(undefined),
-      run: vi.fn().mockImplementation(async (opts: any) => {
-        // Invoke eachMessage once to simulate a single message
-        await opts.eachMessage(
-          makePayload({ identifier: "email", token: "missing" })
-        );
-      }),
-    } as any;
+    // use real timers because this test relies on awaited backoffs
+    vi.useRealTimers();
+    try {
+      const fakeConsumer = {
+        subscribe: vi.fn().mockResolvedValue(undefined),
+        run: vi.fn().mockImplementation(async (opts: any) => {
+          // Invoke eachMessage once to simulate a single message
+          await opts.eachMessage(
+            makePayload({ identifier: "email", token: "missing" })
+          );
+        }),
+      } as any;
 
-    const sendMessage = vi.fn().mockResolvedValue(undefined);
-    const client = {
-      createConsumer: vi.fn().mockResolvedValue(fakeConsumer),
-      sendMessage,
-    } as any;
+      const sendMessage = vi.fn().mockResolvedValue(undefined);
+      const client = {
+        createConsumer: vi.fn().mockResolvedValue(fakeConsumer),
+        sendMessage,
+      } as any;
 
-    const topic = TopicConfigSchema.parse({
-      name: "topic.test",
-      schema: ResetPasswordRequestEmailSchema,
-    });
+      const topic = TopicConfigSchema.parse({
+        name: "topic.test",
+        schema: ResetPasswordRequestEmailSchema,
+      });
 
-    const handler = vi.fn().mockRejectedValue(new Error("fail"));
+      const handler = vi.fn().mockRejectedValue(new Error("fail"));
 
-    await consumeWithRetryAndDLQ(client, "group-1", topic, handler, {
-      maxRetries: 2,
-      retryBackoffMs: 1,
-    });
-
-    // handler should be attempted and then DLQ publish happens
-    expect(sendMessage).toHaveBeenCalledTimes(1);
-    const [dlqTopic, dlqMsg] = sendMessage.mock.calls[0];
-    expect(dlqTopic).toBe("topic.test.dlq");
-    expect(dlqMsg.value.originalTopic).toBe("topic.test");
-    expect(dlqMsg.value.originalOffset).toBe("1");
+      await consumeWithRetryAndDLQ(client, "group-1", topic, handler, {
+        maxRetries: 2,
+        retryBackoffMs: 1,
+      });
+        // handler should be attempted and then DLQ publish happens
+        expect(sendMessage).toHaveBeenCalledTimes(1);
+        const [dlqTopic, dlqMsg] = sendMessage.mock.calls[0];
+        expect(dlqTopic).toBe("topic.test.dlq");
+        expect(dlqMsg.value.originalTopic).toBe("topic.test");
+        expect(dlqMsg.value.originalOffset).toBe("1");
+      } finally {
+        vi.useFakeTimers();
+      }
   });
 
   it("does not DLQ if succeeds before max retries", async () => {
-    const fakeConsumer = {
-      subscribe: vi.fn().mockResolvedValue(undefined),
-      run: vi.fn().mockImplementation(async (opts: any) => {
-        await opts.eachMessage(
-          makePayload({
-            identifier: "email",
-            email: "ok@example.com",
-            token: "t",
-          })
-        );
-      }),
-    } as any;
+    // use real timers because this test relies on awaited backoffs
+    vi.useRealTimers();
+    try {
+      const fakeConsumer = {
+        subscribe: vi.fn().mockResolvedValue(undefined),
+        run: vi.fn().mockImplementation(async (opts: any) => {
+          await opts.eachMessage(
+            makePayload({
+              identifier: "email",
+              email: "ok@example.com",
+              token: "t",
+            })
+          );
+        }),
+      } as any;
 
-    const sendMessage = vi.fn().mockResolvedValue(undefined);
-    const client = {
-      createConsumer: vi.fn().mockResolvedValue(fakeConsumer),
-      sendMessage,
-    } as any;
+      const sendMessage = vi.fn().mockResolvedValue(undefined);
+      const client = {
+        createConsumer: vi.fn().mockResolvedValue(fakeConsumer),
+        sendMessage,
+      } as any;
 
-    const topic = TopicConfigSchema.parse({
-      name: "topic.test",
-      schema: ResetPasswordRequestEmailSchema,
-    });
+      const topic = TopicConfigSchema.parse({
+        name: "topic.test",
+        schema: ResetPasswordRequestEmailSchema,
+      });
 
-    let attempts = 0;
-    const handler = vi.fn().mockImplementation(async () => {
-      attempts++;
-      if (attempts < 2) throw new Error("transient");
-      return;
-    });
+      let attempts = 0;
+      const handler = vi.fn().mockImplementation(async () => {
+        attempts++;
+        if (attempts < 2) throw new Error("transient");
+        return;
+      });
 
-    await consumeWithRetryAndDLQ(client, "group-1", topic, handler, {
-      maxRetries: 3,
-      retryBackoffMs: 1,
-    });
+      await consumeWithRetryAndDLQ(client, "group-1", topic, handler, {
+        maxRetries: 3,
+        retryBackoffMs: 1,
+      });
 
-    expect(handler).toHaveBeenCalledTimes(2);
-    expect(sendMessage).not.toHaveBeenCalled();
+      expect(handler).toHaveBeenCalledTimes(2);
+      expect(sendMessage).not.toHaveBeenCalled();
+    } finally {
+      vi.useFakeTimers();
+    }
   });
 });

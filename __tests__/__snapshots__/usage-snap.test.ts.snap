@@ -1,48 +1,85 @@
-exports[`usage snapshots event factory produces expected producer.send payload (snapshot) 1`] = `
-Object {
-  "topic": "users.reset-request",
-  "messages": Array [
-    Object {
-      "key": "ok@example.com",
-      "value": "{\"identifier\":\"email\",\"email\":\"ok@example.com\",\"token\":\"tok\",\"timestamp\":\"2025-01-01T00:00:00.000Z\",\"metadata\":{\"source\":\"test-source\",\"correlationId\":\"evt-fixed-id\"}}",
-      "headers": Object {
-        "event-type": "users.reset-request",
-        "event-version": "1.0",
-        "timestamp": "2025-01-01T00:00:00.000Z",
-        "correlation-id": "evt-fixed-id",
-        "source": "test-source",
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`usage snapshots > connectWithRetry retries until success (snapshot logger calls) 1`] = `
+{
+  "attempts": 3,
+  "infoCalls": [
+    [
+      "connectWithRetry: connection succeeded",
+      {
+        "attempt": 3,
       },
-    },
+    ],
+  ],
+  "warnCalls": [
+    [
+      "connectWithRetry: connect failed, retrying",
+      {
+        "attempt": 1,
+        "delay": 0,
+        "error": "fail-1",
+        "retriable": false,
+      },
+    ],
+    [
+      "connectWithRetry: connect failed, retrying",
+      {
+        "attempt": 2,
+        "delay": 0,
+        "error": "fail-2",
+        "retriable": false,
+      },
+    ],
   ],
 }
 `;
 
-exports[`usage snapshots consumeWithRetryAndDLQ publishes DLQ message after retries (snapshot) 1`] = `
-Array [
+exports[`usage snapshots > consumeWithRetryAndDLQ publishes DLQ message after retries (snapshot) 1`] = `
+[
   "test-topic.dlq",
-  Object {
-    "key": "key-1",
-    "value": Object {
-      "originalTopic": "test-topic",
-      "originalPartition": 0,
-      "originalOffset": "42",
-      "consumerGroup": "grp-1",
-      "errorMessage": "Message processing failed after retries",
-      "stackTrace": undefined,
-      "originalKey": "key-1",
-      "originalHeaders": Object {},
-      "originalValue": Object {
-        "foo": "bar",
-      },
-      "timestamp": "2025-01-01T00:00:00.000Z",
-    },
-    "headers": Object {
-      "x-original-topic": "test-topic",
+  {
+    "headers": {
       "x-original-offset": "42",
       "x-original-partition": "0",
+      "x-original-topic": "test-topic",
+    },
+    "key": "key-1",
+    "value": {
+      "consumerGroup": "grp-1",
+      "errorMessage": "Message processing failed after retries",
+      "originalHeaders": {},
+      "originalKey": "key-1",
+      "originalOffset": "42",
+      "originalPartition": 0,
+      "originalTopic": "test-topic",
+      "originalValue": {
+        "foo": "bar",
+      },
+      "stackTrace": undefined,
+      "timestamp": 2025-01-01T00:00:00.000Z,
     },
   },
 ]
+`;
+
+exports[`usage snapshots > event factory produces expected producer.send payload (snapshot) 1`] = `
+{
+  "messages": [
+    {
+      "headers": {
+        "correlation-id": "evt-fixed-id",
+        "event-type": "users.reset-request",
+        "event-version": "1.0",
+        "source": "test-source",
+        "timestamp": "2025-01-01T00:00:00.000Z",
+      },
+      "key": "ok@example.com",
+      "timestamp": undefined,
+      "value": "{"identifier":"email","email":"ok@example.com","token":"tok","timestamp":"2025-01-01T00:00:00.000Z","metadata":{"source":"test-source","correlationId":"evt-fixed-id"}}",
+    },
+  ],
+  "topic": "users.reset-request",
+}
 `;
 
 exports[`usage snapshots connectWithRetry retries until success (snapshot logger calls) 1`] = `
@@ -75,6 +112,53 @@ Object {
         "attempt": 3,
       },
     ],
+  ],
+}
+`;
+
+exports[`usage snapshots consumeWithRetryAndDLQ publishes DLQ message after retries (snapshot) 1`] = `
+Array [
+  "test-topic.dlq",
+  Object {
+    "key": "key-1",
+    "value": Object {
+      "originalTopic": "test-topic",
+      "originalPartition": 0,
+      "originalOffset": "42",
+      "consumerGroup": "grp-1",
+      "errorMessage": "Message processing failed after retries",
+      "stackTrace": undefined,
+      "originalKey": "key-1",
+      "originalHeaders": Object {},
+      "originalValue": Object {
+        "foo": "bar",
+      },
+      "timestamp": "2025-01-01T00:00:00.000Z",
+    },
+    "headers": Object {
+      "x-original-topic": "test-topic",
+      "x-original-offset": "42",
+      "x-original-partition": "0",
+    },
+  },
+]
+`;
+
+exports[`usage snapshots event factory produces expected producer.send payload (snapshot) 1`] = `
+Object {
+  "topic": "users.reset-request",
+  "messages": Array [
+    Object {
+      "key": "ok@example.com",
+      "value": "{"identifier":"email","email":"ok@example.com","token":"tok","timestamp":"2025-01-01T00:00:00.000Z","metadata":{"source":"test-source","correlationId":"evt-fixed-id"}}",
+      "headers": Object {
+        "event-type": "users.reset-request",
+        "event-version": "1.0",
+        "timestamp": "2025-01-01T00:00:00.000Z",
+        "correlation-id": "evt-fixed-id",
+        "source": "test-source",
+      },
+    },
   ],
 }
 `;
