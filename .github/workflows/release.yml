@@ -33,6 +33,34 @@ jobs:
             node-version: 20.x
             registry-url: 'https://registry.npmjs.org'
 
+      - name: Debug package.json + registry
+        run: |
+          echo "Checked-out ref: $GITHUB_REF"
+          echo "package.json publishConfig:"
+          node -p "require('./package.json').publishConfig || 'none'"
+          echo "pnpm registry:"
+          pnpm config get registry || npm config get registry || true
+
+      - name: Configure npm auth for public npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          # Ensure default registry is public npm and scope is mapped (scoped package @gatwech)
+          echo "registry=https://registry.npmjs.org/" > ~/.npmrc
+          echo "@gatwech:registry=https://registry.npmjs.org/" >> ~/.npmrc
+          # Add token for registry (do NOT print the token)
+          echo "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" >> ~/.npmrc
+          echo "always-auth=true" >> ~/.npmrc
+          # Make pnpm use it explicitly
+          pnpm config set registry https://registry.npmjs.org
+          # Quick safe check that a token was provided
+          if [ -z "${NODE_AUTH_TOKEN}" ]; then
+            echo "ERROR: secrets.NPM_TOKEN is empty or not set"
+            exit 1
+          else
+            echo "NPM token present (not shown)"
+          fi
+
       - run: pnpm install
       
       - name: Build
@@ -61,6 +89,6 @@ jobs:
           echo "Using npm tag: $NPM_TAG"
 
       - name: Publish to npm
-        run: pnpm -r publish --access public --no-git-checks --tag ${{ steps.determine_npm_tag.outputs.npm_tag }}
+        run: pnpm -r publish --access public --no-git-checks --tag ${{ steps.determine_npm_tag.outputs.npm_tag }} --registry https://registry.npmjs.org
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
