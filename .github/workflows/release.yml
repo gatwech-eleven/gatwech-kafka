@@ -3,7 +3,16 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release (e.g. v1.2.3). If empty, the pushed tag will be used."
+        required: false
+      dry_run:
+        description: "If true, run a dry-run publish and do not actually publish."
+        required: false
+        default: "false"
 
 permissions:
   contents: write
@@ -12,55 +21,67 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20.x
+          node-version: 22.x
 
       - run: npx changelogithub
         env:
-          GITHUB_TOKEN: ${{secrets.GH_TOKEN}}
-          
+          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+
       - uses: pnpm/action-setup@v4
-        with:
-          version: 10.20.0
 
       - uses: actions/setup-node@v4
         with:
-            node-version: 20.x
-            registry-url: 'https://registry.npmjs.org'
+          node-version: 22.x
+          registry-url: "https://registry.npmjs.org"
 
       - run: pnpm install
-      
+
       - name: Build
         run: pnpm build
 
       - name: Determine npm tag
         id: determine_npm_tag
         shell: bash
+        env:
+          TAG_INPUT: "${{ github.event.inputs.tag || '' }}"
         run: |
-          TAG="${GITHUB_REF#refs/tags/}"
+          if [ -n "${TAG_INPUT}" ]; then
+            TAG="$TAG_INPUT"
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
           if [[ "$TAG" =~ -(next|canary|beta|rc) ]]; then
-            # Extract pre-release tag (e.g., beta, rc)
             NPM_TAG=${BASH_REMATCH[1]}
           else
-            # Check if the commit is on the main branch
             git fetch origin main
-            if git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            CURRENT_BRANCH=$(git branch -r --contains "$GITHUB_SHA" | grep -E 'origin/(main|v[0-9]+\.[0-9]+\.x-latest)' | head -1 | sed 's/.*origin\///')
+            if [[ "$CURRENT_BRANCH" == "main" ]]; then
+              NPM_TAG="latest"
+            elif [[ "$CURRENT_BRANCH" =~ ^v[0-9]+\.[0-9]+\.x-latest$ ]]; then
               NPM_TAG="latest"
             else
-              echo "The tagged commit is not on the main branch."
-              echo "::error ::Releases with the 'latest' npm tag must be on the main branch."
+              echo "The tagged commit is not on the main branch or a version branch (v*.*.x-latest)."
+              echo "::error ::Releases with the 'latest' npm tag must be on the main branch or a version branch."
               exit 1
             fi
           fi
           echo "npm_tag=$NPM_TAG" >> $GITHUB_OUTPUT
           echo "Using npm tag: $NPM_TAG"
 
+      - name: Optional dry-run publish
+        if: ${{ github.event.inputs.dry_run == 'true' }}
+        run: pnpm -r publish --access public --no-git-checks --tag ${{ steps.determine_npm_tag.outputs.npm_tag }} --dry-run
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
       - name: Publish to npm
+        if: ${{ github.event.inputs.dry_run != 'true' }}
         run: pnpm -r publish --access public --no-git-checks --tag ${{ steps.determine_npm_tag.outputs.npm_tag }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
