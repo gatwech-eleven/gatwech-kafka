@@ -4,7 +4,7 @@
   "description": "Payvo Node.js Kafka Client for Microservices Messaging",
   "type": "module",
   "main": "./dist/index.cjs",
-  "module": "./dist/index.js",
+  "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsdown",
@@ -47,29 +47,29 @@
     "vitest": "^4.0.9"
   },
   "exports": {
-    ".": {
+    "./": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
+      "import": "./dist/index.mjs",
       "require": "./dist/index.cjs"
     },
     "./topics": {
       "types": "./dist/config/topics/index.d.ts",
-      "import": "./dist/config/topics/index.js",
+      "import": "./dist/config/topics/index.mjs",
       "require": "./dist/config/topics/index.cjs"
     },
     "./client": {
       "types": "./dist/client/index.d.ts",
-      "import": "./dist/client/index.js",
+      "import": "./dist/client/index.mjs",
       "require": "./dist/client/index.cjs"
     },
     "./types": {
       "types": "./dist/types/index.d.ts",
-      "import": "./dist/types/index.js",
+      "import": "./dist/types/index.mjs",
       "require": "./dist/types/index.cjs"
     },
     "./ensure-topics": {
       "types": "./dist/config/ensure-topics.d.ts",
-      "import": "./dist/config/ensure-topics.js",
+      "import": "./dist/config/ensure-topics.mjs",
       "require": "./dist/config/ensure-topics.cjs"
     }
   },
