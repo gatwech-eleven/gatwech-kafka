@@ -1,10 +1,10 @@
 import { t as __export } from "./chunk-vZJVYSGk.mjs";
 import { t as logger } from "./logger-BCcyae9U.mjs";
 import { t as JsonSerializer } from "./types-BaLVca0q.mjs";
-import { a as KafkaClient, i as BaseProducer, n as connectWithRetry, o as KafkaError, r as createEventPublisher, t as consumeWithRetryAndDLQ } from "./client-C_nB6Nst.mjs";
-import { n as BaseProducerSchema } from "./dlq.schema-DdQ9wUZ4.mjs";
-import { a as orderTopics, c as schemas_exports, i as paymentTopics, n as notificationTopics, o as chatTopics, r as userTopics, s as TopicConfigSchema, t as topics } from "./topics-Bb390ehd.mjs";
-import { t as ensureTopicsWithConfig } from "./ensure-topics-BcAJqOsO.mjs";
+import { a as createEventPublisher, c as BaseProducer, i as connectWithRetry, l as KafkaClient, n as consumeWithRetryAndDLQ, o as createPublisher, r as createDLQPublisher, s as GenericKafkaProducer, t as createServicePublisherFactory, u as KafkaError } from "./client-BqimQ4zL.mjs";
+import { r as BaseProducerSchema } from "./dlq.schema-Du3UyPGZ.mjs";
+import { a as orderTopics, c as schemas_exports, i as paymentTopics, n as notificationTopics, o as chatTopics, r as userTopics, s as TopicConfigSchema, t as topics } from "./topics-2Tb-wREt.mjs";
+import { t as ensureTopicsWithConfig } from "./ensure-topics-ByMtgJ2A.mjs";
 import { z } from "@gatwech/utils";
 
 //#region src/validation/index.ts
@@ -43,16 +43,24 @@ async function validateAndSend(client, topic, message) {
 		logger.warn("No schema defined for topic; not validating message", { topic: topic.name });
 		return client.sendMessage(topic.name, message);
 	}
-	const res = topic.schema.safeParse(message.value);
-	if (!res.success) {
-		const tree = z.treeifyError(res.error);
+	const parsed = topic.schema.safeParse(message.value);
+	if (!parsed.success) {
+		const tree = z.treeifyError(parsed.error);
 		logger.warn("Producer validation failed; not sending message", {
 			topic: topic.name,
 			errors: tree
 		});
-		throw new KafkaError("Validation failed for message", res.error);
+		throw new KafkaError("Validation failed for message", parsed.error);
 	}
-	return client.sendMessage(topic.name, message);
+	const producer = client.getProducer();
+	let currentKey = message.key;
+	const generic = new GenericKafkaProducer(producer, topic.name, () => currentKey);
+	const payloadWithTimestamp = {
+		...parsed.data,
+		timestamp: parsed.data?.timestamp || Date.now(),
+		metadata: parsed.data?.metadata
+	};
+	await generic.send(payloadWithTimestamp);
 }
 /** Validate and send multiple messages. Any invalid message will abort sending. */
 async function validateAndSendMany(client, topic, messages) {
@@ -61,18 +69,46 @@ async function validateAndSendMany(client, topic, messages) {
 		return client.sendMessages(topic.name, messages);
 	}
 	const schema = topic.schema;
+	const producer = client.getProducer();
+	let currentKey = "";
+	const generic = new GenericKafkaProducer(producer, topic.name, () => currentKey);
 	for (const msg of messages) {
 		const res = schema.safeParse(msg.value);
+		logger.info("Batch validation result", {
+			key: msg.key,
+			success: res.success,
+			valueKeys: Object.keys(msg.value || {})
+		});
 		if (!res.success) {
-			const tree = z.treeifyError(res.error);
-			logger.warn("Producer batch validation failed; not sending batch", {
-				topic: topic.name,
-				errors: tree
-			});
+			logger.warn("Producer batch validation failed; not sending batch", { topic: topic.name });
+			let tree;
+			try {
+				tree = z.treeifyError(res.error);
+				logger.warn("Batch validation errors", {
+					topic: topic.name,
+					errors: tree
+				});
+			} catch (e) {
+				logger.warn("treeifyError failed", {
+					topic: topic.name,
+					error: e?.message
+				});
+			}
 			throw new KafkaError("Validation failed for batch message", res.error);
 		}
 	}
-	return client.sendMessages(topic.name, messages);
+	const batchItems = messages.map((msg) => {
+		const enriched = {
+			...msg.value,
+			timestamp: msg.value?.timestamp || Date.now(),
+			metadata: msg.value?.metadata
+		};
+		return {
+			key: msg.key,
+			payload: enriched
+		};
+	});
+	await generic.sendBatch(batchItems);
 }
 var validate_and_send_default = {
 	validateAndSend,
@@ -89,4 +125,4 @@ function resolveBrokersFromEnv() {
 }
 
 //#endregion
-export { BaseProducer, BaseProducerSchema, JsonSerializer, KafkaClient, KafkaError, TopicConfigSchema, chatTopics, connectWithRetry, consumeWithRetryAndDLQ, createEventPublisher, ensureTopicsWithConfig, notificationTopics, orderTopics, paymentTopics, validate_and_send_exports as producer, resolveBrokersFromEnv, schemas_exports as schemas, topics, userTopics, validation_exports as validation };
+export { BaseProducer, BaseProducerSchema, GenericKafkaProducer, JsonSerializer, KafkaClient, KafkaError, TopicConfigSchema, chatTopics, connectWithRetry, consumeWithRetryAndDLQ, createDLQPublisher, createEventPublisher, createPublisher, createServicePublisherFactory, ensureTopicsWithConfig, notificationTopics, orderTopics, paymentTopics, validate_and_send_exports as producer, resolveBrokersFromEnv, schemas_exports as schemas, topics, userTopics, validation_exports as validation };
