@@ -1,5 +1,5 @@
-import { createLogger, format, transports } from "winston";
 import type { Logger } from "winston";
+import { createLogger, format, transports } from "winston";
 
 const { combine, timestamp, printf, colorize } = format;
 
