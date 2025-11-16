@@ -1,5 +1,5 @@
 {
-  "name": "@payvo/kafka",
+  "name": "@gatwech/kafka",
   "version": "0.1.0",
   "description": "Payvo Node.js Kafka Client for Microservices Messaging",
   "type": "module",
