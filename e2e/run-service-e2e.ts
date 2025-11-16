@@ -4,6 +4,7 @@ import { createServicePublisherFactory } from "../src/client/service-publisher-f
 import { z } from "@gatwech/utils/zod";
 import crypto from "node:crypto";
 import assert from "node:assert";
+import type { Admin } from "kafkajs";
 
 // Schema for service-level event: timestamp epoch(ms) provided by factory if absent
 const ServiceEventSchema = z.object({
@@ -36,6 +37,67 @@ async function waitForBroker(client: KafkaClient, timeoutMs = 30000) {
   throw new Error("Broker readiness timeout");
 }
 
+// Ensure a topic exists with the given partition count, retrying on transient errors
+async function ensureTopicExists(
+  admin: Admin,
+  topic: string,
+  partitions = 3,
+  timeoutMs = 20000
+) {
+  const start = Date.now();
+  let attempt = 0;
+  // Keep a single admin connection open for the whole ensure flow
+  await admin.connect();
+  try {
+    while (Date.now() - start < timeoutMs) {
+      attempt++;
+      try {
+        // Check if topic already exists using listTopics() to avoid throwing on unknown
+        const topics = await admin.listTopics();
+        const exists = topics.includes(topic);
+        if (!exists) {
+          await admin.createTopics({
+            topics: [{ topic, numPartitions: partitions, replicationFactor: 1 }],
+            waitForLeaders: true,
+          });
+        }
+
+        // Wait for leaders to be elected for all partitions (defensive)
+        const deadline = Date.now() + 10_000;
+        while (Date.now() < deadline) {
+          try {
+            const md2 = await admin.fetchTopicMetadata({ topics: [topic] });
+            const t = md2.topics.find((x) => x.name === topic);
+            if (
+              t &&
+              t.partitions.length >= partitions &&
+              t.partitions.every((p) => p.leader !== -1)
+            ) {
+              return;
+            }
+          } catch (_) {
+            // if metadata fetch races with creation, just retry
+          }
+          await new Promise((r) => setTimeout(r, 300));
+        }
+        // If we exit the inner loop without leaders, try again
+        throw new Error("leaders not ready yet");
+      } catch (e: any) {
+        const msg = e?.message || String(e);
+        // Ignore benign races
+        if (/already exists/i.test(msg)) return;
+        // Transient connection/state errors: backoff and retry
+        const delay = Math.min(250 * 2 ** attempt, 2000);
+        await new Promise((r) => setTimeout(r, delay));
+        continue;
+      }
+    }
+    throw new Error(`ensureTopicExists timeout for ${topic}`);
+  } finally {
+    await admin.disconnect();
+  }
+}
+
 async function main() {
   const bootstrap = process.env.KAFKA_BOOTSTRAP || "localhost:9092";
   const topic = process.env.SERVICE_E2E_TOPIC || `service-e2e-${Date.now()}`;
@@ -53,12 +115,7 @@ async function main() {
   // Ensure topic exists (best effort)
   try {
     const admin = client.getAdmin();
-    await admin.connect();
-    await admin.createTopics({
-      topics: [{ topic, numPartitions: 3, replicationFactor: 1 }],
-      waitForLeaders: true,
-    });
-    await admin.disconnect();
+    await ensureTopicExists(admin, topic, 3, 20000);
     console.log(`🪶 Topic ensured: ${topic}`);
   } catch (err: any) {
     console.warn("⚠️ Topic creation skipped:", err?.message || err);
