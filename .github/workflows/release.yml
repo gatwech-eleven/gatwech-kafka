@@ -82,8 +82,6 @@ jobs:
 
       - name: Publish to npm
         if: ${{ github.event.inputs.dry_run != 'true' }}
-        # Ensure we authenticate to GitHub Packages (npm.pkg.github.com) and publish there.
-        # This writes an ~/.npmrc with the token and tells pnpm to use the GitHub registry.
         run: |
           echo "//npm.pkg.github.com/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
           echo "@${{ github.repository_owner }}:registry=https://npm.pkg.github.com/" >> ~/.npmrc || true
