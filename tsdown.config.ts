@@ -16,7 +16,8 @@ export default defineConfig({
     "prom-client",
     "buffer",
     "zod",
-    "@gatwech/utils",
+    "zod-to-json-schema",
+    "@gatwech/utils"
   ],
   clean: true,
 });
