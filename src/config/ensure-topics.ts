@@ -216,16 +216,17 @@ export async function ensureTopicsWithConfig(
   const waitForLeadersMs = opts.waitForLeadersMs ?? 15_000;
 
   // Flatten nested topics map to a flat TopicMap
-  const flatTopics: TopicMap = opts.includeBuiltIn === false
-    ? {}
-    : Object.fromEntries(
-        Object.values(topics).flatMap((group: any) =>
-          Object.values(group).map((t: any) => [
-            t.name,
-            { name: t.name, config: t },
-          ])
-        )
-      );
+  const flatTopics: TopicMap =
+    opts.includeBuiltIn === false
+      ? {}
+      : Object.fromEntries(
+          Object.values(topics).flatMap((group: any) =>
+            Object.values(group).map((t: any) => [
+              t.name,
+              { name: t.name, config: t },
+            ])
+          )
+        );
   // Merge in any caller-provided additional topics
   if (opts.additionalTopics) {
     if (Array.isArray(opts.additionalTopics)) {
