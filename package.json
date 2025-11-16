@@ -47,7 +47,7 @@
     "vitest": "^4.0.9"
   },
   "exports": {
-    "./": {
+    ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.mjs",
       "require": "./dist/index.cjs"
