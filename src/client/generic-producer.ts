@@ -58,7 +58,13 @@ export class GenericKafkaProducer<
     const key = this.generateKey(payload, overrideKey);
 
     const withBase = payload as z.infer<TSchema> & BaseEventFields;
-    const timestamp = new Date(withBase.timestamp);
+    const tsValue = withBase.timestamp;
+    const timestamp = tsValue ? new Date(tsValue) : new Date();
+    if (isNaN(timestamp.getTime())) {
+      throw new Error(
+        `Invalid timestamp value for payload: ${JSON.stringify(payload)}`
+      );
+    }
 
     const metadata = extractEventMetadata(withBase.metadata);
     const headers = buildHeaders(this.topic, timestamp, metadata);
