@@ -63,19 +63,21 @@ jobs:
           else
             TAG="${GITHUB_REF#refs/tags/}"
           fi
-          if [[ "$TAG" =~ -(next|canary|beta|rc) ]]; then
+          if [[ "$TAG" =~ -(next|canary|beta|rc)$ ]]; then
+            # Use explicit prerelease suffix as npm tag (next, canary, beta, rc)
             NPM_TAG=${BASH_REMATCH[1]}
           else
-            git fetch origin main
+            # If tag does not contain a prerelease suffix, prefer 'latest' when the
+            # commit is on main or a version branch. Otherwise derive a safe tag
+            # from the tag name (strip leading 'v') so publishing won't fail.
+            git fetch origin --tags --prune
             CURRENT_BRANCH=$(git branch -r --contains "$GITHUB_SHA" | grep -E 'origin/(main|v[0-9]+\.[0-9]+\.x-latest)' | head -1 | sed 's/.*origin\///')
-            if [[ "$CURRENT_BRANCH" == "main" ]]; then
-              NPM_TAG="latest"
-            elif [[ "$CURRENT_BRANCH" =~ ^v[0-9]+\.[0-9]+\.x-latest$ ]]; then
+            if [[ "$CURRENT_BRANCH" == "main" || "$CURRENT_BRANCH" =~ ^v[0-9]+\.[0-9]+\.x-latest$ ]]; then
               NPM_TAG="latest"
             else
-              echo "The tagged commit is not on the main branch or a version branch (v*.*.x-latest)."
-              echo "::error ::Releases with the 'latest' npm tag must be on the main branch or a version branch."
-              exit 1
+              # Fallback: use the tag name (without a leading 'v') as the npm tag
+              # e.g. v1.2.3 -> 1.2.3, feature-tag -> feature-tag
+              NPM_TAG="${TAG#v}"
             fi
           fi
           echo "npm_tag=$NPM_TAG" >> $GITHUB_OUTPUT
