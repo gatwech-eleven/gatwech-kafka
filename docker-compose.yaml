@@ -10,11 +10,13 @@ services:
       KAFKA_NODE_ID: "1"
       KAFKA_PROCESS_ROLES: "broker,controller"
 
-      # Two listeners: internal for containers, external for host machine
-      KAFKA_LISTENERS: "CONTROLLER://0.0.0.0:9091,INTERNAL://0.0.0.0:9092,EXTERNAL://0.0.0.0:29092"
+      # Two listeners: internal for container-to-container, external for host machine
+      # Internal (container) listener uses 29092 so services inside the compose can reach Kafka via kafka:29092
+      # External (host) listener uses 9092 so host clients can connect to localhost:9092
+      KAFKA_LISTENERS: "CONTROLLER://0.0.0.0:9091,INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9092"
 
-      # Advertise both (Docker DNS and localhost)
-      KAFKA_ADVERTISED_LISTENERS: "INTERNAL://kafka:9092,EXTERNAL://localhost:29092"
+      # Advertise internal as the docker host (kafka:29092) and external as localhost:9092
+      KAFKA_ADVERTISED_LISTENERS: "INTERNAL://kafka:29092,EXTERNAL://localhost:9092"
 
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT"
       KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
@@ -28,7 +30,8 @@ services:
       - kafka_data:/var/lib/kafka/data
 
     healthcheck:
-      test: ["CMD", "nc", "-z", "localhost", "9092"]
+      # inside the container the internal listener is now on 29092
+      test: ["CMD", "nc", "-z", "localhost", "29092"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -44,7 +47,8 @@ services:
       - "8080:8080"
     environment:
       - KAFKA_CLUSTERS_0_NAME=localCluster
-      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka:9092
+      # Kafka UI runs in the compose network and should talk to the container-internal listener
+      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka:29092
     depends_on:
       - kafka
     networks:

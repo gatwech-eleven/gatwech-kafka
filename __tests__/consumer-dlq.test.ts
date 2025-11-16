@@ -62,15 +62,15 @@ describe("consumer DLQ wrapper", () => {
         maxRetries: 2,
         retryBackoffMs: 1,
       });
-        // handler should be attempted and then DLQ publish happens
-        expect(sendMessage).toHaveBeenCalledTimes(1);
-        const [dlqTopic, dlqMsg] = sendMessage.mock.calls[0];
-        expect(dlqTopic).toBe("topic.test.dlq");
-        expect(dlqMsg.value.originalTopic).toBe("topic.test");
-        expect(dlqMsg.value.originalOffset).toBe("1");
-      } finally {
-        vi.useFakeTimers();
-      }
+      // handler should be attempted and then DLQ publish happens
+      expect(sendMessage).toHaveBeenCalledTimes(1);
+      const [dlqTopic, dlqMsg] = sendMessage.mock.calls[0];
+      expect(dlqTopic).toBe("topic.test.dlq");
+      expect(dlqMsg.value.originalTopic).toBe("topic.test");
+      expect(dlqMsg.value.originalOffset).toBe("1");
+    } finally {
+      vi.useFakeTimers();
+    }
   });
 
   it("does not DLQ if succeeds before max retries", async () => {
