@@ -64,6 +64,25 @@ const asTopicDefs = (topics: TopicMap): TopicDef[] =>
     config: t.config,
   }));
 
+async function sleep(ms: number) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+async function withRetry<T>(fn: () => Promise<T>, attempts = 5) {
+  let i = 0;
+  // jittered exponential backoff capped at ~2s
+  while (true) {
+    try {
+      return await fn();
+    } catch (e: any) {
+      i++;
+      if (i >= attempts) throw e;
+      const delay = Math.min(250 * 2 ** (i - 1), 2000);
+      await sleep(delay);
+    }
+  }
+}
+
 /**
  * Convert a {@link TopicConfigShape} to Kafka config entries suitable for Admin APIs.
  *
@@ -245,7 +264,7 @@ export async function ensureTopicsWithConfig(
   if (manageConnection) await admin.connect();
   try {
     // Create missing topics with initial configs
-    const md = await admin.fetchTopicMetadata();
+    const md = await withRetry(() => admin.fetchTopicMetadata());
     const existing = new Set(md.topics.map((t) => t.name));
 
     const createList = defs
@@ -262,7 +281,9 @@ export async function ensureTopicsWithConfig(
         topics: createList.map((t) => t.topic),
       });
       try {
-        await admin.createTopics({ topics: createList, waitForLeaders: true });
+        await withRetry(() =>
+          admin.createTopics({ topics: createList, waitForLeaders: true })
+        );
       } catch (e: any) {
         // Race between services; ignore benign "already exists"
         if (!/already exists/i.test(e?.message || "")) throw e;
@@ -279,7 +300,7 @@ export async function ensureTopicsWithConfig(
     }
 
     // Increase partitions when desired > current
-    const md2 = await admin.fetchTopicMetadata();
+    const md2 = await withRetry(() => admin.fetchTopicMetadata());
     const current = new Map(md2.topics.map((t) => [t.name, t]));
     const partitionsToIncrease = defs
       .map((t) => {
@@ -292,7 +313,9 @@ export async function ensureTopicsWithConfig(
     if (partitionsToIncrease.length) {
       logger.info("increasing partitions", partitionsToIncrease);
       try {
-        await admin.createPartitions({ topicPartitions: partitionsToIncrease });
+        await withRetry(() =>
+          admin.createPartitions({ topicPartitions: partitionsToIncrease })
+        );
       } catch (e: any) {
         // Some brokers may throw if already increased by another service; log and continue
         logger.warn("createPartitions returned error; continuing", {
