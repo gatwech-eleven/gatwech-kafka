@@ -1,5 +1,103 @@
 # payvo-kafka
 
+## Usage: Event Factory (typed producers)
+
+This package provides a small factory to build validated, typed producers using Zod schemas.
+
+- **Import:** `createEventPublisher` is exported from the package root.
+- **Validate & enrich:** Payloads are validated against the provided Zod schema and enriched with `metadata` (source, correlationId, schemaHash) and headers.
+
+Example (TypeScript):
+
+```ts
+import { createEventPublisher } from "@payvo/kafka";
+import { z } from "@gatwech/utils/zod";
+
+const MySchema = z.object({
+  id: z.string(),
+  email: z.string().email(),
+});
+
+// producer: an instance of kafkajs `Producer` (e.g. from KafkaClient.getProducer())
+const publisher = createEventPublisher(
+  producer,
+  "user.registered",
+  MySchema,
+  (p) => p.id,
+  "my-service"
+);
+
+await publisher({ id: "123", email: "a@example.com" });
+```
+
+The factory automatically attaches headers such as `correlation-id`, `schema-hash` and `timestamp` so consumers can validate and trace messages.
+
+## Usage: Consumer with Retry & DLQ
+
+Use `consumeWithRetryAndDLQ` to run consumers that:
+
+- perform schema validation (if topic config provides a schema),
+- retry failed message handling with exponential backoff, and
+- publish permanently failing messages to a Dead Letter Queue (DLQ) topic.
+
+Example:
+
+```ts
+import { consumeWithRetryAndDLQ, KafkaClient } from "@payvo/kafka";
+
+const client = new KafkaClient("svc", ["localhost:9092"]);
+await client.connect();
+
+const topicConfig = {
+  name: "user.registered" /* ...topic config with optional schema... */,
+} as any;
+
+await consumeWithRetryAndDLQ(
+  client,
+  "user-service-group",
+  topicConfig,
+  async ({ message }) => {
+    const payload = message.value
+      ? JSON.parse(message.value.toString())
+      : undefined;
+    // your message processing logic here
+    // throw to trigger retry -> DLQ after configured attempts
+  }
+);
+```
+
+By default the DLQ topic is suffixed with `.dlq` (e.g. `user.registered.dlq`). DLQ messages include metadata about the original message, the consumer group and an error description.
+
+## Connection Retry Helper
+
+The repository includes `connectWithRetry`, a helper that retries an async connect function with exponential backoff. It is designed to handle transient DNS/network errors and avoid blocking service startup indefinitely.
+
+Example:
+
+```ts
+import { connectWithRetry } from "@payvo/kafka";
+import { KafkaClient } from "@payvo/kafka";
+
+const client = new KafkaClient("svc", ["localhost:9092"]);
+await connectWithRetry(() => client.connect(), {
+  maxAttempts: 10,
+  initialDelayMs: 500,
+});
+```
+
+## Quick examples and tips
+
+- **Send validated messages:** Use `createEventPublisher` for all outgoing events to guarantee runtime validation and consistent metadata.
+- **DLQ handling:** Monitor the `.dlq` topics — a rising DLQ depth is the primary signal of processing issues.
+- **Idempotency:** Consumers should be written idempotently (e.g., use upserts) because retries and rebalances can cause duplicate deliveries.
+
+## Configuration & provisioning reminders
+
+- Provision topics with `scripts/kafka-init.sh` or call `ensureTopicsWithConfig` during startup (opt-in via `PROVISION_KAFKA_TOPICS=1`).
+- The E2E test harness lives in `e2e/run-e2e.ts` and demonstrates producer/consumer roundtrips including metadata and schema-hash headers.
+
+If you want, I can expand the README with a small runnable example project or add a short troubleshooting section for common CI publish issues (NPM_TOKEN and GitHub Packages).
+
 ## Validation & typed producers
 
 This package exposes small helpers to perform runtime validation of Kafka messages using Zod.
