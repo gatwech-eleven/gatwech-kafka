@@ -1,46 +1,26 @@
 import { z } from "@gatwech/utils/zod";
+import { BaseProducerSchema } from "./base.schema";
 
-export const UserRegisteredSchema = z.object({
+export const UserRegisteredSchema = BaseProducerSchema.extend({
   id: z.string(),
   email: z.email(),
   name: z.string().optional(),
   otp: z.string().optional(),
-  timestamp: z.date().default(() => new Date()),
-  metadata: z
-    .object({
-      correlationId: z.string().optional(),
-      source: z.string().optional(),
-    })
-    .optional(),
 });
 
-export const ResetPasswordRequestEmailSchema = z.object({
+export const ResetPasswordRequestEmailSchema = BaseProducerSchema.extend({
   userId: z.uuid().optional(),
   identifier: z.literal("email"),
   email: z.email(),
   token: z.string(),
-  timestamp: z.date().default(() => new Date()),
-  metadata: z
-    .object({
-      correlationId: z.string().optional(),
-      source: z.string().optional(),
-    })
-    .optional(),
 });
 
-export const ResetPasswordRequestPhoneSchema = z.object({
+export const ResetPasswordRequestPhoneSchema = BaseProducerSchema.extend({
   userId: z.uuid().optional(),
   identifier: z.literal("phone"),
   phoneNumber: z.string(),
   otp: z.string().optional(),
   token: z.string().optional(),
-  timestamp: z.date().default(() => new Date()),
-  metadata: z
-    .object({
-      correlationId: z.string().optional(),
-      source: z.string().optional(),
-    })
-    .optional(),
 });
 
 export const ResetPasswordRequestUnionSchema = z.union([

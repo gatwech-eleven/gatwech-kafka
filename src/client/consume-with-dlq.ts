@@ -1,9 +1,10 @@
 import type { EachMessagePayload } from "kafkajs";
 import { logger } from "../utils/logger";
 import type { DLQOptions, TKafkaMessage } from "../types";
+import type { DeepReadonly } from "../types/utility-types";
 import type { TopicConfig } from "../config/topics/topic-config-schema";
 import { DlqMessageSchema } from "../schemas/dlq.schema";
-import type { KafkaClient } from "./kafka-client";
+import type { KafkaClient } from "./kafka";
 
 function sleep(ms: number) {
   return new Promise((res) => setTimeout(res, ms));
@@ -98,6 +99,7 @@ export async function consumeWithRetryAndDLQ(
         : undefined;
 
       const dlqPayload = DlqMessageSchema.parse({
+        timestamp: Date.now(),
         originalTopic: topicName,
         originalPartition: partition,
         originalOffset: message.offset,
@@ -114,7 +116,7 @@ export async function consumeWithRetryAndDLQ(
         originalValue,
       });
 
-      const dlqMsg: TKafkaMessage<typeof dlqPayload> = {
+      const dlqMsg: TKafkaMessage<DeepReadonly<typeof dlqPayload>> = {
         key: message.key?.toString() || `${topicName}:${message.offset}`,
         value: dlqPayload,
         headers: {

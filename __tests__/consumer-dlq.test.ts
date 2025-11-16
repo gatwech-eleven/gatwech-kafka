@@ -40,7 +40,11 @@ describe("consumer DLQ wrapper", () => {
         run: vi.fn().mockImplementation(async (opts: any) => {
           // Invoke eachMessage once to simulate a single message
           await opts.eachMessage(
-            makePayload({ identifier: "email", token: "missing" })
+            makePayload({
+              identifier: "email",
+              token: "missing",
+              timestamp: Date.now(),
+            })
           );
         }),
       } as any;
@@ -85,6 +89,7 @@ describe("consumer DLQ wrapper", () => {
               identifier: "email",
               email: "ok@example.com",
               token: "t",
+              timestamp: Date.now(),
             })
           );
         }),

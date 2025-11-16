@@ -6,7 +6,8 @@ import {
   JsonSerializer,
   type KafkaMetrics,
 } from "../types";
-import { KafkaError } from "./kafka-client";
+import type { DeepReadonly } from "../types/utility-types";
+import { KafkaError } from "./kafka";
 
 export abstract class BaseProducer<T> {
   protected abstract readonly topic: string;
@@ -36,7 +37,7 @@ export abstract class BaseProducer<T> {
    * @returns A promise that resolves when the message has been successfully published.
    * @throws {KafkaError} if the publish operation fails.
    */
-  async publish(data: TKafkaMessage<T>): Promise<void> {
+  async publish(data: TKafkaMessage<DeepReadonly<T>>): Promise<void> {
     try {
       logger.info(`Publishing to ${this.topic}`, { key: data.key });
 
@@ -45,7 +46,8 @@ export abstract class BaseProducer<T> {
         messages: [
           {
             key: data.key,
-            value: this.serializer.serialize(data.value),
+            // serializer expects mutable T; cast readonly->mutable for runtime
+            value: this.serializer.serialize(data.value as unknown as T),
             headers: data.headers,
             timestamp: data.timestamp,
           },
@@ -74,13 +76,15 @@ export abstract class BaseProducer<T> {
    * @returns A promise that resolves when the batch has been successfully published.
    * @throws {KafkaError} if the batch publish operation fails.
    */
-  async publishBatch(messages: TKafkaMessage<T>[]): Promise<void> {
+  async publishBatch(
+    messages: TKafkaMessage<DeepReadonly<T>>[]
+  ): Promise<void> {
     try {
       await this.producer.send({
         topic: this.topic,
         messages: messages.map((msg) => ({
           key: msg.key,
-          value: this.serializer.serialize(msg.value),
+          value: this.serializer.serialize(msg.value as unknown as T),
           headers: msg.headers,
           timestamp: msg.timestamp,
         })),

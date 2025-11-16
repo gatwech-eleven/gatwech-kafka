@@ -5,6 +5,8 @@ import { connectWithRetry } from "../src/client/connect-with-retry";
 import { ResetPasswordRequestEmailSchema } from "../src/schemas/user-schemas";
 import { logger } from "../src/utils/logger";
 import * as helpers from "../src/utils/helpers";
+import { createServicePublisherFactory } from "../src/client/service-publisher-factory";
+import { z } from "@gatwech/utils/zod";
 
 describe("usage snapshots", () => {
   afterEach(() => {
@@ -13,7 +15,9 @@ describe("usage snapshots", () => {
 
   it("event factory produces expected producer.send payload (snapshot)", async () => {
     // make deterministic
-    vi.spyOn(helpers, "generateCorrelationId").mockReturnValue("evt-fixed-id");
+    vi.spyOn(helpers, "generateCorrelationId").mockReturnValue(
+      "evt-fixed-id" as any
+    );
     vi.setSystemTime(new Date("2025-01-01T00:00:00.000Z"));
     const fakeProducer = { send: vi.fn().mockResolvedValue(undefined) } as any;
 
@@ -29,6 +33,7 @@ describe("usage snapshots", () => {
       identifier: "email",
       email: "ok@example.com",
       token: "tok",
+      timestamp: Date.now(),
     } as any);
 
     expect((fakeProducer.send as any).mock.calls.length).toBeGreaterThanOrEqual(
@@ -140,5 +145,33 @@ describe("usage snapshots", () => {
       warnCalls,
       infoCalls,
     }).toMatchSnapshot();
+  });
+
+  it("service publisher factory produces enriched producer.send payload (snapshot)", async () => {
+    vi.setSystemTime(new Date("2025-01-01T00:00:00.000Z"));
+    vi.spyOn(helpers, "generateCorrelationId").mockReturnValue(
+      "svc-fixed-cid" as any
+    );
+    const fakeProducer = { send: vi.fn().mockResolvedValue(undefined) } as any;
+    const service = createServicePublisherFactory(fakeProducer, "user-svc-v1");
+    // Minimal schema for this snapshot
+    const MinimalSchema = z.object({
+      id: z.string(),
+      email: z.string().email(),
+      timestamp: z.number().optional(),
+      metadata: z
+        .object({
+          correlationId: z.string().optional(),
+          source: z.string().optional(),
+        })
+        .optional(),
+    });
+    const publishUser = service(
+      "users.registered",
+      MinimalSchema as any,
+      (p: any) => p.id
+    );
+    await publishUser({ id: "u-123", email: "user@example.com" });
+    expect(fakeProducer.send.mock.calls[0][0]).toMatchSnapshot();
   });
 });

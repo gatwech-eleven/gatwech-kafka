@@ -56,7 +56,7 @@ exports[`usage snapshots > consumeWithRetryAndDLQ publishes DLQ message after re
         "foo": "bar",
       },
       "stackTrace": undefined,
-      "timestamp": 2025-01-01T00:00:00.000Z,
+      "timestamp": 1735689600000,
     },
   },
 ]
@@ -75,9 +75,29 @@ exports[`usage snapshots > event factory produces expected producer.send payload
       },
       "key": "ok@example.com",
       "timestamp": undefined,
-      "value": "{"identifier":"email","email":"ok@example.com","token":"tok","timestamp":"2025-01-01T00:00:00.000Z","metadata":{"source":"test-source","correlationId":"evt-fixed-id"}}",
+      "value": "{"timestamp":1735689600000,"identifier":"email","email":"ok@example.com","token":"tok","metadata":{"source":"test-source","correlationId":"evt-fixed-id"}}",
     },
   ],
   "topic": "users.reset-request",
+}
+`;
+
+exports[`usage snapshots > service publisher factory produces enriched producer.send payload (snapshot) 1`] = `
+{
+  "messages": [
+    {
+      "headers": {
+        "correlation-id": "svc-fixed-cid",
+        "event-type": "users.registered",
+        "event-version": "1.0",
+        "source": "user-svc-v1",
+        "timestamp": "2025-01-01T00:00:00.000Z",
+      },
+      "key": "u-123",
+      "timestamp": undefined,
+      "value": "{"id":"u-123","email":"user@example.com","timestamp":1735689600000,"metadata":{"source":"user-svc-v1","correlationId":"svc-fixed-cid"}}",
+    },
+  ],
+  "topic": "users.registered",
 }
 `;

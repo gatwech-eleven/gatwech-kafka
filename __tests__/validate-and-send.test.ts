@@ -36,28 +36,35 @@ describe("producer.validateAndSend helpers", () => {
     warnSpy.mockRestore();
   });
 
-  it("validateAndSend sends a valid message", async () => {
+  it("validateAndSend sends a valid message via generic producer", async () => {
+    const fakeProducer = { send: vi.fn().mockResolvedValue(undefined) } as any;
     const fakeClient = {
-      sendMessage: vi.fn().mockResolvedValue(undefined),
+      getProducer: () => fakeProducer,
+      sendMessage: vi.fn(), // legacy path not used when schema present
     } as any;
 
     const message = {
       key: "k1",
-      value: { identifier: "email", email: "ok@example.com", token: "tok" },
+      value: {
+        identifier: "email",
+        email: "ok@example.com",
+        token: "tok",
+        timestamp: Date.now(),
+      },
       headers: {},
     };
 
     await validateAndSend(fakeClient, topicConfig, message);
 
-    expect(fakeClient.sendMessage).toHaveBeenCalledTimes(1);
-    expect(fakeClient.sendMessage).toHaveBeenCalledWith("topic.test", message);
+    expect(fakeProducer.send).toHaveBeenCalledTimes(1);
+    expect(fakeClient.sendMessage).not.toHaveBeenCalled();
   });
 
   it("validateAndSend throws on invalid message", async () => {
     const fakeClient = { sendMessage: vi.fn() } as any;
     const message = {
       key: "k2",
-      value: { identifier: "email", token: "no-email" },
+      value: { identifier: "email", token: "no-email", timestamp: Date.now() },
     } as any;
 
     await expect(
@@ -66,39 +73,61 @@ describe("producer.validateAndSend helpers", () => {
     expect(warnSpy).toHaveBeenCalled();
   });
 
-  it("validateAndSendMany sends a valid batch", async () => {
+  it("validateAndSendMany sends a valid batch via publishBatch", async () => {
+    const fakeProducer = { send: vi.fn().mockResolvedValue(undefined) } as any;
     const fakeClient = {
-      sendMessages: vi.fn().mockResolvedValue(undefined),
+      getProducer: () => fakeProducer,
+      sendMessages: vi.fn(),
     } as any;
 
     const messages = [
       {
         key: "k1",
-        value: { identifier: "email", email: "a@b.com", token: "t1" },
+        value: {
+          identifier: "email",
+          email: "a@b.com",
+          token: "t1",
+          timestamp: Date.now(),
+        },
       },
       {
         key: "k2",
-        value: { identifier: "email", email: "c@d.com", token: "t2" },
+        value: {
+          identifier: "email",
+          email: "c@d.com",
+          token: "t2",
+          timestamp: Date.now(),
+        },
       },
     ];
 
     await validateAndSendMany(fakeClient, batchTopicConfig, messages as any);
 
-    expect(fakeClient.sendMessages).toHaveBeenCalledTimes(1);
-    expect(fakeClient.sendMessages).toHaveBeenCalledWith(
-      "topic.batch",
-      messages
-    );
+    // underlying producer.send called once for batch publish
+    expect(fakeProducer.send).toHaveBeenCalledTimes(1);
+    expect(fakeClient.sendMessages).not.toHaveBeenCalled();
   });
 
   it("validateAndSendMany throws when any message invalid", async () => {
-    const fakeClient = { sendMessages: vi.fn() } as any;
+    const fakeProducer = { send: vi.fn().mockResolvedValue(undefined) } as any;
+    const fakeClient = {
+      sendMessages: vi.fn(),
+      getProducer: () => fakeProducer,
+    } as any;
     const messages = [
       {
         key: "k1",
-        value: { identifier: "email", email: "a@b.com", token: "t1" },
+        value: {
+          identifier: "email",
+          email: "a@b.com",
+          token: "t1",
+          timestamp: Date.now(),
+        },
       },
-      { key: "k2", value: { identifier: "email", token: "missing" } },
+      {
+        key: "k2",
+        value: { identifier: "email", token: "missing", timestamp: Date.now() },
+      },
     ];
 
     await expect(

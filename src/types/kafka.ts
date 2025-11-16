@@ -1,4 +1,5 @@
 import type { CompressionTypes, logLevel } from "kafkajs";
+import type { CorrelationId } from "./utility-types";
 
 export interface KafkaClientOptions {
   allowAutoTopicCreation?: boolean;
@@ -47,7 +48,7 @@ export interface TKafkaMessage<T> {
 
 export type WithMetadata = {
   metadata?: {
-    correlationId?: string;
+    correlationId?: CorrelationId;
     [key: string]: unknown;
   };
   [key: string]: unknown;

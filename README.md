@@ -1,36 +1,62 @@
 # payvo-kafka
 
-## Usage: Event Factory (typed producers)
+Lightweight Kafka helpers for strongly-typed, validated, observable event publishing & consumption using KafkaJS + Zod.
 
-This package provides a small factory to build validated, typed producers using Zod schemas.
-
-- **Import:** `createEventPublisher` is exported from the package root.
-- **Validate & enrich:** Payloads are validated against the provided Zod schema and enriched with `metadata` (source, correlationId, schemaHash) and headers.
-
-Example (TypeScript):
+## Quick Start (Preferred Factory)
 
 ```ts
-import { createEventPublisher } from "@payvo/kafka";
+import { Kafka } from "kafkajs";
 import { z } from "@gatwech/utils/zod";
+import { createServicePublisher } from "@payvo/kafka";
 
-const MySchema = z.object({
+const kafka = new Kafka({ clientId: "users", brokers: ["localhost:9092"] });
+const producer = kafka.producer();
+await producer.connect();
+
+const service = createServicePublisher(producer, "user-service-v1");
+
+const UserRegistered = z.object({
   id: z.string(),
   email: z.string().email(),
+  timestamp: z.number().optional(),
+  metadata: z
+    .object({
+      correlationId: z.string().optional(),
+      source: z.string().optional(),
+    })
+    .optional(),
 });
 
-// producer: an instance of kafkajs `Producer` (e.g. from KafkaClient.getProducer())
+const publishUserRegistered = service(
+  "user.registered",
+  UserRegistered,
+  (p) => p.id
+);
+await publishUserRegistered({ id: "123", email: "alice@example.com" });
+```
+
+Injected automatically: `timestamp` (epoch ms), `metadata.source`, `metadata.correlationId` (if absent). Headers include `correlation-id`, `event-type`, `timestamp`, optionally `schema-hash`.
+
+## Event Factory (Low-Level)
+
+Use `createEventPublisher` directly for one-off scripts or when you do not need service-wide metadata injection.
+
+```ts
 const publisher = createEventPublisher(
   producer,
   "user.registered",
-  MySchema,
+  UserRegistered,
   (p) => p.id,
   "my-service"
 );
-
-await publisher({ id: "123", email: "a@example.com" });
+await publisher({ id: "123", email: "a@example.com", timestamp: Date.now() });
 ```
 
-The factory automatically attaches headers such as `correlation-id`, `schema-hash` and `timestamp` so consumers can validate and trace messages.
+## Service Factory Pattern
+
+`createServicePublisher` (formerly `createServicePublisherFactory`) centralizes source + correlation id logic. Define publishers per topic via the returned function. The deprecated `createServicePublisherFactory` remains as an alias until the next major release.
+
+## Consumer with Retry & DLQ
 
 ## Usage: Consumer with Retry & DLQ
 
@@ -85,9 +111,10 @@ await connectWithRetry(() => client.connect(), {
 });
 ```
 
-## Quick examples and tips
+## Quick Tips
 
 - **Send validated messages:** Use `createEventPublisher` for all outgoing events to guarantee runtime validation and consistent metadata.
+- **Prefer factories for larger codebases:** Use `createServicePublisher` when many events share the same producer & source metadata. (`createServicePublisherFactory` deprecated)
 - **DLQ handling:** Monitor the `.dlq` topics — a rising DLQ depth is the primary signal of processing issues.
 - **Idempotency:** Consumers should be written idempotently (e.g., use upserts) because retries and rebalances can cause duplicate deliveries.
 
@@ -98,7 +125,26 @@ await connectWithRetry(() => client.connect(), {
 
 If you want, I can expand the README with a small runnable example project or add a short troubleshooting section for common CI publish issues (NPM_TOKEN and GitHub Packages).
 
-## Validation & typed producers
+### Event Contract Requirements
+
+All outbound events MUST include:
+
+1. `timestamp: number` (epoch ms). If omitted in your payload the factories inject `Date.now()`. Use this for consistent, language‑neutral ordering and analytics.
+2. `metadata.source: string` identifying the emitting service.
+3. `metadata.correlationId: CorrelationId` (a branded string) either supplied by upstream trace context or auto‑generated via `generateCorrelationId("evt")`.
+
+Branding utilities provide lightweight nominal typing:
+
+- `CorrelationId` for trace continuity
+- `ServiceSource` to distinguish origin identifiers from arbitrary strings
+- `TopicName` for compile-time topic specificity (optional)
+- `SchemaHash` for schema evolution tracking
+
+Use helpers `asServiceSource("user-service-v3")`, `asTopicName("user.registered")` etc. Branding is erased at runtime, so interoperability with plain string APIs (KafkaJS) is unaffected.
+
+If you evolve schemas add optional fields rather than removing required ones; consumers validate via Zod plus headers aiding traceability.
+
+## Validation & Typed Producers
 
 This package exposes small helpers to perform runtime validation of Kafka messages using Zod.
 
@@ -181,4 +227,10 @@ Notes
 - The `ensureTopicsWithConfig` function in the library attempts to `alterConfigs` on topics — some brokers (or ACL configurations) may reject that call; the code logs a warning and continues.
 - For fastest boot, provision once via the script and do not enable runtime provisioning in development.
 
-# payvo-kafka
+## Deprecations
+
+- `createServicePublisherFactory` -> use `createServicePublisher`.
+
+## License
+
+MIT (see repository root for details).

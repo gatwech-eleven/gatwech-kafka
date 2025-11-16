@@ -12,6 +12,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "tsx ./e2e/run-e2e.ts",
+    "test:e2e:service": "tsx ./e2e/run-service-e2e.ts",
+    "bench:kafka-batch": "tsx ./e2e/benchmark.ts",
     "generate:kafka-config": "tsx ./scripts/generate-kafka-config.ts",
     "init:kafka-topics": "bash scripts/kafka-init.sh",
     "setup:kafka": "pnpm run generate:kafka-config && pnpm run init:kafka-topics"
