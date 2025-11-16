@@ -42,6 +42,11 @@ jobs:
           registry-url: "https://npm.pkg.github.com"
           always-auth: true
 
+      - name: Authenticate to GitHub Packages
+        run: |
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
+          echo "@${{ github.repository_owner }}:registry=https://npm.pkg.github.com/" >> ~/.npmrc || true
+
       - run: pnpm install
 
       - name: Build
@@ -78,7 +83,10 @@ jobs:
 
       - name: Optional dry-run publish
         if: ${{ github.event.inputs.dry_run == 'true' }}
-        run: pnpm -r publish --access public --no-git-checks --tag ${{ steps.determine_npm_tag.outputs.npm_tag }} --dry-run --registry https://npm.pkg.github.com/
+        run: |
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
+          echo "@${{ github.repository_owner }}:registry=https://npm.pkg.github.com/" >> ~/.npmrc || true
+          pnpm -r publish --access public --no-git-checks --tag ${{ steps.determine_npm_tag.outputs.npm_tag }} --dry-run --registry https://npm.pkg.github.com/
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
