@@ -25,9 +25,6 @@
   ],
   "author": "Gatwech Tap Nguth",
   "license": "ISC",
-  "publishConfig": {
-    "registry": "https://npm.pkg.github.com/"
-  },
   "dependencies": {
     "@gatwech/utils": "^0.5.3",
     "buffer": "^6.0.3",
