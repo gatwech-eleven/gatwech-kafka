@@ -1,7 +1,7 @@
 const CONFIG_RESOURCE_TYPE_TOPIC = 2;
-import type { Admin, DescribeConfigResponse } from "kafkajs";
-import { logger } from "../utils/logger";
 import { topics } from "./topics";
+import { logger } from "../utils/logger";
+import type { Admin, DescribeConfigResponse } from "kafkajs";
 import type { TopicConfig } from "./topics/topic-config-schema";
 
 /**
@@ -68,7 +68,7 @@ async function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-async function withRetry<T>(fn: () => Promise<T>, attempts = 5) {
+async function withRetry<T>(fn: () => Promise<T>, attempts = 5): Promise<T> {
   let i = 0;
   // jittered exponential backoff capped at ~2s
   while (true) {
@@ -176,19 +176,28 @@ async function waitForLeaders(
  * @param topics - Topic names to describe.
  * @returns The DescribeConfigs response, or `undefined` if unsupported/forbidden.
  */
-async function safeDescribeConfigs(admin: Admin, topics: string[]) {
+async function safeDescribeConfigs(
+  admin: Admin,
+  topicNames: string[]
+): Promise<DescribeConfigResponse | undefined> {
+  // describeConfigs is not available on all brokers / versions
+  const maybe = admin as unknown as {
+    describeConfigs?: (args: {
+      resources: { type: number; name: string }[];
+      includeSynonyms?: boolean;
+      includeDocumentation?: boolean;
+    }) => Promise<DescribeConfigResponse>;
+  };
+  if (typeof maybe.describeConfigs !== "function") return undefined;
   try {
-    const resp: DescribeConfigResponse = await (admin as any).describeConfigs?.(
-      {
-        resources: topics.map((name) => ({
-          type: CONFIG_RESOURCE_TYPE_TOPIC,
-          name,
-        })),
-        includeSynonyms: false,
-        includeDocumentation: false,
-      }
-    );
-    return resp;
+    return await maybe.describeConfigs({
+      resources: topicNames.map((name) => ({
+        type: CONFIG_RESOURCE_TYPE_TOPIC,
+        name,
+      })),
+      includeSynonyms: false,
+      includeDocumentation: false,
+    });
   } catch {
     return undefined;
   }
@@ -238,14 +247,15 @@ export async function ensureTopicsWithConfig(
   const flatTopics: TopicMap =
     opts.includeBuiltIn === false
       ? {}
-      : Object.fromEntries(
-          Object.values(topics).flatMap((group: any) =>
-            Object.values(group).map((t: any) => [
-              t.name,
-              { name: t.name, config: t },
-            ])
-          )
-        );
+      : (() => {
+          // "topics" export is a flat object of TopicConfig entries keyed by constants
+          const builtIn = topics as unknown as Record<string, TopicConfig>;
+          const entries = Object.values(builtIn).map((t) => [
+            t.name,
+            { name: t.name, config: t },
+          ]) as [string, { name: string; config: TopicConfig }][];
+          return Object.fromEntries(entries);
+        })();
   // Merge in any caller-provided additional topics
   if (opts.additionalTopics) {
     if (Array.isArray(opts.additionalTopics)) {
@@ -328,29 +338,35 @@ export async function ensureTopicsWithConfig(
     }
 
     // Enforce configs (best effort)
-    const topics = defs.map((t) => t.name);
+    const topicNames = defs.map((t) => t.name);
     const desiredByTopic = new Map(
       defs.map((t) => [t.name, toConfigEntries(t.config)])
     );
 
     // Try to diff with describeConfigs (if supported & allowed)
-    const desc = await safeDescribeConfigs(admin, topics);
-    let resources: {
-      type: number;
+    const desc = await safeDescribeConfigs(admin, topicNames);
+    type AlterResource = {
+      type: typeof CONFIG_RESOURCE_TYPE_TOPIC;
       name: string;
       configEntries: { name: string; value: string }[];
-    }[];
+    };
+    let resources: AlterResource[];
 
     if (desc?.resources?.length) {
       const currentByTopic = new Map(
-        desc.resources.map((r: any) => [
+        desc.resources.map((r) => [
           r.resourceName,
-          new Map((r.configs || []).map((c: any) => [c.name, c.value])),
+          new Map(
+            (r.configEntries || []).map((c) => [
+              (c as any).configName,
+              String((c as any).configValue ?? ""),
+            ])
+          ),
         ])
       );
 
-      const pending: typeof resources = [];
-      for (const name of topics) {
+      const pending: AlterResource[] = [];
+      for (const name of topicNames) {
         const desired = desiredByTopic.get(name)!;
         const currentCfg = currentByTopic.get(name);
         const diff = desired.filter(
@@ -366,7 +382,7 @@ export async function ensureTopicsWithConfig(
       resources = pending;
     } else {
       // Fallback: set everything (may require ACLs)
-      resources = topics.map((name) => ({
+      resources = topicNames.map((name) => ({
         type: CONFIG_RESOURCE_TYPE_TOPIC,
         name,
         configEntries: desiredByTopic.get(name)!,
@@ -388,7 +404,7 @@ export async function ensureTopicsWithConfig(
         );
       }
     } else {
-      logger.debug?.("topic configs already up-to-date");
+      logger.debug("topic configs already up-to-date");
     }
   } finally {
     if (manageConnection) await admin.disconnect();

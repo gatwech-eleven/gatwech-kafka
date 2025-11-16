@@ -44,12 +44,12 @@ describe("usage snapshots", () => {
   });
 
   it("consumeWithRetryAndDLQ publishes DLQ message after retries (snapshot)", async () => {
-    const sendMessage = vi.fn().mockResolvedValue(undefined);
+    const producerSend = vi.fn().mockResolvedValue(undefined);
     // use real timers for this test because the code awaits setTimeout-based backoffs
     vi.useRealTimers();
     vi.setSystemTime(new Date("2025-01-01T00:00:00.000Z"));
 
-    // fake client with createConsumer and sendMessage
+    // fake client with createConsumer and getProducer
     const client: any = {
       createConsumer: vi.fn().mockResolvedValue({
         subscribe: vi.fn().mockResolvedValue(undefined),
@@ -67,7 +67,7 @@ describe("usage snapshots", () => {
           } as any);
         }),
       }),
-      sendMessage,
+      getProducer: vi.fn().mockReturnValue({ send: producerSend }),
     };
 
     const topic = { name: "test-topic" } as any;
@@ -93,9 +93,9 @@ describe("usage snapshots", () => {
 
     try {
       // ensure DLQ publish attempted
-      expect(sendMessage).toHaveBeenCalled();
-      // snapshot the DLQ call args (topic, message)
-      expect(sendMessage.mock.calls[0]).toMatchSnapshot();
+      expect(producerSend).toHaveBeenCalled();
+      // snapshot the DLQ call args (producer.send payload)
+      expect(producerSend.mock.calls[0][0]).toMatchSnapshot();
     } finally {
       vi.useFakeTimers();
     }

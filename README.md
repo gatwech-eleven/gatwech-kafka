@@ -7,7 +7,7 @@ Lightweight Kafka helpers for strongly-typed, validated, observable event publis
 ```ts
 import { Kafka } from "kafkajs";
 import { z } from "@gatwech/utils/zod";
-import { createServicePublisher } from "@payvo/kafka";
+import { createServicePublisher } from "@gatwech/kafka";
 
 const kafka = new Kafka({ clientId: "users", brokers: ["localhost:9092"] });
 const producer = kafka.producer();
@@ -58,8 +58,6 @@ await publisher({ id: "123", email: "a@example.com", timestamp: Date.now() });
 
 ## Consumer with Retry & DLQ
 
-## Usage: Consumer with Retry & DLQ
-
 Use `consumeWithRetryAndDLQ` to run consumers that:
 
 - perform schema validation (if topic config provides a schema),
@@ -69,7 +67,7 @@ Use `consumeWithRetryAndDLQ` to run consumers that:
 Example:
 
 ```ts
-import { consumeWithRetryAndDLQ, KafkaClient } from "@payvo/kafka";
+import { consumeWithRetryAndDLQ, KafkaClient } from "@gatwech/kafka";
 
 const client = new KafkaClient("svc", ["localhost:9092"]);
 await client.connect();
@@ -94,6 +92,28 @@ await consumeWithRetryAndDLQ(
 
 By default the DLQ topic is suffixed with `.dlq` (e.g. `user.registered.dlq`). DLQ messages include metadata about the original message, the consumer group and an error description.
 
+### DLQ Publisher (Reusable)
+
+For consistency with event publishing, you can use a dedicated DLQ publisher when you need to push a message to the DLQ explicitly (e.g., from custom error paths or migration tools):
+
+```ts
+import { createDLQPublisher } from "@gatwech/kafka";
+
+const publishToDLQ = createDLQPublisher(producer, { dlqSuffix: ".dlq" });
+
+await publishToDLQ(
+  {
+    value: Buffer.from(JSON.stringify({ bad: "payload" })),
+    key: Buffer.from("user-123"),
+    headers: { "content-type": "application/json" },
+  },
+  new Error("validation failed"),
+  { topic: "user.registered", partition: 0, offset: "105", groupId: "svc-a" }
+);
+```
+
+The publisher validates the envelope against the DLQ schema, normalizes headers, and writes to `${topic}.dlq` with `x-original-*` headers.
+
 ## Connection Retry Helper
 
 The repository includes `connectWithRetry`, a helper that retries an async connect function with exponential backoff. It is designed to handle transient DNS/network errors and avoid blocking service startup indefinitely.
@@ -101,8 +121,8 @@ The repository includes `connectWithRetry`, a helper that retries an async conne
 Example:
 
 ```ts
-import { connectWithRetry } from "@payvo/kafka";
-import { KafkaClient } from "@payvo/kafka";
+import { connectWithRetry } from "@gatwech/kafka";
+import { KafkaClient } from "@gatwech/kafka";
 
 const client = new KafkaClient("svc", ["localhost:9092"]);
 await connectWithRetry(() => client.connect(), {
@@ -153,7 +173,7 @@ Usage examples
 - Validate incoming consumer payloads:
 
 ```ts
-import { validation } from "@payvo/kafka";
+import { validation } from "@gatwech/kafka";
 const res = validation.validateMessage(MySchema, parsedMessage, {
   topic: "user.registered",
 });
@@ -163,13 +183,41 @@ const payload = res.data;
 
 - Validate before producing:
 
-```ts
-import { producer } from "@payvo/kafka";
-await producer.validateAndSend(kafkaClient, "user.registered", MySchema, {
+````ts
+import { producer } from "@gatwech/kafka";
+
+## Usage & E2E Examples
+
+Run these from this package directory after starting a Kafka broker (e.g., docker compose) or by setting `KAFKA_BOOTSTRAP`.
+
+```bash
+pnpm run test:e2e           # basic producer/consumer roundtrip
+pnpm run test:e2e:service   # service publisher factory path
+pnpm run test:e2e:integration
+pnpm run test:e2e:smoke     # quick connectivity check
+pnpm run test:e2e:express   # Express-based integration + DLQ
+````
+
+Environment overrides:
+
+```bash
+KAFKA_BOOTSTRAP=localhost:9092 pnpm run test:e2e
+SERVICE_E2E_TOPIC=my-service-e2e pnpm run test:e2e:service
+INTEGRATION_TOPIC=user.registered pnpm run test:e2e:integration
+EXPRESS_INTEGRATION_TOPIC=user.registered pnpm run test:e2e:express
+```
+
+The Express integration test exercises a realistic flow:
+
+- Auth app exposes `POST /signup` and publishes `user.registered` using the service factory.
+- Notification service consumes with retry + DLQ via `consumeWithRetryAndDLQ`.
+- A happy-path signup is processed; a failing signup (name=`FAIL`) is retried then sent to `user.registered.dlq`, which is asserted by a DLQ consumer.
+  await producer.validateAndSend(kafkaClient, "user.registered", MySchema, {
   key: "",
   value: payload,
-});
-```
+  });
+
+````
 
 This package provides Kafka helpers, topic definitions and provisioning scripts used by the microservices.
 
@@ -185,7 +233,7 @@ Quick patterns
 ```bash
 cd packages/kafka
 bash scripts/kafka-init.sh
-```
+````
 
 - Start your services normally (no provisioning during service startup):
 

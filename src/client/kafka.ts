@@ -8,6 +8,7 @@ import type {
   ProducerConfig,
 } from "kafkajs";
 import type { KafkaClientOptions, KafkaMetrics, TKafkaMessage } from "../types";
+import type { StrictOmit } from "../types/utility-types";
 
 export class KafkaError extends Error {
   constructor(
@@ -48,7 +49,7 @@ export class KafkaClient {
     consumerConnections: 0,
   };
   private admin?: Admin;
-   private consumers: Map<string, ReturnType<Kafka["consumer"]>> = new Map();
+  private consumers: Map<string, ReturnType<Kafka["consumer"]>> = new Map();
 
   constructor(
     clientId: string,
@@ -128,12 +129,12 @@ export class KafkaClient {
 
   public async disconnect(): Promise<void> {
     try {
-       for (const [groupId, consumer] of this.consumers.entries()) {
+      for (const [groupId, consumer] of this.consumers.entries()) {
         try {
           logger.info("Disconnecting consumer during client shutdown", {
             groupId,
           });
-             await consumer.disconnect();
+          await consumer.disconnect();
         } catch (err) {
           logger.warn("Error while disconnecting consumer", {
             groupId,
@@ -142,7 +143,7 @@ export class KafkaClient {
         }
       }
 
-       this.consumers.clear();
+      this.consumers.clear();
 
       await this.producer.disconnect();
       this.isConnected = false;
@@ -228,7 +229,7 @@ export class KafkaClient {
 
   public async createConsumer(
     groupId: string,
-    options: ConsumerConfig
+    options: ConsumerConfig & { groupInstanceId?: string }
   ): Promise<ReturnType<Kafka["consumer"]>> {
     const {
       groupId: _maybe,
@@ -238,11 +239,13 @@ export class KafkaClient {
       rebalanceTimeout,
       groupInstanceId,
       ...restOptions
-    } = options as any;
+    } = options;
 
-    const consumerOptions: any = {
+    type KafkaConsumerInit = ConsumerConfig & { groupInstanceId?: string };
+
+    const consumerOptions: KafkaConsumerInit = {
       groupId,
-      ...restOptions,
+      ...(restOptions as StrictOmit<ConsumerConfig, "groupId" | "retry">),
       sessionTimeout: sessionTimeout ?? this.options.sessionTimeout,
       heartbeatInterval: heartbeatInterval ?? this.options.heartbeatInterval,
       rebalanceTimeout: rebalanceTimeout ?? this.options.rebalanceTimeout,
@@ -269,8 +272,6 @@ export class KafkaClient {
 
     consumer.on("consumer.disconnect", () => {
       logger.info("Kafka consumer disconnected", { groupId });
-      // keep the instance in the registry for potential reconnect attempts
-      // removal will occur during explicit client.disconnect()
       this.metrics.consumerConnections--;
     });
 
