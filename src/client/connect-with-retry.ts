@@ -1,4 +1,5 @@
 import { logger } from "../utils/logger";
+import type { DeepReadonly } from "../types/utility-types";
 
 export interface ConnectRetryOptions {
   maxAttempts?: number;
@@ -13,7 +14,7 @@ export interface ConnectRetryOptions {
  */
 export async function connectWithRetry(
   connectFn: () => Promise<void>,
-  opts: ConnectRetryOptions = {}
+  opts: DeepReadonly<ConnectRetryOptions> = {}
 ): Promise<void> {
   const {
     maxAttempts = 8,

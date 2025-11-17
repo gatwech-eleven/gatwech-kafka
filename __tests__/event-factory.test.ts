@@ -1,4 +1,4 @@
-import { describe, it, vi , expect} from "vitest";
+import { describe, it, vi, expect } from "vitest";
 import { createEventPublisher } from "../src/client/event.factory";
 import { ResetPasswordRequestEmailSchema } from "../src/schemas/user-schemas";
 
@@ -18,6 +18,7 @@ describe("event.factory.createEventPublisher", () => {
       identifier: "email",
       email: "ok@example.com",
       token: "tok",
+      timestamp: Date.now(),
     });
 
     expect((fakeProducer.send as any).mock.calls.length).toBeGreaterThanOrEqual(
@@ -37,7 +38,11 @@ describe("event.factory.createEventPublisher", () => {
     );
 
     await expect(
-      publisher({ identifier: "email", token: "missing" } as any)
+      publisher({
+        identifier: "email",
+        token: "missing",
+        timestamp: Date.now(),
+      } as any)
     ).rejects.toBeDefined();
   });
 });

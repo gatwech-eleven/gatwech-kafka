@@ -1,10 +1,11 @@
 import { nanoid } from "nanoid";
-import { KafkaClient } from "../src/client/kafka-client.ts";
+import { KafkaClient } from "../src/client/kafka.ts";
 import { createEventPublisher } from "../src/client/event.factory.ts";
 import { z } from "@gatwech/utils/zod";
 import assert from "node:assert";
 import crypto from "node:crypto";
 import clientProm from "prom-client";
+import { ensureTopicsWithConfig } from "../src/config/ensure-topics.ts";
 
 const e2eSchema = z.object({
   hello: z.string(),
@@ -48,15 +49,25 @@ async function main() {
 
   const producer = client.getProducer();
 
-  // create topic with multiple partitions (best-effort)
+  // Ensure topic using robust helper (retries + leader wait)
   try {
     const admin = client.getAdmin();
-    await admin.connect();
-    await admin.createTopics({
-      topics: [{ topic, numPartitions: 3, replicationFactor: 1 }],
-      waitForLeaders: true,
+    await ensureTopicsWithConfig(admin, {
+      partitions: 3,
+      replicationFactor: 1,
+      waitForLeadersMs: 15_000,
+      includeBuiltIn: false,
+      additionalTopics: [
+        {
+          name: topic,
+          config: {
+            name: topic,
+            retentionMs: 24 * 60 * 60 * 1000,
+            cleanupPolicy: "delete",
+          } as any,
+        },
+      ],
     });
-    await admin.disconnect();
     console.log(`🪶 Topic ensured: ${topic}`);
   } catch (err: any) {
     console.warn("⚠️ Topic creation skipped:", err?.message || err);

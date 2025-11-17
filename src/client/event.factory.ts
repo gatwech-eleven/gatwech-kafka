@@ -1,152 +1,30 @@
 import { z } from "@gatwech/utils";
 import type { Producer } from "kafkajs";
-import { logger } from "../utils/logger";
-import { BaseProducer } from "../client/base";
-import type { TKafkaMessage } from "../types";
+import { type EventMetadata } from "../utils";
+import { GenericKafkaProducer, type KeyDeriver } from "./generic-producer";
+import type { DeepReadonly } from "../types/utility-types";
 import { generateCorrelationId } from "../utils/helpers";
-
-type KeyDeriver<T> = (payload: T) => string;
-
-type EventMetadata = {
-  correlationId?: string;
-  source?: string;
-  schemaHash?: string;
-};
-
-type BaseEventFields = {
-  timestamp?: Date | string | number;
-  metadata?: EventMetadata | Record<string, unknown>;
-};
-
-type StringifiableHeaders = Record<string, string | number | boolean | Date>;
-
-interface TReadyToPublishMessage<T>
-  extends Omit<TKafkaMessage<T>, "key" | "headers"> {
-  key: string;
-  headers?: StringifiableHeaders;
-  metadata?: Record<string, unknown>;
-}
-
-class GenericKafkaProducer<
-  TSchema extends z.ZodObject<any, any>
-> extends BaseProducer<z.infer<TSchema>> {
-  protected readonly topic: string;
-  private readonly keyDeriver: KeyDeriver<z.infer<TSchema>>;
-  constructor(
-    producer: Producer,
-    topic: string,
-    keyDeriver: KeyDeriver<z.infer<TSchema>>
-  ) {
-    super(producer);
-    this.topic = topic;
-    this.keyDeriver = keyDeriver;
-  }
-
-  private generateKey(payload: z.infer<TSchema>): string {
-    return this.keyDeriver(payload);
-  }
-
-  protected enrichAndFormatMessage(
-    payload: z.infer<TSchema>
-  ): TReadyToPublishMessage<z.infer<TSchema>> {
-    const key = this.generateKey(payload);
-
-    const withBase = payload as z.infer<TSchema> & BaseEventFields;
-    const rawTimestamp = withBase.timestamp;
-
-    function parseTimestamp(value: unknown): Date {
-      if (value instanceof Date) return value;
-      if (typeof value === "number" && Number.isFinite(value)) {
-        const d = new Date(value);
-        if (!isNaN(d.getTime())) return d;
-      }
-      if (typeof value === "string" && value.trim() !== "") {
-        const d = new Date(value);
-        if (!isNaN(d.getTime())) return d;
-      }
-      if (value !== undefined) {
-        logger.warn("Invalid event timestamp, defaulting to now", {
-          rawTimestamp: value as any,
-        });
-      }
-      return new Date();
-    }
-
-    const timestamp = parseTimestamp(rawTimestamp);
-
-    const metaCandidate = withBase.metadata;
-    const metadata: EventMetadata =
-      metaCandidate &&
-      typeof metaCandidate === "object" &&
-      !Array.isArray(metaCandidate)
-        ? (metaCandidate as EventMetadata)
-        : {};
-    const correlationId =
-      typeof metadata.correlationId === "string"
-        ? metadata.correlationId
-        : undefined;
-    const schemaHash =
-      typeof metadata.schemaHash === "string" ? metadata.schemaHash : undefined;
-    const source =
-      typeof metadata.source === "string" ? metadata.source : undefined;
-
-    const headers: StringifiableHeaders = {
-      "event-version": "1.0",
-      "event-type": this.topic,
-      timestamp: timestamp.toISOString(),
-      ...(correlationId ? { "correlation-id": String(correlationId) } : {}),
-      ...(source ? { source: String(source) } : {}),
-      ...(schemaHash ? { "schema-hash": String(schemaHash) } : {}),
-    };
-
-    return {
-      key,
-      headers,
-      value: payload,
-    };
-  }
-
-  private stringifyHeaders(
-    headers?: StringifiableHeaders
-  ): Record<string, string> | undefined {
-    if (!headers) return undefined;
-    const result: Record<string, string> = {};
-    for (const [k, v] of Object.entries(headers)) {
-      result[k] = v instanceof Date ? v.toISOString() : String(v);
-    }
-    return result;
-  }
-
-  public async send(payload: z.infer<TSchema>): Promise<void> {
-    const enriched = this.enrichAndFormatMessage(payload);
-    const stringifiedHeaders = this.stringifyHeaders(enriched.headers);
-
-    await this.publish({
-      key: enriched.key,
-      value: enriched.value,
-      headers: stringifiedHeaders,
-    } as TKafkaMessage<z.infer<TSchema>>);
-
-    logger.info(`Published event to topic ${this.topic}`, {
-      key: enriched.key,
-      timestamp: stringifiedHeaders?.timestamp,
-    });
-  }
-}
 
 /**
  * Factory for creating validated event publishers.
+ * @param producer The KafkaJS Producer instance to use for sending messages.
+ * @param topic The name of the Kafka topic to publish events to.
+ * @param schema A Zod schema object for validating event payloads.
+ * @param key A function that derives the message key from the event payload.
+ *            Prefer naming this function `getPartitionKey` at the call site for clarity.
+ * @param source A string indicating the source of the events (included in metadata).
+ * @returns A function that accepts a payload, validates it, enriches it with metadata, and publishes it to Kafka.
  */
 export function createEventPublisher<TSchema extends z.ZodObject<any, any>>(
   producer: Producer,
-  topicName: string,
+  topic: string,
   schema: TSchema,
   keyDeriver: KeyDeriver<z.infer<TSchema>>,
   source: string
 ) {
   const producerInstance = new GenericKafkaProducer<TSchema>(
     producer,
-    topicName,
+    topic,
     keyDeriver
   );
 
@@ -168,6 +46,58 @@ export function createEventPublisher<TSchema extends z.ZodObject<any, any>>(
       },
     } as z.infer<TSchema>;
 
-    await producerInstance.send(event);
+    await producerInstance.send(event as DeepReadonly<z.infer<TSchema>>);
   };
+}
+
+/** Options for `createPublisher` convenience helper */
+export type CreatePublisherOptions<TSchema = any> = {
+  producer: Producer;
+  topic: string;
+  source?: string;
+  /** key must be a function deriving a key from the payload */
+  key: (p: z.input<TSchema>) => string;
+  metadata?: Record<string, unknown>;
+};
+
+/**
+ * Flexible helper (requires a key-deriver function):
+ * - `createPublisher(opts, schema)` -> returns `publisher(payload)`
+ * - `createPublisher(opts)(schema)` -> returns `publisher(payload)`
+ *
+ * Where `opts.key` is `(payload) => string`, typically extracting a stable
+ * partitioning key such as `userId` or `email` from the payload.
+ */
+export function createPublisher<TSchema extends z.ZodObject<any, any>>(
+  opts: CreatePublisherOptions<TSchema>,
+  schema?: TSchema
+) {
+  const make = (s: TSchema) => {
+    const keyDeriver: KeyDeriver<z.infer<TSchema>> = (p) =>
+      opts.key(p as unknown as z.input<TSchema>);
+
+    const publisher = createEventPublisher(
+      opts.producer,
+      opts.topic,
+      s,
+      keyDeriver,
+      opts.source ?? "unknown-service"
+    );
+
+    return async (payload: z.input<TSchema>) => {
+      const merged = {
+        ...(payload as Record<string, unknown>),
+        metadata: {
+          ...(payload as any)?.metadata,
+          ...(opts.metadata || {}),
+        },
+      } as z.input<TSchema>;
+
+      return publisher(merged);
+    };
+  };
+
+  if (schema) return make(schema);
+
+  return (s: TSchema) => make(s);
 }

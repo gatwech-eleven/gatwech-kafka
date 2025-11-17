@@ -10,3 +10,5 @@ export type { Producer } from "kafkajs";
 
 export { createEventPublisher } from "./client/event.factory";
 export { BaseProducerSchema } from "./schemas/base.schema";
+
+export type { PartitionKeyFn } from "./client/generic-producer";

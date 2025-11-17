@@ -22,6 +22,7 @@ describe("validation.validateMessage", () => {
       identifier: "email",
       email: "test@example.com",
       token: "tok_123",
+      timestamp: Date.now(),
     };
 
     const res = validateMessage(ResetPasswordRequestEmailSchema, payload);
@@ -29,6 +30,7 @@ describe("validation.validateMessage", () => {
     if (res.success) {
       expect(res.data.email).toBe(payload.email);
       expect(res.data.token).toBe(payload.token);
+      expect(res.data.timestamp).toBeDefined(); // Ensure timestamp is present
     }
   });
 
@@ -36,6 +38,7 @@ describe("validation.validateMessage", () => {
     const payload = {
       identifier: "email",
       token: "tok_123",
+      timestamp: Date.now(),
     };
 
     const res = validateMessage(ResetPasswordRequestEmailSchema, payload);

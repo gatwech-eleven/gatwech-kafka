@@ -35,14 +35,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup pnpm
+      - name: Setup PNPM
         uses: pnpm/action-setup@v4
+        with:
+          version: 10.20.0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: "pnpm"
+
+      - name: Verify pnpm
+        run: pnpm -v
 
       - name: Install dependencies
         run: |
@@ -67,7 +72,7 @@ jobs:
 
       - name: Assert required files exist
         run: |
-          test -f src/client/kafka-client.ts && echo "OK: src/client/kafka-client.ts" || (echo "Missing src/client/kafka-client.ts" && exit 1)
+          test -f src/client/kafka.ts && echo "OK: src/client/kafka.ts" || (echo "Missing src/client/kafka.ts" && exit 1)
           test -f e2e/run-e2e.ts && echo "OK: e2e/run-e2e.ts" || (echo "Missing e2e/run-e2e.ts" && exit 1)
 
       - name: Wait for Kafka readiness

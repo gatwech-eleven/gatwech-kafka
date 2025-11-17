@@ -1,40 +1,100 @@
 name: CI
 
 on:
-  pull_request:
-    types: [opened, synchronize]
   push:
-    branches:
-      - main
-      - canary
-  merge_group:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
 jobs:
-  build-and-test:
+  build:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [20.x, 22.x]
     steps:
-      - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Setup PNPM
+        uses: pnpm/action-setup@v4
         with:
-          node-version: 24.x
+          version: 10.20.0
 
-      - name: Ensure pnpm is available
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: pnpm
+
+      - name: Setup pnpm via Corepack
         run: |
           corepack enable
-          corepack prepare pnpm@10.19.0 --activate
-          npm install -g pnpm || true
-          pnpm --version || true
+          corepack prepare pnpm@10.20.0 --activate
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Typecheck, Build, Test
-        env:
-          TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
-          TURBO_TEAM: ${{ vars.TURBO_TEAM || github.repository_owner }}
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Unit tests
+        run: pnpm test
+
+  e2e-smoke:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PNPM
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.20.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: pnpm
+
+      - name: Setup pnpm via Corepack
         run: |
-          pnpm typecheck
-          pnpm build
-          pnpm test
+          corepack enable
+          corepack prepare pnpm@10.20.0 --activate
+
+      - name: Start Redpanda (Kafka) service
+        run: |
+          docker run -d --name redpanda -p 9092:9092 -p 9644:9644 \
+            redpandadata/redpanda:v24.1.11 \
+            redpanda start \
+              --overprovisioned \
+              --smp 1 \
+              --memory 512M \
+              --reserve-memory 0M \
+              --node-id 0 \
+              --check=false \
+              --kafka-addr PLAINTEXT://0.0.0.0:9092 \
+              --advertise-kafka-addr PLAINTEXT://localhost:9092 \
+              --rpc-addr 0.0.0.0:33145 \
+              --advertise-rpc-addr localhost:33145
+
+      - name: Wait for Redpanda to be ready
+        run: |
+          for i in {1..60}; do
+            if docker exec redpanda rpk cluster health --api-urls localhost:9644 >/dev/null 2>&1; then
+              echo "Redpanda is healthy"; exit 0; fi; echo "waiting..."; sleep 2; done; \
+          echo "Redpanda did not become healthy in time"; docker logs redpanda; exit 1
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Smoke E2E
+        env:
+          KAFKA_BOOTSTRAP: localhost:9092
+        run: pnpm run test:e2e:smoke
