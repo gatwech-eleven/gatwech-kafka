@@ -81,14 +81,15 @@ jobs:
               --node-id 0 \
               --check=false \
               --kafka-addr PLAINTEXT://0.0.0.0:9092 \
-              --advertise-kafka-addr PLAINTEXT://localhost:9092 \
+              --advertise-kafka-addr PLAINTEXT://127.0.0.1:9092 \
               --rpc-addr 0.0.0.0:33145 \
-              --advertise-rpc-addr localhost:33145
+              --advertise-rpc-addr 127.0.0.1:33145
 
       - name: Wait for Redpanda to be ready
         run: |
           echo "Waiting for Redpanda (broker) to become healthy (will try up to 4 minutes)..."
-          attempts=120
+          # Increase attempts to allow slow CI VMs to start the broker
+          attempts=180
           attempt=1
           while [ $attempt -le $attempts ]; do
             if docker exec redpanda rpk cluster health --api-urls localhost:9644 >/dev/null 2>&1; then
@@ -113,5 +114,5 @@ jobs:
 
       - name: Smoke E2E
         env:
-          KAFKA_BOOTSTRAP: localhost:9092
+          KAFKA_BOOTSTRAP: 127.0.0.1:9092
         run: pnpm run test:e2e:smoke
