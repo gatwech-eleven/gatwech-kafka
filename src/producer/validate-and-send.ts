@@ -5,13 +5,11 @@ import type { TopicConfig } from "../config/topics";
 import { KafkaClient, KafkaError } from "../client/kafka";
 import { GenericKafkaProducer } from "../client/generic-producer";
 
-/** Validate and send a single message using KafkaClient. Throws on invalid payload. */
 export async function validateAndSend<T>(
   client: KafkaClient,
   topic: TopicConfig,
   message: TKafkaMessage<T>
 ): Promise<void> {
-  // Fallback: no schema -> delegate directly (legacy path)
   if (!topic.schema) {
     logger.warn("No schema defined for topic; not validating message", {
       topic: topic.name,
@@ -20,6 +18,7 @@ export async function validateAndSend<T>(
   }
 
   const schema = topic.schema as z.ZodType<T>;
+  
   const parsed = schema.safeParse(message.value);
   if (!parsed.success) {
     const tree = z.treeifyError(parsed.error as any);

@@ -94,8 +94,46 @@ describe("usage snapshots", () => {
     try {
       // ensure DLQ publish attempted
       expect(producerSend).toHaveBeenCalled();
-      // snapshot the DLQ call args (producer.send payload)
-      expect(producerSend.mock.calls[0][0]).toMatchSnapshot();
+
+      // Normalize stack paths in the DLQ payload before snapshotting
+      const rawCall = producerSend.mock.calls[0][0];
+
+      function sanitizeStackTraceInPayload(obj: any) {
+        if (!obj) return obj;
+        if (typeof obj === "string") {
+          try {
+            obj = JSON.parse(obj);
+          } catch {
+            return obj;
+          }
+        }
+        if (
+          obj &&
+          typeof obj === "object" &&
+          obj.stackTrace &&
+          typeof obj.stackTrace === "string"
+        ) {
+          // Replace absolute path-like segments with a redaction token
+          obj.stackTrace = obj.stackTrace.replace(
+            /\/[^^\s:()]+(\/[^^\s:()]+)+/g,
+            "<redacted-path>"
+          );
+        }
+        return JSON.stringify(obj);
+      }
+
+      const sanitizedCall = JSON.parse(JSON.stringify(rawCall));
+      if (Array.isArray(sanitizedCall.messages)) {
+        sanitizedCall.messages = sanitizedCall.messages.map((m: any) => {
+          const mCopy = { ...m };
+          if (mCopy.value) {
+            mCopy.value = sanitizeStackTraceInPayload(mCopy.value);
+          }
+          return mCopy;
+        });
+      }
+
+      expect(sanitizedCall).toMatchSnapshot();
     } finally {
       vi.useFakeTimers();
     }
