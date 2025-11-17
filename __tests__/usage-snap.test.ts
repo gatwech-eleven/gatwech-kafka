@@ -118,6 +118,11 @@ describe("usage snapshots", () => {
             /\/[^^\s:()]+(\/[^^\s:()]+)+/g,
             "<redacted-path>"
           );
+          // Redact line/column numbers to keep snapshots stable when code shifts
+          obj.stackTrace = obj.stackTrace.replace(
+            /:\d+:?\d*/g,
+            ":<redacted-pos>"
+          );
         }
         return JSON.stringify(obj);
       }
