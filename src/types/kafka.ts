@@ -13,6 +13,11 @@ export interface KafkaClientOptions {
   sessionTimeout?: number;
   heartbeatInterval?: number;
   requestTimeout?: number;
+  /**
+   * When true, the client will invoke connectAsync() during construction,
+   * allowing non-blocking startup. Defaults to false.
+   */
+  autoConnectAsync?: boolean;
 }
 
 export interface KafkaMetrics {

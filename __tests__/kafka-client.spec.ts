@@ -66,4 +66,36 @@ describe("KafkaClient.createProducer", () => {
     // returned producer should be the mocked producer
     expect(produced).toBe((kafkajs as any).__producerMock);
   });
+
+  it("does not auto-connect by default", async () => {
+    // Arrange
+    const producerMock = (kafkajs as any).__producerMock;
+
+    // Act
+    // By default, autoConnectAsync=false
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const _client = new KafkaClient("test-client", ["broker:9092"]);
+
+    // Assert
+    expect(producerMock.connect).not.toHaveBeenCalled();
+  });
+
+  it("autoConnectAsync=true triggers connectAsync on construction", async () => {
+    // Arrange
+    const producerMock = (kafkajs as any).__producerMock;
+
+    // Act
+    // Construct with autoConnectAsync so constructor calls connectAsync()
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const _client = new KafkaClient("test-client", ["broker:9092"], {
+      autoConnectAsync: true,
+    } as any);
+
+    // Allow any pending microtasks to run
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // Assert
+    expect(producerMock.connect).toHaveBeenCalled();
+  });
 });

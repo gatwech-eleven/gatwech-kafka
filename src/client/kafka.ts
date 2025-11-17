@@ -34,6 +34,7 @@ const DEFAULT_OPTIONS: Required<KafkaClientOptions> = {
   sessionTimeout: 30000,
   heartbeatInterval: 3000,
   requestTimeout: 30000,
+  autoConnectAsync: false,
 };
 
 export class KafkaClient {
@@ -76,6 +77,11 @@ export class KafkaClient {
     });
 
     this.setupEventListeners();
+
+    // Optionally kick off a non-blocking connection on startup
+    if (this.options.autoConnectAsync) {
+      this.connectAsync();
+    }
   }
 
   private setupEventListeners(): void {
