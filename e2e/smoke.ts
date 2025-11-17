@@ -30,8 +30,10 @@ async function main() {
   const client = new KafkaClient("smoke-client", [bootstrap], {
     metricsEnabled: false,
   });
-  await client.connect();
+  // Wait for broker readiness before connecting the producer to avoid transient
+  // connection errors like "write after end" while the broker is still starting.
   await waitForBroker(client);
+  await client.connect();
 
   const admin = client.getAdmin();
   await ensureTopicsWithConfig(admin, {
