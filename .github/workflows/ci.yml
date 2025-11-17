@@ -70,13 +70,14 @@ jobs:
 
       - name: Start Redpanda (Kafka) service
         run: |
+          # Allocate slightly more resources in CI so the broker can start reliably
           docker run -d --name redpanda -p 9092:9092 -p 9644:9644 \
             redpandadata/redpanda:v24.1.11 \
             redpanda start \
               --overprovisioned \
-              --smp 1 \
-              --memory 512M \
-              --reserve-memory 0M \
+              --smp 2 \
+              --memory 1024M \
+              --reserve-memory 128M \
               --node-id 0 \
               --check=false \
               --kafka-addr PLAINTEXT://0.0.0.0:9092 \
@@ -86,10 +87,26 @@ jobs:
 
       - name: Wait for Redpanda to be ready
         run: |
-          for i in {1..60}; do
+          echo "Waiting for Redpanda (broker) to become healthy (will try up to 4 minutes)..."
+          attempts=120
+          attempt=1
+          while [ $attempt -le $attempts ]; do
             if docker exec redpanda rpk cluster health --api-urls localhost:9644 >/dev/null 2>&1; then
-              echo "Redpanda is healthy"; exit 0; fi; echo "waiting..."; sleep 2; done; \
-          echo "Redpanda did not become healthy in time"; docker logs redpanda; exit 1
+              echo "Redpanda is healthy (attempt=$attempt)";
+              exit 0
+            fi
+            echo "Redpanda not healthy yet (attempt=$attempt/$attempts). Sleeping 2s..."
+            sleep 2
+            attempt=$((attempt+1))
+          done
+          echo "Redpanda did not become healthy in time after ${attempts} attempts";
+          echo "--- redpanda container logs ---";
+          docker logs redpanda || true;
+          echo "--- end redpanda logs ---";
+          # Show short process list and netstat to help debug in CI
+          docker exec redpanda ps aux || true
+          docker exec redpanda netstat -lntp || true
+          exit 1
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
