@@ -49,10 +49,10 @@ describe("consumer DLQ wrapper", () => {
         }),
       } as any;
 
-      const sendMessage = vi.fn().mockResolvedValue(undefined);
+      const producerSend = vi.fn().mockResolvedValue(undefined);
       const client = {
         createConsumer: vi.fn().mockResolvedValue(fakeConsumer),
-        sendMessage,
+        getProducer: vi.fn().mockReturnValue({ send: producerSend }),
       } as any;
 
       const topic = TopicConfigSchema.parse({
@@ -67,11 +67,13 @@ describe("consumer DLQ wrapper", () => {
         retryBackoffMs: 1,
       });
       // handler should be attempted and then DLQ publish happens
-      expect(sendMessage).toHaveBeenCalledTimes(1);
-      const [dlqTopic, dlqMsg] = sendMessage.mock.calls[0];
-      expect(dlqTopic).toBe("topic.test.dlq");
-      expect(dlqMsg.value.originalTopic).toBe("topic.test");
-      expect(dlqMsg.value.originalOffset).toBe("1");
+      expect(producerSend).toHaveBeenCalledTimes(1);
+      const [{ topic: sentTopic, messages }] = producerSend.mock
+        .calls[0] as any[];
+      expect(sentTopic).toBe("topic.test.dlq");
+      const body = JSON.parse(messages[0].value.toString());
+      expect(body.originalTopic).toBe("topic.test");
+      expect(body.originalOffset).toBe("1");
     } finally {
       vi.useFakeTimers();
     }
@@ -95,10 +97,10 @@ describe("consumer DLQ wrapper", () => {
         }),
       } as any;
 
-      const sendMessage = vi.fn().mockResolvedValue(undefined);
+      const producerSend = vi.fn().mockResolvedValue(undefined);
       const client = {
         createConsumer: vi.fn().mockResolvedValue(fakeConsumer),
-        sendMessage,
+        getProducer: vi.fn().mockReturnValue({ send: producerSend }),
       } as any;
 
       const topic = TopicConfigSchema.parse({
@@ -119,7 +121,7 @@ describe("consumer DLQ wrapper", () => {
       });
 
       expect(handler).toHaveBeenCalledTimes(2);
-      expect(sendMessage).not.toHaveBeenCalled();
+      expect(producerSend).not.toHaveBeenCalled();
     } finally {
       vi.useFakeTimers();
     }

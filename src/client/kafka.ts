@@ -1,5 +1,5 @@
 import { logger } from "../utils/logger";
-import { Kafka, Partitioners, CompressionTypes, logLevel } from "kafkajs";
+import { Kafka, CompressionTypes } from "kafkajs";
 import type {
   Producer,
   ConsumerConfig,
@@ -8,32 +8,9 @@ import type {
   ProducerConfig,
 } from "kafkajs";
 import type { KafkaClientOptions, KafkaMetrics, TKafkaMessage } from "../types";
-
-export class KafkaError extends Error {
-  constructor(
-    message: string,
-    public readonly cause?: unknown,
-    public readonly meta?: Record<string, unknown>
-  ) {
-    super(message);
-    this.name = "KafkaError";
-    Object.setPrototypeOf(this, KafkaError.prototype);
-  }
-}
-
-const DEFAULT_OPTIONS: Required<KafkaClientOptions> = {
-  allowAutoTopicCreation: true,
-  createPartitioner: Partitioners.DefaultPartitioner,
-  maxConnectionRetries: 5,
-  retryDelayMs: 1000,
-  compression: CompressionTypes.GZIP,
-  metricsEnabled: true,
-  logLevel: logLevel.INFO,
-  rebalanceTimeout: 60000,
-  sessionTimeout: 30000,
-  heartbeatInterval: 3000,
-  requestTimeout: 30000,
-};
+import { KafkaError } from "./errors";
+import { DEFAULT_OPTIONS } from "./default-options";
+import { createConsumerForClient } from "./create-consumer";
 
 export class KafkaClient {
   private readonly producer: Producer;
@@ -48,7 +25,7 @@ export class KafkaClient {
     consumerConnections: 0,
   };
   private admin?: Admin;
-   private consumers: Map<string, ReturnType<Kafka["consumer"]>> = new Map();
+  private consumers: Map<string, ReturnType<Kafka["consumer"]>> = new Map();
 
   constructor(
     clientId: string,
@@ -67,6 +44,7 @@ export class KafkaClient {
     this.producer = this.kafka.producer({
       allowAutoTopicCreation: this.options.allowAutoTopicCreation,
       createPartitioner: this.options.createPartitioner,
+      idempotent: true,
       retry: {
         maxRetryTime:
           this.options.retryDelayMs * this.options.maxConnectionRetries,
@@ -75,6 +53,11 @@ export class KafkaClient {
     });
 
     this.setupEventListeners();
+
+    // Optionally kick off a non-blocking connection on startup
+    if (this.options.autoConnectAsync) {
+      this.connectAsync();
+    }
   }
 
   private setupEventListeners(): void {
@@ -93,12 +76,52 @@ export class KafkaClient {
     });
   }
 
+  private async initializeKafkaConnection(): Promise<void> {
+    const timeoutMs =
+      this.options.maxConnectAttemptTimeMs ?? this.options.brokerWaitTimeoutMs;
+    const pollMs =
+      this.options.connectPollIntervalMs ??
+      this.options.brokerWaitPollIntervalMs;
+    const timeoutAt = Date.now() + timeoutMs;
+    const admin = this.getAdmin();
+    try {
+      await admin.connect();
+      while (Date.now() < timeoutAt) {
+        try {
+          const info = await admin.describeCluster();
+          if (info.controller) return; // ready
+        } catch (err) {
+          logger.warn("Broker readiness check failed; retrying", {
+            error: err,
+          });
+        }
+        await new Promise((r) => setTimeout(r, pollMs));
+      }
+      throw new KafkaError("Broker readiness timeout", undefined, {
+        timeoutMs,
+      });
+    } finally {
+      try {
+        await admin.disconnect();
+      } catch {}
+    }
+  }
+
   public async connect(): Promise<void> {
     if (this.isConnected) return;
 
     while (this.connectionRetries < this.options.maxConnectionRetries) {
       try {
+        if (
+          this.options.connectWithRetries ||
+          this.options.connectAsync ||
+          this.options.waitForBrokerBeforeConnect
+        ) {
+          await this.initializeKafkaConnection();
+        }
         await this.producer.connect();
+        // Mark ready after successful connect to avoid relying solely on events
+        this.isConnected = true;
         return;
       } catch (error) {
         this.connectionRetries++;
@@ -128,12 +151,12 @@ export class KafkaClient {
 
   public async disconnect(): Promise<void> {
     try {
-       for (const [groupId, consumer] of this.consumers.entries()) {
+      for (const [groupId, consumer] of this.consumers.entries()) {
         try {
           logger.info("Disconnecting consumer during client shutdown", {
             groupId,
           });
-             await consumer.disconnect();
+          await consumer.disconnect();
         } catch (err) {
           logger.warn("Error while disconnecting consumer", {
             groupId,
@@ -142,7 +165,7 @@ export class KafkaClient {
         }
       }
 
-       this.consumers.clear();
+      this.consumers.clear();
 
       await this.producer.disconnect();
       this.isConnected = false;
@@ -186,6 +209,7 @@ export class KafkaClient {
     try {
       await this.producer.send({
         topic,
+        acks: -1,
         messages: messages.map((m) => ({
           key: m.key,
           value: JSON.stringify(m.value),
@@ -228,107 +252,23 @@ export class KafkaClient {
 
   public async createConsumer(
     groupId: string,
-    options: ConsumerConfig
+    options: ConsumerConfig & { groupInstanceId?: string }
   ): Promise<ReturnType<Kafka["consumer"]>> {
-    const {
-      groupId: _maybe,
-      retry: _retry,
-      sessionTimeout,
-      heartbeatInterval,
-      rebalanceTimeout,
-      groupInstanceId,
-      ...restOptions
-    } = options as any;
-
-    const consumerOptions: any = {
+    return createConsumerForClient(
+      this.kafka,
+      this.options,
       groupId,
-      ...restOptions,
-      sessionTimeout: sessionTimeout ?? this.options.sessionTimeout,
-      heartbeatInterval: heartbeatInterval ?? this.options.heartbeatInterval,
-      rebalanceTimeout: rebalanceTimeout ?? this.options.rebalanceTimeout,
-      groupInstanceId: groupInstanceId ?? undefined,
-      retry: {
-        maxRetryTime: 30000,
-        initialRetryTime: 1000,
-        factor: 2,
-        multiplier: 2,
-        retries: 5,
-        ...(options.retry || {}),
-      },
-    };
-
-    const consumer = this.kafka.consumer(consumerOptions);
-
-    // store the consumer instance keyed by its groupId
-    this.consumers.set(groupId, consumer);
-    this.metrics.consumerConnections++;
-
-    consumer.on("consumer.connect", () => {
-      logger.info("Kafka consumer connected", { groupId });
-    });
-
-    consumer.on("consumer.disconnect", () => {
-      logger.info("Kafka consumer disconnected", { groupId });
-      // keep the instance in the registry for potential reconnect attempts
-      // removal will occur during explicit client.disconnect()
-      this.metrics.consumerConnections--;
-    });
-
-    consumer.on("consumer.network.request_timeout", (payload) => {
-      logger.warn("Kafka consumer network request timeout", {
-        groupId,
-        payload,
-      });
-    });
-
-    consumer.on("consumer.crash", (err) => {
-      logger.error("Kafka consumer crash", { groupId, error: err });
-
-      // Try to reconnect the specific tracked consumer with exponential backoff.
-      const tracked = this.consumers.get(groupId);
-      if (!tracked) return; // nothing to do if it's not tracked
-
-      let retries = 0;
-      const maxRetries = Math.max(5, this.options.maxConnectionRetries);
-
-      const attempt = async () => {
-        if (!this.consumers.has(groupId)) return; // stopped during shutdown
-        try {
-          logger.info("Attempting to reconnect Kafka consumer", {
-            groupId,
-            attempt: retries + 1,
-          });
-          await tracked.connect();
-          logger.info("Kafka consumer reconnected", { groupId });
-        } catch (e) {
-          retries++;
-          this.metrics.connectionRetries++;
-          const delay = Math.min(1000 * 2 ** retries, 30_000);
-          logger.warn("Kafka consumer reconnect failed, scheduling retry", {
-            groupId,
-            retries,
-            delay,
-            error: e,
-          });
-          setTimeout(attempt, delay);
-        }
-      };
-
-      // kick off reconnect attempts
-      setTimeout(attempt, 1000);
-    });
-
-    consumer.on("consumer.group_join", (info) => {
-      logger.info("Consumer group join", { groupId, info });
-    });
-
-    return consumer;
+      options,
+      this.consumers,
+      this.metrics
+    );
   }
 
   public createProducer(overrides?: Partial<Parameters<Kafka["producer"]>[0]>) {
     const opts = {
       allowAutoTopicCreation: this.options.allowAutoTopicCreation,
       createPartitioner: this.options.createPartitioner,
+      idempotent: true,
       retry: {
         maxRetryTime:
           this.options.retryDelayMs * this.options.maxConnectionRetries,

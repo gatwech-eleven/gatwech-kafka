@@ -35,31 +35,20 @@ exports[`usage snapshots > connectWithRetry retries until success (snapshot logg
 `;
 
 exports[`usage snapshots > consumeWithRetryAndDLQ publishes DLQ message after retries (snapshot) 1`] = `
-[
-  "test-topic.dlq",
-  {
-    "headers": {
-      "x-original-offset": "42",
-      "x-original-partition": "0",
-      "x-original-topic": "test-topic",
-    },
-    "key": "key-1",
-    "value": {
-      "consumerGroup": "grp-1",
-      "errorMessage": "Message processing failed after retries",
-      "originalHeaders": {},
-      "originalKey": "key-1",
-      "originalOffset": "42",
-      "originalPartition": 0,
-      "originalTopic": "test-topic",
-      "originalValue": {
-        "foo": "bar",
+{
+  "messages": [
+    {
+      "headers": {
+        "x-original-offset": "42",
+        "x-original-partition": "0",
+        "x-original-topic": "test-topic",
       },
-      "stackTrace": undefined,
-      "timestamp": 1735689600000,
+      "key": "key-1",
+      "value": "{"timestamp":1735689600000,"originalTopic":"test-topic","originalPartition":0,"originalOffset":"42","consumerGroup":"grp-1","errorMessage":"Message processing failed after retries","stackTrace":"Error: Message processing failed after retries\\n    at eachMessage (<redacted-path>:<redacted-pos>)\\n    at Object.<anonymous> (<redacted-path>:<redacted-pos>)","originalKey":"key-1","originalHeaders":{},"originalValue":{"foo":"bar"}}",
     },
-  },
-]
+  ],
+  "topic": "test-topic.dlq",
+}
 `;
 
 exports[`usage snapshots > event factory produces expected producer.send payload (snapshot) 1`] = `

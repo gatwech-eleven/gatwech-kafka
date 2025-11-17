@@ -3,7 +3,7 @@ import { logger } from "../utils/logger";
 import type { DLQOptions, TKafkaMessage } from "../types";
 import type { DeepReadonly } from "../types/utility-types";
 import type { TopicConfig } from "../config/topics/topic-config-schema";
-import { DlqMessageSchema } from "../schemas/dlq.schema";
+import { createDLQPublisher } from "./dlq.factory";
 import type { KafkaClient } from "./kafka";
 
 function sleep(ms: number) {
@@ -36,9 +36,16 @@ export async function consumeWithRetryAndDLQ(
   const consumer = await client.createConsumer(groupId, {} as any);
   await consumer.subscribe({ topic: topic.name, fromBeginning: false });
 
+  const publishToDLQ = createDLQPublisher(client.getProducer(), { dlqSuffix });
+
   await consumer.run({
     eachMessage: async (payload) => {
       const { topic: topicName, partition, message } = payload;
+      logger.debug("consumeWithRetryAndDLQ: eachMessage invoked", {
+        topic: topicName,
+        partition,
+        offset: message.offset,
+      });
 
       let attempt = 0;
 
@@ -58,6 +65,9 @@ export async function consumeWithRetryAndDLQ(
       }
 
       for (; attempt < maxRetries; attempt++) {
+        logger.debug("consumeWithRetryAndDLQ: handler attempt", {
+          attempt: attempt + 1,
+        });
         try {
           await handler(payload, { topic, groupId });
           return; // success, commit offset
@@ -73,6 +83,9 @@ export async function consumeWithRetryAndDLQ(
             error: err,
           });
           await sleep(delay);
+          logger.debug("consumeWithRetryAndDLQ: woke from sleep", {
+            attempt: attempt + 1,
+          });
         }
       }
 
@@ -86,58 +99,33 @@ export async function consumeWithRetryAndDLQ(
         return; // give up; offset will commit to avoid blocking partition
       }
 
-      // Build DLQ payload and publish
-      const dlqTopic = `${topic.name}${dlqSuffix}`;
-      const originalValue = message.value
-        ? (() => {
-            try {
-              return JSON.parse(message.value.toString());
-            } catch {
-              return message.value.toString();
-            }
-          })()
-        : undefined;
-
-      const dlqPayload = DlqMessageSchema.parse({
-        timestamp: Date.now(),
-        originalTopic: topicName,
-        originalPartition: partition,
-        originalOffset: message.offset,
-        consumerGroup: groupId,
-        errorMessage: "Message processing failed after retries",
-        stackTrace: undefined,
-        originalKey: message.key?.toString(),
-        originalHeaders: Object.fromEntries(
-          Object.entries(message.headers ?? {}).map(([k, v]) => [
-            k,
-            typeof v === "string" ? v : v?.toString() ?? "",
-          ])
-        ),
-        originalValue,
-      });
-
-      const dlqMsg: TKafkaMessage<DeepReadonly<typeof dlqPayload>> = {
-        key: message.key?.toString() || `${topicName}:${message.offset}`,
-        value: dlqPayload,
-        headers: {
-          "x-original-topic": topicName,
-          "x-original-offset": message.offset,
-          "x-original-partition": String(partition),
-        },
-      };
-
       try {
-        await client.sendMessage(dlqTopic, dlqMsg);
-        logger.warn("Message sent to DLQ", {
-          dlqTopic,
+        logger.debug("consumeWithRetryAndDLQ: publishing to DLQ", {
           topic: topicName,
           partition,
           offset: message.offset,
-          groupId,
+        });
+        await publishToDLQ(
+          {
+            value: message.value ?? null,
+            key: message.key ?? null,
+            headers: message.headers,
+          },
+          new Error("Message processing failed after retries"),
+          {
+            topic: topicName,
+            partition,
+            offset: message.offset,
+            groupId,
+          }
+        );
+        logger.debug("consumeWithRetryAndDLQ: published to DLQ", {
+          topic: topicName,
+          partition,
+          offset: message.offset,
         });
       } catch (err) {
         logger.error("Failed to publish to DLQ", {
-          dlqTopic,
           topic: topicName,
           partition,
           offset: message.offset,

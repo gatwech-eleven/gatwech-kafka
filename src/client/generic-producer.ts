@@ -12,7 +12,13 @@ import {
   type StringifiableHeaders,
 } from "../utils";
 
+/**
+ * @deprecated Use `PartitionKeyFn<T>` instead. This alias will be removed in a future release.
+ */
 export type KeyDeriver<T> = (payload: DeepReadonly<T>) => string;
+
+/** Preferred: function that derives a partition key from the payload. */
+export type PartitionKeyFn<T> = (payload: DeepReadonly<T>) => string;
 
 type BaseEventFields = {
   timestamp: number;
@@ -58,7 +64,13 @@ export class GenericKafkaProducer<
     const key = this.generateKey(payload, overrideKey);
 
     const withBase = payload as z.infer<TSchema> & BaseEventFields;
-    const timestamp = new Date(withBase.timestamp);
+    const tsValue = withBase.timestamp;
+    const timestamp = tsValue ? new Date(tsValue) : new Date();
+    if (isNaN(timestamp.getTime())) {
+      throw new Error(
+        `Invalid timestamp value for payload: ${JSON.stringify(payload)}`
+      );
+    }
 
     const metadata = extractEventMetadata(withBase.metadata);
     const headers = buildHeaders(this.topic, timestamp, metadata);

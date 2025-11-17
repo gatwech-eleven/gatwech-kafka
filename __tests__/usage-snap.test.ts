@@ -44,12 +44,12 @@ describe("usage snapshots", () => {
   });
 
   it("consumeWithRetryAndDLQ publishes DLQ message after retries (snapshot)", async () => {
-    const sendMessage = vi.fn().mockResolvedValue(undefined);
+    const producerSend = vi.fn().mockResolvedValue(undefined);
     // use real timers for this test because the code awaits setTimeout-based backoffs
     vi.useRealTimers();
     vi.setSystemTime(new Date("2025-01-01T00:00:00.000Z"));
 
-    // fake client with createConsumer and sendMessage
+    // fake client with createConsumer and getProducer
     const client: any = {
       createConsumer: vi.fn().mockResolvedValue({
         subscribe: vi.fn().mockResolvedValue(undefined),
@@ -67,7 +67,7 @@ describe("usage snapshots", () => {
           } as any);
         }),
       }),
-      sendMessage,
+      getProducer: vi.fn().mockReturnValue({ send: producerSend }),
     };
 
     const topic = { name: "test-topic" } as any;
@@ -93,9 +93,52 @@ describe("usage snapshots", () => {
 
     try {
       // ensure DLQ publish attempted
-      expect(sendMessage).toHaveBeenCalled();
-      // snapshot the DLQ call args (topic, message)
-      expect(sendMessage.mock.calls[0]).toMatchSnapshot();
+      expect(producerSend).toHaveBeenCalled();
+
+      // Normalize stack paths in the DLQ payload before snapshotting
+      const rawCall = producerSend.mock.calls[0][0];
+
+      function sanitizeStackTraceInPayload(obj: any) {
+        if (!obj) return obj;
+        if (typeof obj === "string") {
+          try {
+            obj = JSON.parse(obj);
+          } catch {
+            return obj;
+          }
+        }
+        if (
+          obj &&
+          typeof obj === "object" &&
+          obj.stackTrace &&
+          typeof obj.stackTrace === "string"
+        ) {
+          // Replace absolute path-like segments with a redaction token
+          obj.stackTrace = obj.stackTrace.replace(
+            /\/[^^\s:()]+(\/[^^\s:()]+)+/g,
+            "<redacted-path>"
+          );
+          // Redact line/column numbers to keep snapshots stable when code shifts
+          obj.stackTrace = obj.stackTrace.replace(
+            /:\d+:?\d*/g,
+            ":<redacted-pos>"
+          );
+        }
+        return JSON.stringify(obj);
+      }
+
+      const sanitizedCall = JSON.parse(JSON.stringify(rawCall));
+      if (Array.isArray(sanitizedCall.messages)) {
+        sanitizedCall.messages = sanitizedCall.messages.map((m: any) => {
+          const mCopy = { ...m };
+          if (mCopy.value) {
+            mCopy.value = sanitizeStackTraceInPayload(mCopy.value);
+          }
+          return mCopy;
+        });
+      }
+
+      expect(sanitizedCall).toMatchSnapshot();
     } finally {
       vi.useFakeTimers();
     }

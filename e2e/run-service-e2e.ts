@@ -20,23 +20,6 @@ const ServiceEventSchema = z.object({
     .optional(),
 });
 
-async function waitForBroker(client: KafkaClient, timeoutMs = 30000) {
-  const start = Date.now();
-  while (Date.now() - start < timeoutMs) {
-    try {
-      const admin = client.getAdmin();
-      await admin.connect();
-      const info = await admin.describeCluster();
-      await admin.disconnect();
-      if (info.controller) return; // broker ready
-    } catch (_) {
-      // ignore
-    }
-    await new Promise((r) => setTimeout(r, 1000));
-  }
-  throw new Error("Broker readiness timeout");
-}
-
 async function main() {
   const bootstrap = process.env.KAFKA_BOOTSTRAP || "localhost:9092";
   const topic = process.env.SERVICE_E2E_TOPIC || `service-e2e-${Date.now()}`;
@@ -45,11 +28,20 @@ async function main() {
     `🧪 Service Publisher E2E: bootstrap=${bootstrap}, topic=${topic}`
   );
 
+  // Allow overriding connect timeout via env var for CI workflows.
+  // On GitHub Actions default to a shorter timeout to avoid long blocked jobs.
+  const defaultMaxConnectMs = process.env.GITHUB_ACTIONS ? 30_000 : 180_000;
+  const maxConnectAttemptTimeMs = process.env.SERVICE_E2E_MAX_CONNECT_MS
+    ? Number(process.env.SERVICE_E2E_MAX_CONNECT_MS)
+    : defaultMaxConnectMs;
+
   const client = new KafkaClient("service-e2e-client", [bootstrap], {
     metricsEnabled: false,
+    connectWithRetries: true,
+    maxConnectAttemptTimeMs,
+    connectPollIntervalMs: 1000,
   });
   await client.connect();
-  await waitForBroker(client, 30000);
 
   // Ensure topic exists using library ensure-topics (with dynamic topic injection)
   try {
@@ -81,8 +73,12 @@ async function main() {
   // Build service-level publisher factory
   const producer = client.getProducer();
   const defineEvent = createServicePublisherFactory(producer, serviceSource);
-  const keyDeriver = (p: z.infer<typeof ServiceEventSchema>) => p.userId;
-  const publishUserEvent = defineEvent(topic, ServiceEventSchema, keyDeriver);
+  const getPartitionKey = (p: z.infer<typeof ServiceEventSchema>) => p.userId;
+  const publishUserEvent = defineEvent(
+    topic,
+    ServiceEventSchema,
+    getPartitionKey
+  );
 
   // Compute schema hash for observability
   const schemaHash = crypto
