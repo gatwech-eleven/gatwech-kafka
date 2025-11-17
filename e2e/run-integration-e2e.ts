@@ -5,25 +5,6 @@ import { UserRegisteredSchema } from "../src/schemas/user-schemas.ts";
 import { z } from "@gatwech/utils/zod";
 import { nanoid } from "nanoid";
 
-async function wait(ms: number) {
-  return new Promise((r) => setTimeout(r, ms));
-}
-
-async function waitForBroker(client: KafkaClient, timeoutMs = 30000) {
-  const start = Date.now();
-  while (Date.now() - start < timeoutMs) {
-    try {
-      const admin = client.getAdmin();
-      await admin.connect();
-      const info = await admin.describeCluster();
-      await admin.disconnect();
-      if (info.controller) return; // broker ready
-    } catch (_) {}
-    await wait(1000);
-  }
-  throw new Error("Broker readiness timeout");
-}
-
 async function main() {
   const bootstrap = process.env.KAFKA_BOOTSTRAP || "localhost:9092";
   const topic = process.env.INTEGRATION_TOPIC || "user.registered";
@@ -37,16 +18,16 @@ async function main() {
   // Two logical services using separate clients
   const authClient = new KafkaClient("auth-client", [bootstrap], {
     metricsEnabled: false,
+    connectWithRetries: true,
   });
   const notificationClient = new KafkaClient(
     "notification-client",
     [bootstrap],
-    { metricsEnabled: false }
+    { metricsEnabled: false, connectWithRetries: true }
   );
 
   await authClient.connect();
   await notificationClient.connect();
-  await waitForBroker(authClient, 30000);
 
   // Ensure only the specific topic needed for this test
   try {
@@ -108,11 +89,11 @@ async function main() {
   // Auth service publishes a user.registered event
   const producer = authClient.getProducer();
   const defineEvent = createServicePublisherFactory(producer, authSource);
-  const keyDeriver = (p: z.infer<typeof UserRegisteredSchema>) => p.email;
+  const getPartitionKey = (p: z.infer<typeof UserRegisteredSchema>) => p.email;
   const publishUserRegistered = defineEvent(
     topic,
     UserRegisteredSchema,
-    keyDeriver
+    getPartitionKey
   );
 
   const event = {

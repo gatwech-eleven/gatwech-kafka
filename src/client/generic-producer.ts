@@ -12,7 +12,13 @@ import {
   type StringifiableHeaders,
 } from "../utils";
 
+/**
+ * @deprecated Use `PartitionKeyFn<T>` instead. This alias will be removed in a future release.
+ */
 export type KeyDeriver<T> = (payload: DeepReadonly<T>) => string;
+
+/** Preferred: function that derives a partition key from the payload. */
+export type PartitionKeyFn<T> = (payload: DeepReadonly<T>) => string;
 
 type BaseEventFields = {
   timestamp: number;

@@ -18,6 +18,35 @@ export interface KafkaClientOptions {
    * allowing non-blocking startup. Defaults to false.
    */
   autoConnectAsync?: boolean;
+
+  /**
+   * Prefer this flag going forward. When true, KafkaClient.connect() performs
+   * a readiness check with retries before establishing the producer connection.
+   * Replaces the older `waitForBrokerBeforeConnect` name.
+   */
+  connectWithRetries?: boolean;
+
+  /**
+   * Alias: when true, behave like `connectWithRetries`. Name aligns with
+   * intent of performing an async, retrying connect.
+   */
+  connectAsync?: boolean;
+
+  /**
+   * @deprecated Use `connectWithRetries` instead.
+   * When true, KafkaClient.connect() waits for the broker to be ready
+   * (describeCluster has a controller) before connecting the producer.
+   * Defaults to false.
+   */
+  waitForBrokerBeforeConnect?: boolean;
+  /** Total time to wait for broker readiness (ms). Default 30000. */
+  maxConnectAttemptTimeMs?: number;
+  /** Poll interval for broker readiness checks (ms). Default 500. */
+  connectPollIntervalMs?: number;
+  /** @deprecated Use `maxConnectAttemptTimeMs`. */
+  brokerWaitTimeoutMs?: number;
+  /** @deprecated Use `connectPollIntervalMs`. */
+  brokerWaitPollIntervalMs?: number;
 }
 
 export interface KafkaMetrics {

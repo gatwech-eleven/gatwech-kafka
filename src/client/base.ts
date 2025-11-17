@@ -7,7 +7,7 @@ import {
   type KafkaMetrics,
 } from "../types";
 import type { DeepReadonly } from "../types/utility-types";
-import { KafkaError } from "./kafka";
+import { KafkaError } from "./errors";
 
 export abstract class BaseProducer<T> {
   protected abstract readonly topic: string;

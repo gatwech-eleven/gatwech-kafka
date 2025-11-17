@@ -2,9 +2,15 @@ import { z } from "@gatwech/utils";
 import { logger } from "../utils/logger";
 import type { TKafkaMessage } from "../types";
 import type { TopicConfig } from "../config/topics";
-import { KafkaClient, KafkaError } from "../client/kafka";
+import { KafkaClient } from "../client/kafka";
 import { GenericKafkaProducer } from "../client/generic-producer";
+import { KafkaError } from "@/client/errors";
 
+/**
+ * @deprecated Use `createServicePublisher` (preferred) or `createEventPublisher`.
+ * This helper performs schema validation then sends via a generic producer,
+ * but the service/event factory APIs provide richer metadata injection and clearer contracts.
+ */
 export async function validateAndSend<T>(
   client: KafkaClient,
   topic: TopicConfig,
@@ -18,7 +24,7 @@ export async function validateAndSend<T>(
   }
 
   const schema = topic.schema as z.ZodType<T>;
-  
+
   const parsed = schema.safeParse(message.value);
   if (!parsed.success) {
     const tree = z.treeifyError(parsed.error as any);
@@ -48,6 +54,11 @@ export async function validateAndSend<T>(
 }
 
 /** Validate and send multiple messages. Any invalid message will abort sending. */
+/**
+ * @deprecated Use `createServicePublisher` (preferred) or `createEventPublisher`.
+ * Validates each message and publishes as a batch. Prefer defining per-topic publishers
+ * with factories for stronger typing, metadata enrichment, and observability.
+ */
 export async function validateAndSendMany<T>(
   client: KafkaClient,
   topic: TopicConfig,

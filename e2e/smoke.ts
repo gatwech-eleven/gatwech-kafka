@@ -2,25 +2,6 @@ import { nanoid } from "nanoid";
 import { KafkaClient } from "../src/client/kafka.ts";
 import { ensureTopicsWithConfig } from "../src/config/ensure-topics.ts";
 
-async function wait(ms: number) {
-  return new Promise((r) => setTimeout(r, ms));
-}
-
-async function waitForBroker(client: KafkaClient, timeoutMs = 20000) {
-  const start = Date.now();
-  while (Date.now() - start < timeoutMs) {
-    try {
-      const admin = client.getAdmin();
-      await admin.connect();
-      const info = await admin.describeCluster();
-      await admin.disconnect();
-      if (info.controller) return;
-    } catch {}
-    await wait(500);
-  }
-  throw new Error("Broker readiness timeout");
-}
-
 async function main() {
   const bootstrap = process.env.KAFKA_BOOTSTRAP || "localhost:9092";
   const topic = `smoke-${Date.now()}`;
@@ -29,11 +10,8 @@ async function main() {
   console.log(`🚭 Smoke: bootstrap=${bootstrap}, topic=${topic}`);
   const client = new KafkaClient("smoke-client", [bootstrap], {
     metricsEnabled: false,
-    autoConnectAsync: true,
+    connectWithRetries: true,
   });
-  // Wait for broker readiness before connecting the producer to avoid transient
-  // connection errors like "write after end" while the broker is still starting.
-  await waitForBroker(client);
   await client.connect();
 
   const admin = client.getAdmin();

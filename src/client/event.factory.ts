@@ -11,6 +11,7 @@ import { generateCorrelationId } from "../utils/helpers";
  * @param topic The name of the Kafka topic to publish events to.
  * @param schema A Zod schema object for validating event payloads.
  * @param key A function that derives the message key from the event payload.
+ *            Prefer naming this function `getPartitionKey` at the call site for clarity.
  * @param source A string indicating the source of the events (included in metadata).
  * @returns A function that accepts a payload, validates it, enriches it with metadata, and publishes it to Kafka.
  */

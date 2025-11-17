@@ -13,21 +13,6 @@ async function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-async function waitForBroker(client: KafkaClient, timeoutMs = 30000) {
-  const start = Date.now();
-  while (Date.now() - start < timeoutMs) {
-    try {
-      const admin = client.getAdmin();
-      await admin.connect();
-      const info = await admin.describeCluster();
-      await admin.disconnect();
-      if (info.controller) return;
-    } catch {}
-    await sleep(500);
-  }
-  throw new Error("Broker readiness timeout");
-}
-
 async function main() {
   const bootstrap = process.env.KAFKA_BOOTSTRAP || "localhost:9092";
   const topic = process.env.EXPRESS_INTEGRATION_TOPIC || "user.registered";
@@ -38,10 +23,9 @@ async function main() {
   // Shared: ensure topic exists
   const adminClient = new KafkaClient("admin-express-e2e", [bootstrap], {
     metricsEnabled: false,
-    autoConnectAsync: true,
+    connectWithRetries: true,
   });
   await adminClient.connect();
-  await waitForBroker(adminClient);
   try {
     await ensureTopicsWithConfig(adminClient.getAdmin(), {
       includeBuiltIn: false,
@@ -75,7 +59,7 @@ async function main() {
   const notificationClient = new KafkaClient(
     "notification-express-e2e",
     [bootstrap],
-    { metricsEnabled: false, autoConnectAsync: true }
+    { metricsEnabled: false, connectWithRetries: true }
   );
   await notificationClient.connect();
   const groupId = `notification-express-${nanoid().slice(0, 6)}`;
@@ -137,16 +121,16 @@ async function main() {
 
   const authClient = new KafkaClient("auth-express-e2e", [bootstrap], {
     metricsEnabled: false,
-    autoConnectAsync: true,
+    connectWithRetries: true,
   });
   await authClient.connect();
   const producer = authClient.getProducer();
   const defineEvent = createServicePublisherFactory(producer, authSource);
-  const keyDeriver = (p: z.infer<typeof UserRegisteredSchema>) => p.email;
+  const getPartitionKey = (p: z.infer<typeof UserRegisteredSchema>) => p.email;
   const publishUserRegistered = defineEvent(
     topic,
     UserRegisteredSchema,
-    keyDeriver
+    getPartitionKey
   );
 
   const authApp = express();

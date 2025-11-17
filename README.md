@@ -27,10 +27,11 @@ const UserRegistered = z.object({
     .optional(),
 });
 
+const getPartitionKey = (p: z.infer<typeof UserRegistered>) => p.id;
 const publishUserRegistered = service(
   "user.registered",
   UserRegistered,
-  (p) => p.id
+  getPartitionKey
 );
 await publishUserRegistered({ id: "123", email: "alice@example.com" });
 ```
@@ -46,6 +47,7 @@ const publisher = createEventPublisher(
   producer,
   "user.registered",
   UserRegistered,
+  // Prefer explicit naming for clarity
   (p) => p.id,
   "my-service"
 );
@@ -137,6 +139,7 @@ await connectWithRetry(() => client.connect(), {
 - **Prefer factories for larger codebases:** Use `createServicePublisher` when many events share the same producer & source metadata. (`createServicePublisherFactory` deprecated)
 - **DLQ handling:** Monitor the `.dlq` topics — a rising DLQ depth is the primary signal of processing issues.
 - **Idempotency:** Consumers should be written idempotently (e.g., use upserts) because retries and rebalances can cause duplicate deliveries.
+- **Broker readiness:** Set `connectWithRetries: true` (or `connectAsync: true`) on `KafkaClient` to have `connect()` wait until the broker reports a controller before connecting the producer. Tune with `maxConnectAttemptTimeMs` and `connectPollIntervalMs`. (Former names `waitForBrokerBeforeConnect`, `brokerWaitTimeoutMs`, and `brokerWaitPollIntervalMs` are deprecated.)
 
 ## Configuration & provisioning reminders
 
@@ -277,7 +280,14 @@ Notes
 
 ## Deprecations
 
-- `createServicePublisherFactory` -> use `createServicePublisher`.
+- `KeyDeriver<T>` (type) -> use `PartitionKeyFn<T>`.
+- Prefer naming the key function `getPartitionKey` at call sites for clarity.
+- `createServicePublisherFactory` remains supported; examples prefer the clearer key function naming.
+- `waitForBrokerBeforeConnect` -> use `connectWithRetries` or `connectAsync`.
+- `brokerWaitTimeoutMs` -> use `maxConnectAttemptTimeMs`.
+- `brokerWaitPollIntervalMs` -> use `connectPollIntervalMs`.
+- For E2E scripts previously calling a custom `waitForBroker`, consider switching to `new KafkaClient(...,{ connectWithRetries: true })`.
+- `producer.validateAndSend` and `producer.validateAndSendMany` are deprecated. Prefer `createServicePublisher` (or `createEventPublisher` for one-offs) which provide stronger typing, metadata injection, and consistent headers.
 
 ## License
 

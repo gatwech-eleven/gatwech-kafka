@@ -2,7 +2,7 @@ import { z } from "@gatwech/utils";
 import type { Producer } from "kafkajs";
 import { generateCorrelationId } from "../utils/helpers";
 import { createEventPublisher } from "./event.factory";
-import type { KeyDeriver } from "./generic-producer";
+import type { PartitionKeyFn } from "./generic-producer";
 import type { EventMetadata } from "../utils";
 import type { ServiceSource } from "../types/utility-types";
 
@@ -14,7 +14,7 @@ export type EventPublisher<TSchema extends z.ZodObject<any, any>> = (
 ) => Promise<void>;
 
 /**
- * Stage 1: Create a service-level factory that encapsulates shared producer and source metadata.
+ * Create a service-level factory that encapsulates shared producer and source metadata.
  * @param producer Shared KafkaJS producer instance.
  * @param serviceSource Stable identifier for the emitting service (e.g. "user-service-v3").
  */
@@ -23,21 +23,21 @@ export function createServicePublisherFactory(
   serviceSource: ServiceSource | string
 ) {
   /**
-   * Stage 2: Define a concrete event publisher for a topic + schema + key derivation.
+   * Define a concrete event publisher for a topic + schema + key derivation.
    * @param topic Kafka topic name for this event type.
    * @param schema Zod schema validating the payload shape.
-   * @param keyDeriver Function deriving the partitioning key from the validated payload.
+   * @param getPartitionKey Function deriving the partitioning key from the validated payload.
    */
   return function defineEvent<TSchema extends z.ZodObject<any, any>>(
     topic: string,
     schema: TSchema,
-    keyDeriver: KeyDeriver<z.infer<TSchema>>
+    getPartitionKey: PartitionKeyFn<z.infer<TSchema>>
   ): EventPublisher<TSchema> {
     const publisherInstance = createEventPublisher(
       producer,
       topic,
       schema,
-      keyDeriver,
+      getPartitionKey,
       serviceSource
     );
 
