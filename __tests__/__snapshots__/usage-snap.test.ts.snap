@@ -44,7 +44,7 @@ exports[`usage snapshots > consumeWithRetryAndDLQ publishes DLQ message after re
         "x-original-topic": "test-topic",
       },
       "key": "key-1",
-        "value": "{"timestamp":1735689600000,"originalTopic":"test-topic","originalPartition":0,"originalOffset":"42","consumerGroup":"grp-1","errorMessage":"Message processing failed after retries","stackTrace":"Error: Message processing failed after retries\\n    at eachMessage (<redacted-path>:98:11)\\n    at Object.<anonymous> (<redacted-path>:58:11)","originalKey":"key-1","originalHeaders":{},"originalValue":{"foo":"bar"}}",
+      "value": "{"timestamp":1735689600000,"originalTopic":"test-topic","originalPartition":0,"originalOffset":"42","consumerGroup":"grp-1","errorMessage":"Message processing failed after retries","stackTrace":"Error: Message processing failed after retries\\n    at eachMessage (<redacted-path>:98:11)\\n    at Object.<anonymous> (<redacted-path>:58:11)","originalKey":"key-1","originalHeaders":{},"originalValue":{"foo":"bar"}}",
     },
   ],
   "topic": "test-topic.dlq",
