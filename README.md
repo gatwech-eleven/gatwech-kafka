@@ -2,6 +2,17 @@
 
 Lightweight Kafka helpers for strongly-typed, validated, observable event publishing & consumption using KafkaJS + Zod.
 
+## Highlights (recent changes)
+
+- Resilient startup: `KafkaClient` supports `connectWithRetries` and `connectAsync`. Tune behavior with `maxConnectAttemptTimeMs` and `connectPollIntervalMs`.
+- Producer guarantees: default producers created by the library are idempotent and sends use `acks: all` to improve durability.
+- Broker readiness: the client can perform a readiness poll against the cluster controller before connecting a producer when retries are enabled.
+- Defaults centralised: `DEFAULT_OPTIONS` is now in `src/client/default-options.ts` and documents the runtime defaults used by the client.
+- Consumer creation refactor: consumer lifecycle and reconnect logic have been extracted into `src/client/create-consumer.ts`.
+- Admin client is lazy: the admin client connects only when required to avoid slowing startup.
+- Observability: new metrics for publish success/failure, connection retries and consumer connections; clearer logs on readiness and DLQ events.
+- CI/Workflows: workflows were adjusted to ensure `pnpm` is available before `actions/setup-node` uses the pnpm cache (fixes CI failures seen in some runners).
+
 ## Quick Start (Preferred Factory)
 
 ```ts
@@ -288,6 +299,7 @@ Notes
 - `brokerWaitPollIntervalMs` -> use `connectPollIntervalMs`.
 - For E2E scripts previously calling a custom `waitForBroker`, consider switching to `new KafkaClient(...,{ connectWithRetries: true })`.
 - `producer.validateAndSend` and `producer.validateAndSendMany` are deprecated. Prefer `createServicePublisher` (or `createEventPublisher` for one-offs) which provide stronger typing, metadata injection, and consistent headers.
+  These helpers are annotated `@deprecated` in `src/producer/validate-and-send.ts` and will be removed in a future major release; migrate to the factory-based publishers.
 
 ## License
 

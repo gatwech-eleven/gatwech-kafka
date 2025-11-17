@@ -28,10 +28,17 @@ async function main() {
     `🧪 Service Publisher E2E: bootstrap=${bootstrap}, topic=${topic}`
   );
 
+  // Allow overriding connect timeout via env var for CI workflows.
+  // On GitHub Actions default to a shorter timeout to avoid long blocked jobs.
+  const defaultMaxConnectMs = process.env.GITHUB_ACTIONS ? 30_000 : 180_000;
+  const maxConnectAttemptTimeMs = process.env.SERVICE_E2E_MAX_CONNECT_MS
+    ? Number(process.env.SERVICE_E2E_MAX_CONNECT_MS)
+    : defaultMaxConnectMs;
+
   const client = new KafkaClient("service-e2e-client", [bootstrap], {
     metricsEnabled: false,
     connectWithRetries: true,
-    maxConnectAttemptTimeMs: 180_000,
+    maxConnectAttemptTimeMs,
     connectPollIntervalMs: 1000,
   });
   await client.connect();

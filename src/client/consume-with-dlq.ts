@@ -41,6 +41,11 @@ export async function consumeWithRetryAndDLQ(
   await consumer.run({
     eachMessage: async (payload) => {
       const { topic: topicName, partition, message } = payload;
+      logger.debug("consumeWithRetryAndDLQ: eachMessage invoked", {
+        topic: topicName,
+        partition,
+        offset: message.offset,
+      });
 
       let attempt = 0;
 
@@ -60,6 +65,9 @@ export async function consumeWithRetryAndDLQ(
       }
 
       for (; attempt < maxRetries; attempt++) {
+        logger.debug("consumeWithRetryAndDLQ: handler attempt", {
+          attempt: attempt + 1,
+        });
         try {
           await handler(payload, { topic, groupId });
           return; // success, commit offset
@@ -75,6 +83,9 @@ export async function consumeWithRetryAndDLQ(
             error: err,
           });
           await sleep(delay);
+          logger.debug("consumeWithRetryAndDLQ: woke from sleep", {
+            attempt: attempt + 1,
+          });
         }
       }
 
@@ -89,6 +100,11 @@ export async function consumeWithRetryAndDLQ(
       }
 
       try {
+        logger.debug("consumeWithRetryAndDLQ: publishing to DLQ", {
+          topic: topicName,
+          partition,
+          offset: message.offset,
+        });
         await publishToDLQ(
           {
             value: message.value ?? null,
@@ -103,6 +119,11 @@ export async function consumeWithRetryAndDLQ(
             groupId,
           }
         );
+        logger.debug("consumeWithRetryAndDLQ: published to DLQ", {
+          topic: topicName,
+          partition,
+          offset: message.offset,
+        });
       } catch (err) {
         logger.error("Failed to publish to DLQ", {
           topic: topicName,

@@ -1,7 +1,7 @@
 import { t as __export } from "./chunk-vZJVYSGk.mjs";
 import { t as logger } from "./logger-BCcyae9U.mjs";
 import { t as JsonSerializer } from "./types-BaLVca0q.mjs";
-import { a as createEventPublisher, c as BaseProducer, i as connectWithRetry, l as KafkaClient, n as consumeWithRetryAndDLQ, o as createPublisher, r as createDLQPublisher, s as GenericKafkaProducer, t as createServicePublisherFactory, u as KafkaError } from "./client-BqimQ4zL.mjs";
+import { a as createEventPublisher, c as KafkaClient, i as connectWithRetry, l as BaseProducer, n as consumeWithRetryAndDLQ, o as createPublisher, r as createDLQPublisher, s as GenericKafkaProducer, t as createServicePublisherFactory, u as KafkaError } from "./client-DrO_SFy9.mjs";
 import { r as BaseProducerSchema } from "./dlq.schema-Du3UyPGZ.mjs";
 import { a as orderTopics, c as schemas_exports, i as paymentTopics, n as notificationTopics, o as chatTopics, r as userTopics, s as TopicConfigSchema, t as topics } from "./topics-2Tb-wREt.mjs";
 import { t as ensureTopicsWithConfig } from "./ensure-topics-ByMtgJ2A.mjs";
@@ -37,7 +37,11 @@ var validate_and_send_exports = /* @__PURE__ */ __export({
 	validateAndSend: () => validateAndSend,
 	validateAndSendMany: () => validateAndSendMany
 });
-/** Validate and send a single message using KafkaClient. Throws on invalid payload. */
+/**
+* @deprecated Use `createServicePublisher` (preferred) or `createEventPublisher`.
+* This helper performs schema validation then sends via a generic producer,
+* but the service/event factory APIs provide richer metadata injection and clearer contracts.
+*/
 async function validateAndSend(client, topic, message) {
 	if (!topic.schema) {
 		logger.warn("No schema defined for topic; not validating message", { topic: topic.name });
@@ -63,6 +67,11 @@ async function validateAndSend(client, topic, message) {
 	await generic.send(payloadWithTimestamp);
 }
 /** Validate and send multiple messages. Any invalid message will abort sending. */
+/**
+* @deprecated Use `createServicePublisher` (preferred) or `createEventPublisher`.
+* Validates each message and publishes as a batch. Prefer defining per-topic publishers
+* with factories for stronger typing, metadata enrichment, and observability.
+*/
 async function validateAndSendMany(client, topic, messages) {
 	if (!topic.schema) {
 		logger.warn("No schema defined for topic; not validating messages", { topic: topic.name });
@@ -125,4 +134,4 @@ function resolveBrokersFromEnv() {
 }
 
 //#endregion
-export { BaseProducer, BaseProducerSchema, GenericKafkaProducer, JsonSerializer, KafkaClient, KafkaError, TopicConfigSchema, chatTopics, connectWithRetry, consumeWithRetryAndDLQ, createDLQPublisher, createEventPublisher, createPublisher, createServicePublisherFactory, ensureTopicsWithConfig, notificationTopics, orderTopics, paymentTopics, validate_and_send_exports as producer, resolveBrokersFromEnv, schemas_exports as schemas, topics, userTopics, validation_exports as validation };
+export { BaseProducer, BaseProducerSchema, GenericKafkaProducer, JsonSerializer, KafkaClient, TopicConfigSchema, chatTopics, connectWithRetry, consumeWithRetryAndDLQ, createDLQPublisher, createEventPublisher, createPublisher, createServicePublisherFactory, ensureTopicsWithConfig, notificationTopics, orderTopics, paymentTopics, validate_and_send_exports as producer, resolveBrokersFromEnv, schemas_exports as schemas, topics, userTopics, validation_exports as validation };

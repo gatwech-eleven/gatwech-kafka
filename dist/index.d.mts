@@ -1,5 +1,5 @@
-import { a as JsonSerializer, i as ISerializer, l as TKafkaMessage, n as ConsumerConfig, o as KafkaClientOptions, r as DLQOptions, s as KafkaMetrics, t as Consumer, u as WithMetadata } from "./index-Dewog11d.mjs";
-import { _ as KafkaClient, a as EventPublisher, c as consumeWithRetryAndDLQ, d as CreatePublisherOptions, f as createEventPublisher, g as TReadyToPublishMessage, h as KeyDeriver, i as createDLQPublisher, l as ConnectRetryOptions, m as GenericKafkaProducer, n as DLQContext, o as createServicePublisherFactory, p as createPublisher, r as DLQMessageParts, s as ConsumeHandlerContext, t as CreateDLQPublisherOptions, u as connectWithRetry, v as KafkaError, y as BaseProducer } from "./index-Cu3zJToL.mjs";
+import { a as JsonSerializer, i as ISerializer, l as TKafkaMessage, n as ConsumerConfig, o as KafkaClientOptions, r as DLQOptions, s as KafkaMetrics, t as Consumer, u as WithMetadata } from "./index-lgL8Q5Lc.mjs";
+import { _ as TReadyToPublishMessage, a as EventPublisher, c as consumeWithRetryAndDLQ, d as CreatePublisherOptions, f as createEventPublisher, g as PartitionKeyFn, h as KeyDeriver, i as createDLQPublisher, l as ConnectRetryOptions, m as GenericKafkaProducer, n as DLQContext, o as createServicePublisherFactory, p as createPublisher, r as DLQMessageParts, s as ConsumeHandlerContext, t as CreateDLQPublisherOptions, u as connectWithRetry, v as KafkaClient, y as BaseProducer } from "./index-DYAI5qnd.mjs";
 import { n as TopicConfigSchema, t as TopicConfig } from "./topic-config-schema-B-xz1L2k.mjs";
 import { n as ensureTopicsWithConfig, t as TopicMap } from "./ensure-topics-BEBRunmo.mjs";
 import { a as notificationTopics, i as orderTopics, n as chatTopics, o as userTopics, r as paymentTopics, t as topics } from "./index-BC75ktkO.mjs";
@@ -26,9 +26,18 @@ declare const _default$3: {
 declare namespace validate_and_send_d_exports {
   export { _default$2 as default, validateAndSend, validateAndSendMany };
 }
-/** Validate and send a single message using KafkaClient. Throws on invalid payload. */
+/**
+ * @deprecated Use `createServicePublisher` (preferred) or `createEventPublisher`.
+ * This helper performs schema validation then sends via a generic producer,
+ * but the service/event factory APIs provide richer metadata injection and clearer contracts.
+ */
 declare function validateAndSend<T>(client: KafkaClient, topic: TopicConfig, message: TKafkaMessage<T>): Promise<void>;
 /** Validate and send multiple messages. Any invalid message will abort sending. */
+/**
+ * @deprecated Use `createServicePublisher` (preferred) or `createEventPublisher`.
+ * Validates each message and publishes as a batch. Prefer defining per-topic publishers
+ * with factories for stronger typing, metadata enrichment, and observability.
+ */
 declare function validateAndSendMany<T>(client: KafkaClient, topic: TopicConfig, messages: TKafkaMessage<T>[]): Promise<void>;
 declare const _default$2: {
   validateAndSend: typeof validateAndSend;
@@ -301,4 +310,4 @@ declare namespace index_d_exports {
 //#region src/utils/brokers.d.ts
 declare function resolveBrokersFromEnv(): string[];
 //#endregion
-export { BaseProducer, BaseProducerSchema, ConnectRetryOptions, ConsumeHandlerContext, Consumer, ConsumerConfig, CreateDLQPublisherOptions, CreatePublisherOptions, DLQContext, DLQMessageParts, DLQOptions, EventPublisher, GenericKafkaProducer, ISerializer, JsonSerializer, KafkaClient, KafkaClientOptions, KafkaError, KafkaMetrics, KeyDeriver, type Producer, TKafkaMessage, TReadyToPublishMessage, TopicConfig, TopicConfigSchema, TopicMap, WithMetadata, chatTopics, connectWithRetry, consumeWithRetryAndDLQ, createDLQPublisher, createEventPublisher, createPublisher, createServicePublisherFactory, ensureTopicsWithConfig, notificationTopics, orderTopics, paymentTopics, validate_and_send_d_exports as producer, resolveBrokersFromEnv, index_d_exports as schemas, topics, userTopics, index_d_exports$1 as validation };
+export { BaseProducer, BaseProducerSchema, ConnectRetryOptions, ConsumeHandlerContext, Consumer, ConsumerConfig, CreateDLQPublisherOptions, CreatePublisherOptions, DLQContext, DLQMessageParts, DLQOptions, EventPublisher, GenericKafkaProducer, ISerializer, JsonSerializer, KafkaClient, KafkaClientOptions, KafkaMetrics, KeyDeriver, type PartitionKeyFn, type Producer, TKafkaMessage, TReadyToPublishMessage, TopicConfig, TopicConfigSchema, TopicMap, WithMetadata, chatTopics, connectWithRetry, consumeWithRetryAndDLQ, createDLQPublisher, createEventPublisher, createPublisher, createServicePublisherFactory, ensureTopicsWithConfig, notificationTopics, orderTopics, paymentTopics, validate_and_send_d_exports as producer, resolveBrokersFromEnv, index_d_exports as schemas, topics, userTopics, index_d_exports$1 as validation };
