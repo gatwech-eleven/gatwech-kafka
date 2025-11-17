@@ -31,6 +31,8 @@ async function main() {
   const client = new KafkaClient("service-e2e-client", [bootstrap], {
     metricsEnabled: false,
     connectWithRetries: true,
+    maxConnectAttemptTimeMs: 180_000,
+    connectPollIntervalMs: 1000,
   });
   await client.connect();
 

@@ -19,6 +19,8 @@ async function main() {
   const authClient = new KafkaClient("auth-client", [bootstrap], {
     metricsEnabled: false,
     connectWithRetries: true,
+    maxConnectAttemptTimeMs: 180_000,
+    connectPollIntervalMs: 1000,
   });
   const notificationClient = new KafkaClient(
     "notification-client",

@@ -12,16 +12,16 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Setup PNPM
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.20.0
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: "pnpm"
-
-      - name: Enable Corepack and prepare pnpm
-        run: |
-          corepack enable
-          corepack prepare pnpm@10.20.0 --activate
 
       - name: Verify pnpm
         run: pnpm -v

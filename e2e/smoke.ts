@@ -11,6 +11,9 @@ async function main() {
   const client = new KafkaClient("smoke-client", [bootstrap], {
     metricsEnabled: false,
     connectWithRetries: true,
+    // CI brokers may take longer to become ready; allow up to 3 minutes
+    maxConnectAttemptTimeMs: 180_000,
+    connectPollIntervalMs: 1000,
   });
   await client.connect();
 
