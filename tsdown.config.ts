@@ -16,8 +16,8 @@ export default defineConfig({
     "prom-client",
     "buffer",
     "zod",
-    "zod-to-json-schema",
-    "@gatwech/utils"
+    "@gatwech/utils",
+    "@gatwech/kafka",
   ],
   clean: true,
 });
