@@ -38,6 +38,7 @@ async function main() {
   // Shared: ensure topic exists
   const adminClient = new KafkaClient("admin-express-e2e", [bootstrap], {
     metricsEnabled: false,
+    autoConnectAsync: true,
   });
   await adminClient.connect();
   await waitForBroker(adminClient);
@@ -74,7 +75,7 @@ async function main() {
   const notificationClient = new KafkaClient(
     "notification-express-e2e",
     [bootstrap],
-    { metricsEnabled: false }
+    { metricsEnabled: false, autoConnectAsync: true }
   );
   await notificationClient.connect();
   const groupId = `notification-express-${nanoid().slice(0, 6)}`;
@@ -136,6 +137,7 @@ async function main() {
 
   const authClient = new KafkaClient("auth-express-e2e", [bootstrap], {
     metricsEnabled: false,
+    autoConnectAsync: true,
   });
   await authClient.connect();
   const producer = authClient.getProducer();

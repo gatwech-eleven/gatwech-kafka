@@ -29,6 +29,7 @@ async function main() {
   console.log(`🚭 Smoke: bootstrap=${bootstrap}, topic=${topic}`);
   const client = new KafkaClient("smoke-client", [bootstrap], {
     metricsEnabled: false,
+    autoConnectAsync: true,
   });
   // Wait for broker readiness before connecting the producer to avoid transient
   // connection errors like "write after end" while the broker is still starting.
