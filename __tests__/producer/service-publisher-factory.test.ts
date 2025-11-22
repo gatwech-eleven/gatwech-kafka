@@ -5,7 +5,8 @@ import { generateCorrelationId } from "../../src/utils/helpers";
 import { createEventPublisher } from '../../src/client/producers/event.factory';
 
 // Spy on underlying createEventPublisher so we can assert configuration
-vi.mock("../src/client/event.factory", () => ({
+// Spy on underlying createEventPublisher so we can assert configuration
+vi.mock("../../src/client/producers/event.factory", () => ({
   createEventPublisher: vi.fn((...args: any[]) =>
     vi.fn().mockResolvedValue(undefined)
   ),

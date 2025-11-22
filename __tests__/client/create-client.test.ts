@@ -7,7 +7,7 @@ import { createTopicConfig } from "../../src/config/topics/define-topics";
 import { initializeKafkaTopics } from "../../src/config/ensure-topics";
 
 // Mock dependencies
-vi.mock("../../src/client/kafka");
+vi.mock("../../src/client/core/kafka");
 vi.mock("../../src/config/ensure-topics");
 
 describe("createKafkaClient", () => {
