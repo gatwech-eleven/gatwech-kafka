@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, canary]
   pull_request:
-    branches: [main]
+    branches: [main, canary]
 
 jobs:
   build:
@@ -28,11 +28,6 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: pnpm
 
-      - name: Setup pnpm via Corepack
-        run: |
-          corepack enable
-          corepack prepare pnpm@10.20.0 --activate
-
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -48,6 +43,7 @@ jobs:
   e2e-smoke:
     runs-on: ubuntu-latest
     needs: build
+    timeout-minutes: 5
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -60,59 +56,45 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20.x
+          node-version: 22.x
           cache: pnpm
-
-      - name: Setup pnpm via Corepack
-        run: |
-          corepack enable
-          corepack prepare pnpm@10.20.0 --activate
-
-      - name: Start Redpanda (Kafka) service
-        run: |
-          # Allocate slightly more resources in CI so the broker can start reliably
-          docker run -d --name redpanda -p 9092:9092 -p 9644:9644 \
-            redpandadata/redpanda:v24.1.11 \
-            redpanda start \
-              --overprovisioned \
-              --smp 2 \
-              --memory 1024M \
-              --reserve-memory 128M \
-              --node-id 0 \
-              --check=false \
-              --kafka-addr PLAINTEXT://0.0.0.0:9092 \
-              --advertise-kafka-addr PLAINTEXT://127.0.0.1:9092 \
-              --rpc-addr 0.0.0.0:33145 \
-              --advertise-rpc-addr 127.0.0.1:33145
-
-      - name: Wait for Redpanda to be ready
-        run: |
-          echo "Waiting for Redpanda (broker) to become healthy (will try up to 4 minutes)..."
-          # Increase attempts to allow slow CI VMs to start the broker
-          attempts=180
-          attempt=1
-          while [ $attempt -le $attempts ]; do
-            if docker exec redpanda rpk cluster health --api-urls localhost:9644 >/dev/null 2>&1; then
-              echo "Redpanda is healthy (attempt=$attempt)";
-              exit 0
-            fi
-            echo "Redpanda not healthy yet (attempt=$attempt/$attempts). Sleeping 2s..."
-            sleep 2
-            attempt=$((attempt+1))
-          done
-          echo "Redpanda did not become healthy in time after ${attempts} attempts";
-          echo "--- redpanda container logs ---";
-          docker logs redpanda || true;
-          echo "--- end redpanda logs ---";
-          # Show short process list and netstat to help debug in CI
-          docker exec redpanda ps aux || true
-          docker exec redpanda netstat -lntp || true
-          exit 1
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Build
+        run: pnpm build
+
+      - name: Start Docker Containers
+        run: |
+          docker compose up -d
+          echo "Waiting for Kafka to be ready..."
+          # Wait for Kafka container to be healthy
+          timeout 120 bash -c 'until docker compose ps kafka | grep -q "healthy"; do echo "Waiting for Kafka..."; sleep 2; done' || {
+            echo "Kafka failed to become healthy"
+            docker compose logs kafka
+            exit 1
+          }
+          echo "Kafka is ready!"
+
+      - name: Verify Kafka connectivity
+        run: |
+          # Test that we can connect to Kafka from the host
+          for i in {1..30}; do
+            if nc -z localhost 9092; then
+              echo "✅ Kafka is accessible on localhost:9092"
+              break
+            fi
+            echo "Waiting for Kafka port 9092... (attempt $i/30)"
+            sleep 2
+          done
+          nc -z localhost 9092 || (echo "❌ Cannot connect to Kafka" && exit 1)
+
       - name: Smoke E2E
         env:
-          KAFKA_BOOTSTRAP: 127.0.0.1:9092
-        run: pnpm run test:e2e:smoke
+          KAFKA_BOOTSTRAP: localhost:9092
+        run: pnpm test:e2e:smoke
+
+      - name: Stop Docker Containers
+        if: always()
+        run: docker compose down

@@ -2,7 +2,7 @@ name: Test Snapshots
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, canary]
 
 jobs:
   test:
