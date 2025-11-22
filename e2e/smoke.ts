@@ -7,7 +7,6 @@ async function main() {
   const topic = `smoke-${Date.now()}`;
   const groupId = `smoke-${nanoid().slice(0, 6)}`;
 
-  console.log(`🚭 Smoke: bootstrap=${bootstrap}, topic=${topic}`);
   const client = new KafkaClient("smoke-client", [bootstrap], {
     metricsEnabled: false,
     connectWithRetries: true,
