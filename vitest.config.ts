@@ -13,7 +13,8 @@ export default defineConfig({
       "test/**/*.test.ts",
       "test/**/*.spec.ts",
       "__test__/**/*.test.ts",
-      "__tests__/**/*.spec.ts",
+      "src/**/__tests__/**/*.test.ts",
+      "src/**/__tests__/**/*.spec.ts",
     ],
     setupFiles: [path.resolve(__dirname, "__tests__/setup.ts")],
     coverage: {

@@ -2,12 +2,20 @@ const CONFIG_RESOURCE_TYPE_TOPIC = 2;
 import { topics } from "./topics";
 import { logger } from "../utils/logger";
 import type { Admin, DescribeConfigResponse } from "kafkajs";
-import type { TopicConfig } from "./topics/topic-config-schema";
+import type {
+  TopicConfig,
+  ValidatedTopicConfig,
+} from "./topics/topic-config-schema";
 
 /**
  * Options for topic provisioning defaults.
  */
 type EnsureOpts = {
+  /**
+   * Application-defined topics (from `createTopicConfig()`).
+   * This is the recommended way to provide topics.
+   */
+  topics?: Record<string, ValidatedTopicConfig | TopicConfig>;
   /** Default number of partitions for new topics (overridden by per-topic config if provided). */
   partitions?: number;
   /** Default replication factor for new topics (overridden by per-topic config if provided). */
@@ -17,6 +25,7 @@ type EnsureOpts = {
   /**
    * Additional topics to ensure beyond the built-in TOPICS map.
    * Useful for tests/E2E that need ephemeral topics.
+   * @deprecated Use `topics` parameter instead.
    */
   additionalTopics?:
     | TopicMap
@@ -24,7 +33,7 @@ type EnsureOpts = {
         name: string;
         config: TopicConfig;
       }>;
-  /** If false, only ensure additionalTopics (skip built-in TOPICS). Default: true */
+  /** If false, only ensure additionalTopics/topics (skip built-in TOPICS). Default: false */
   includeBuiltIn?: boolean;
 };
 
@@ -204,7 +213,7 @@ async function safeDescribeConfigs(
 }
 
 /**
- * Ensure all topics declared in `TOPICS` exist with the desired partition counts and configs.
+ * Initialize Kafka topics with application-level or built-in configurations.
  *
  * **What this does:**
  * 1. **Create** any missing topics with initial `numPartitions`, `replicationFactor`, and `configEntries`.
@@ -216,25 +225,49 @@ async function safeDescribeConfigs(
  * - `alterConfigs` and `describeConfigs` may require admin ACLs; failures are logged as warnings and do not stop startup.
  * - By default this function manages the Admin connection; pass `manageConnection=false` if the caller handles connect/disconnect.
  *
- * @example
+ * @example Application-level topics
  * ```ts
  * import { kafkaClient } from '@/config/kafka';
- * import { ensureTopicsWithConfig } from '@payvo/kafka/ensure-topics';
+ * import { initializeKafkaTopics, createTopicConfig } from '@gatwech/kafka';
+ *
+ * const myTopics = createTopicConfig({
+ *   USER_REGISTERED: {
+ *     name: 'user.registered',
+ *     schema: UserRegisteredSchema,
+ *     retentionMs: 7 * 24 * 60 * 60 * 1000,
+ *   },
+ * });
  *
  * const admin = kafkaClient.getAdmin();
- * await ensureTopicsWithConfig(admin, { partitions: 3, replicationFactor: 1 }); // connects/disconnects admin by default
+ * await initializeKafkaTopics(admin, {
+ *   topics: myTopics,
+ *   partitions: 3,
+ *   replicationFactor: 1,
+ * });
+ * ```
+ *
+ * @example Using built-in topics
+ * ```ts
+ * await initializeKafkaTopics(admin, {
+ *   includeBuiltIn: true,
+ *   partitions: 3,
+ *   replicationFactor: 1,
+ * });
  * ```
  *
  * @param admin - KafkaJS Admin client.
- * @param opts - Default provisioning options (per-topic overrides take precedence).
+ * @param opts - Initialization options.
+ * @param opts.topics - Application-defined topics (from `createTopicConfig()`).
  * @param opts.partitions - Default partitions for new topics (default: 3).
  * @param opts.replicationFactor - Default replication factor for new topics (default: 1).
  * @param opts.waitForLeadersMs - Max time to wait for leader election after changes (default: 15000ms).
+ * @param opts.includeBuiltIn - Include built-in package topics (default: false).
+ * @param opts.additionalTopics - Legacy: additional topics to ensure (use `topics` instead).
  * @param manageConnection - If `true`, this function connects/disconnects the Admin (default: `true`).
- * @returns Promise that resolves when topics are ensured.
+ * @returns Promise that resolves when topics are initialized.
  * @throws Propagates unexpected admin errors (topic creation races are handled gracefully).
  */
-export async function ensureTopicsWithConfig(
+export async function initializeKafkaTopics(
   admin: Admin,
   opts: EnsureOpts = {},
   manageConnection = true
@@ -409,4 +442,22 @@ export async function ensureTopicsWithConfig(
   } finally {
     if (manageConnection) await admin.disconnect();
   }
+}
+
+/**
+ * @deprecated Use `initializeKafkaTopics` instead. This function is kept for backward compatibility.
+ *
+ * Ensure all topics declared in `TOPICS` exist with the desired partition counts and configs.
+ *
+ * @param admin - KafkaJS Admin client.
+ * @param opts - Default provisioning options (per-topic overrides take precedence).
+ * @param manageConnection - If `true`, this function connects/disconnects the Admin (default: `true`).
+ * @returns Promise that resolves when topics are ensured.
+ */
+export async function ensureTopicsWithConfig(
+  admin: Admin,
+  opts: EnsureOpts = {},
+  manageConnection = true
+) {
+  return initializeKafkaTopics(admin, opts, manageConnection);
 }

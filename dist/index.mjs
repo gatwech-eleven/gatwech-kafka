@@ -1,12 +1,57 @@
 import { t as __export } from "./chunk-vZJVYSGk.mjs";
 import { t as logger } from "./logger-BCcyae9U.mjs";
 import { t as JsonSerializer } from "./types-BaLVca0q.mjs";
-import { a as createEventPublisher, c as KafkaClient, i as connectWithRetry, l as BaseProducer, n as consumeWithRetryAndDLQ, o as createPublisher, r as createDLQPublisher, s as GenericKafkaProducer, t as createServicePublisherFactory, u as KafkaError } from "./client-B9oZkdRV.mjs";
+import { a as createEventPublisher, c as createKafkaClient, d as KafkaError, i as connectWithRetry, l as KafkaClient, n as consumeWithRetryAndDLQ, o as createPublisher, r as createDLQPublisher, s as GenericKafkaProducer, t as createServicePublisherFactory, u as BaseProducer } from "./client-3phZT7za.mjs";
 import { r as BaseProducerSchema } from "./dlq.schema-Du3UyPGZ.mjs";
-import { a as orderTopics, c as schemas_exports, i as paymentTopics, n as notificationTopics, o as chatTopics, r as userTopics, s as TopicConfigSchema, t as topics } from "./topics-2Tb-wREt.mjs";
-import { t as ensureTopicsWithConfig } from "./ensure-topics-ByMtgJ2A.mjs";
+import { a as createTopicConfig, c as topicsToArray, d as paymentTopics, f as orderTopics, h as schemas_exports, i as createSingleTopicConfig, l as notificationTopics, m as TopicConfigSchema, n as TopicConfigBuilder, o as defineTopic, p as chatTopics, r as topicBuilder, s as defineTopics, t as topics, u as userTopics } from "./topics-BdYdXNLX.mjs";
+import { n as initializeKafkaTopics, t as ensureTopicsWithConfig } from "./ensure-topics-_gM_NLAJ.mjs";
 import { z } from "@gatwech/utils";
 
+//#region src/extensions/topic-provisioning.ts
+/**
+* Extension that adds topic provisioning capabilities to the Kafka client.
+*
+* @param topics - Map of topic configurations (from createTopicConfig)
+* @param options - Provisioning options
+*/
+function topicProvisioningExtension(topics$1, options = {}) {
+	return {
+		name: "topicProvisioning",
+		setup: (client) => {
+			return { provisionTopics: async () => {
+				await initializeKafkaTopics(client.getAdmin(), {
+					topics: topics$1,
+					partitions: options.partitions,
+					replicationFactor: options.replicationFactor,
+					waitForLeadersMs: options.waitForLeadersMs,
+					includeBuiltIn: options.includeBuiltIn
+				});
+			} };
+		}
+	};
+}
+
+//#endregion
+//#region src/extensions/health-check.ts
+/**
+* Extension that provides health check functionality.
+*
+* While the base client has a healthCheck method, this extension allows
+* for more consistent access patterns in the modular architecture.
+*/
+function healthCheckExtension() {
+	return {
+		name: "healthCheck",
+		setup: (client) => {
+			const originalHealthCheck = client.healthCheck.bind(client);
+			return { healthCheck: async () => {
+				return originalHealthCheck();
+			} };
+		}
+	};
+}
+
+//#endregion
 //#region src/validation/index.ts
 var validation_exports = /* @__PURE__ */ __export({
 	default: () => validation_default,
@@ -134,4 +179,4 @@ function resolveBrokersFromEnv() {
 }
 
 //#endregion
-export { BaseProducer, BaseProducerSchema, GenericKafkaProducer, JsonSerializer, KafkaClient, TopicConfigSchema, chatTopics, connectWithRetry, consumeWithRetryAndDLQ, createDLQPublisher, createEventPublisher, createPublisher, createServicePublisherFactory, ensureTopicsWithConfig, notificationTopics, orderTopics, paymentTopics, validate_and_send_exports as producer, resolveBrokersFromEnv, schemas_exports as schemas, topics, userTopics, validation_exports as validation };
+export { BaseProducer, BaseProducerSchema, GenericKafkaProducer, JsonSerializer, KafkaClient, TopicConfigBuilder, TopicConfigSchema, chatTopics, connectWithRetry, consumeWithRetryAndDLQ, createDLQPublisher, createEventPublisher, createKafkaClient, createPublisher, createServicePublisherFactory, createSingleTopicConfig, createTopicConfig, defineTopic, defineTopics, ensureTopicsWithConfig, healthCheckExtension, initializeKafkaTopics, notificationTopics, orderTopics, paymentTopics, validate_and_send_exports as producer, resolveBrokersFromEnv, schemas_exports as schemas, topicBuilder, topicProvisioningExtension, topics, topicsToArray, userTopics, validation_exports as validation };

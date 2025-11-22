@@ -1,14 +1,53 @@
-import { a as JsonSerializer, i as ISerializer, l as TKafkaMessage, n as ConsumerConfig, o as KafkaClientOptions, r as DLQOptions, s as KafkaMetrics, t as Consumer, u as WithMetadata } from "./index-lgL8Q5Lc.mjs";
-import { _ as TReadyToPublishMessage, a as EventPublisher, c as consumeWithRetryAndDLQ, d as CreatePublisherOptions, f as createEventPublisher, g as PartitionKeyFn, h as KeyDeriver, i as createDLQPublisher, l as ConnectRetryOptions, m as GenericKafkaProducer, n as DLQContext, o as createServicePublisherFactory, p as createPublisher, r as DLQMessageParts, s as ConsumeHandlerContext, t as CreateDLQPublisherOptions, u as connectWithRetry, v as KafkaClient, y as BaseProducer } from "./index-DYAI5qnd.mjs";
-import { n as TopicConfigSchema, t as TopicConfig } from "./topic-config-schema-B-xz1L2k.mjs";
-import { n as ensureTopicsWithConfig, t as TopicMap } from "./ensure-topics-BEBRunmo.mjs";
-import { a as notificationTopics, i as orderTopics, n as chatTopics, o as userTopics, r as paymentTopics, t as topics } from "./index-BC75ktkO.mjs";
+import "./utility-types-DB5LA6q8.mjs";
+import { a as JsonSerializer, i as ISerializer, l as TKafkaMessage, n as ConsumerConfig, o as KafkaClientOptions, r as DLQOptions, s as KafkaMetrics, t as Consumer, u as WithMetadata } from "./index-Dnhcc_NG.mjs";
+import { C as BaseProducer, S as KafkaClient, _ as TReadyToPublishMessage, a as EventPublisher, b as ModularKafkaClient, c as consumeWithRetryAndDLQ, d as CreatePublisherOptions, f as createEventPublisher, g as PartitionKeyFn, h as KeyDeriver, i as createDLQPublisher, l as ConnectRetryOptions, m as GenericKafkaProducer, n as DLQContext, o as createServicePublisherFactory, p as createPublisher, r as DLQMessageParts, s as ConsumeHandlerContext, t as CreateDLQPublisherOptions, u as connectWithRetry, v as CreateKafkaClientConfig, x as createKafkaClient, y as KafkaExtension } from "./index-BefCi4kM.mjs";
+import { i as ValidatedTopicConfig, n as TopicConfigInput, r as TopicConfigSchema, t as TopicConfig } from "./topic-config-schema-CPt6qZS9.mjs";
+import { n as ensureTopicsWithConfig, r as initializeKafkaTopics, t as TopicMap } from "./ensure-topics-Cw2fD2bk.mjs";
+import { a as createTopicConfig, c as topicsToArray, d as orderTopics, f as notificationTopics, i as createSingleTopicConfig, l as chatTopics, n as TopicConfigBuilder, o as defineTopic, p as userTopics, r as topicBuilder, s as defineTopics, t as topics, u as paymentTopics } from "./index-C6cIxjaB.mjs";
 import { Producer } from "kafkajs";
 import { z } from "@gatwech/utils";
 import { z as z$1 } from "@gatwech/utils/zod";
 import { z as z$2 } from "zod";
 
-//#region src/validation/index.d.ts
+//#region src/extensions/topic-provisioning.d.ts
+interface TopicProvisioningOptions {
+  /**
+   * Default number of partitions for new topics
+   */
+  partitions?: number;
+  /**
+   * Default replication factor for new topics
+   */
+  replicationFactor?: number;
+  /**
+   * Max time to wait for leaders after create/partition increase
+   */
+  waitForLeadersMs?: number;
+  /**
+   * Whether to include built-in package topics
+   */
+  includeBuiltIn?: boolean;
+}
+/**
+ * Extension that adds topic provisioning capabilities to the Kafka client.
+ *
+ * @param topics - Map of topic configurations (from createTopicConfig)
+ * @param options - Provisioning options
+ */
+declare function topicProvisioningExtension(topics?: Record<string, ValidatedTopicConfig | TopicConfig>, options?: TopicProvisioningOptions): KafkaExtension<{
+  provisionTopics: () => Promise<void>;
+}>;
+//#endregion
+//#region src/extensions/health-check.d.ts
+/**
+ * Extension that provides health check functionality.
+ *
+ * While the base client has a healthCheck method, this extension allows
+ * for more consistent access patterns in the modular architecture.
+ */
+declare function healthCheckExtension(): KafkaExtension<{
+  healthCheck: () => Promise<boolean>;
+}>;
 declare namespace index_d_exports$1 {
   export { ValidationResult, _default$3 as default, validateMessage };
 }
@@ -310,4 +349,4 @@ declare namespace index_d_exports {
 //#region src/utils/brokers.d.ts
 declare function resolveBrokersFromEnv(): string[];
 //#endregion
-export { BaseProducer, BaseProducerSchema, ConnectRetryOptions, ConsumeHandlerContext, Consumer, ConsumerConfig, CreateDLQPublisherOptions, CreatePublisherOptions, DLQContext, DLQMessageParts, DLQOptions, EventPublisher, GenericKafkaProducer, ISerializer, JsonSerializer, KafkaClient, KafkaClientOptions, KafkaMetrics, KeyDeriver, type PartitionKeyFn, type Producer, TKafkaMessage, TReadyToPublishMessage, TopicConfig, TopicConfigSchema, TopicMap, WithMetadata, chatTopics, connectWithRetry, consumeWithRetryAndDLQ, createDLQPublisher, createEventPublisher, createPublisher, createServicePublisherFactory, ensureTopicsWithConfig, notificationTopics, orderTopics, paymentTopics, validate_and_send_d_exports as producer, resolveBrokersFromEnv, index_d_exports as schemas, topics, userTopics, index_d_exports$1 as validation };
+export { BaseProducer, BaseProducerSchema, ConnectRetryOptions, ConsumeHandlerContext, Consumer, ConsumerConfig, CreateDLQPublisherOptions, CreateKafkaClientConfig, CreatePublisherOptions, DLQContext, DLQMessageParts, DLQOptions, EventPublisher, GenericKafkaProducer, ISerializer, JsonSerializer, KafkaClient, KafkaClientOptions, KafkaExtension, KafkaMetrics, KeyDeriver, ModularKafkaClient, type PartitionKeyFn, type Producer, TKafkaMessage, TReadyToPublishMessage, type TopicConfig, TopicConfigBuilder, type TopicConfigInput, TopicConfigSchema, TopicMap, TopicProvisioningOptions, type ValidatedTopicConfig, WithMetadata, chatTopics, connectWithRetry, consumeWithRetryAndDLQ, createDLQPublisher, createEventPublisher, createKafkaClient, createPublisher, createServicePublisherFactory, createSingleTopicConfig, createTopicConfig, defineTopic, defineTopics, ensureTopicsWithConfig, healthCheckExtension, initializeKafkaTopics, notificationTopics, orderTopics, paymentTopics, validate_and_send_d_exports as producer, resolveBrokersFromEnv, index_d_exports as schemas, topicBuilder, topicProvisioningExtension, topics, topicsToArray, userTopics, index_d_exports$1 as validation };

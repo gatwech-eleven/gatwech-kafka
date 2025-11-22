@@ -5,7 +5,7 @@ import type { DeepReadonly } from "../types/utility-types";
 import type { TopicConfig } from "../config/topics/topic-config-schema";
 import { createDLQPublisher } from "./dlq.factory";
 import type { KafkaClient } from "./kafka";
-
+import type { ZodType } from "@gatwech/utils/zod";
 function sleep(ms: number) {
   return new Promise((res) => setTimeout(res, ms));
 }
@@ -18,14 +18,28 @@ export interface ConsumeHandlerContext {
 /**
  * Run a consumer with retry and DLQ handling. Validates against TopicConfig.schema if provided.
  */
+// Overload for topics with a Zod schema – payload inferred from schema
+export async function consumeWithRetryAndDLQ<T>(
+  client: KafkaClient,
+  groupId: string,
+  topic: TopicConfig & { schema: ZodType<T> },
+  handler: (payload: T, ctx: ConsumeHandlerContext) => Promise<void>,
+  opts: DLQOptions
+): Promise<any>;
+// Overload for topics without a schema – raw payload is passed
 export async function consumeWithRetryAndDLQ(
   client: KafkaClient,
   groupId: string,
   topic: TopicConfig,
-  handler: (
-    payload: EachMessagePayload,
-    ctx: ConsumeHandlerContext
-  ) => Promise<void>,
+  handler: (payload: EachMessagePayload, ctx: ConsumeHandlerContext) => Promise<void>,
+  opts: DLQOptions
+): Promise<any>;
+// Implementation
+export async function consumeWithRetryAndDLQ(
+  client: KafkaClient,
+  groupId: string,
+  topic: TopicConfig,
+  handler: (payload: any, ctx: ConsumeHandlerContext) => Promise<void>,
   opts: DLQOptions = {}
 ) {
   const dlqEnabled = opts.dlqEnabled ?? true;
@@ -48,16 +62,18 @@ export async function consumeWithRetryAndDLQ(
       });
 
       let attempt = 0;
+      let parsedPayload: any = payload;
 
       if ((topic as any).schema) {
         try {
           const schema: any = (topic as any).schema;
-          const parsed = schema.safeParse(
+          const result = schema.safeParse(
             message.value ? JSON.parse(message.value.toString()) : undefined
           );
-          if (!parsed.success) {
+          if (!result.success) {
             throw new Error("Schema validation failed");
           }
+          parsedPayload = result.data;
         } catch (e) {
           // If validation fails, treat as processing failure to DLQ
           attempt = maxRetries; // jump to DLQ path below
@@ -69,7 +85,7 @@ export async function consumeWithRetryAndDLQ(
           attempt: attempt + 1,
         });
         try {
-          await handler(payload, { topic, groupId });
+          await handler(parsedPayload, { topic, groupId });
           return; // success, commit offset
         } catch (err) {
           const delay = Math.min(backoffBase * 2 ** attempt, 30_000);

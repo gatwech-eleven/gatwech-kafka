@@ -16,6 +16,7 @@
     "test:e2e:integration": "tsx ./e2e/run-integration-e2e.ts",
     "test:e2e:smoke": "tsx ./e2e/smoke.ts",
     "test:e2e:express": "tsx ./e2e/express-integration.ts",
+    "test:e2e:modular": "tsx ./e2e/modular-client.ts",
     "bench:kafka-batch": "tsx ./e2e/benchmark.ts",
     "generate:kafka-config": "tsx ./scripts/generate-kafka-config.ts",
     "init:kafka-topics": "bash scripts/kafka-init.sh",
