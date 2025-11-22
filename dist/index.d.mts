@@ -1,9 +1,9 @@
-import "./utility-types-DB5LA6q8.mjs";
-import { a as JsonSerializer, i as ISerializer, l as TKafkaMessage, n as ConsumerConfig, o as KafkaClientOptions, r as DLQOptions, s as KafkaMetrics, t as Consumer, u as WithMetadata } from "./index-Dnhcc_NG.mjs";
-import { C as BaseProducer, S as KafkaClient, _ as TReadyToPublishMessage, a as EventPublisher, b as ModularKafkaClient, c as consumeWithRetryAndDLQ, d as CreatePublisherOptions, f as createEventPublisher, g as PartitionKeyFn, h as KeyDeriver, i as createDLQPublisher, l as ConnectRetryOptions, m as GenericKafkaProducer, n as DLQContext, o as createServicePublisherFactory, p as createPublisher, r as DLQMessageParts, s as ConsumeHandlerContext, t as CreateDLQPublisherOptions, u as connectWithRetry, v as CreateKafkaClientConfig, x as createKafkaClient, y as KafkaExtension } from "./index-BefCi4kM.mjs";
-import { i as ValidatedTopicConfig, n as TopicConfigInput, r as TopicConfigSchema, t as TopicConfig } from "./topic-config-schema-CPt6qZS9.mjs";
-import { n as ensureTopicsWithConfig, r as initializeKafkaTopics, t as TopicMap } from "./ensure-topics-Cw2fD2bk.mjs";
-import { a as createTopicConfig, c as topicsToArray, d as orderTopics, f as notificationTopics, i as createSingleTopicConfig, l as chatTopics, n as TopicConfigBuilder, o as defineTopic, p as userTopics, r as topicBuilder, s as defineTopics, t as topics, u as paymentTopics } from "./index-C6cIxjaB.mjs";
+import "./utility-types-DYlGDM0l.mjs";
+import { a as JsonSerializer, i as ISerializer, l as TKafkaMessage, n as ConsumerConfig, o as KafkaClientOptions, r as DLQOptions, s as KafkaMetrics, t as Consumer, u as WithMetadata } from "./index-ze4GS2TY.mjs";
+import { C as BaseProducer, S as KafkaClient, _ as connectWithRetry, a as ConsumeHandlerContext, b as ModularKafkaClient, c as createServicePublisherFactory, d as createPublisher, f as GenericKafkaProducer, g as ConnectRetryOptions, h as TReadyToPublishMessage, i as createDLQPublisher, l as CreatePublisherOptions, m as PartitionKeyFn, n as DLQContext, o as consumeWithRetryAndDLQ, p as KeyDeriver, r as DLQMessageParts, s as EventPublisher, t as CreateDLQPublisherOptions, u as createEventPublisher, v as CreateKafkaClientConfig, x as createKafkaClient, y as KafkaExtension } from "./index-Dz00U3Cw.mjs";
+import { i as ValidatedTopicConfig, n as TopicConfigInput, r as TopicConfigSchema, t as TopicConfig } from "./topic-config-schema-DBIkyeN0.mjs";
+import { n as ensureTopicsWithConfig, r as initializeKafkaTopics, t as TopicMap } from "./ensure-topics-CLVKvruU.mjs";
+import { a as createTopicConfig, c as topicsToArray, d as orderTopics, f as notificationTopics, i as createSingleTopicConfig, l as chatTopics, n as TopicConfigBuilder, o as defineTopic, p as userTopics, r as topicBuilder, s as defineTopics, t as topics, u as paymentTopics } from "./index-CJYhaXat.mjs";
 import { Producer } from "kafkajs";
 import { z } from "@gatwech/utils";
 import { z as z$1 } from "@gatwech/utils/zod";
@@ -47,6 +47,39 @@ declare function topicProvisioningExtension(topics?: Record<string, ValidatedTop
  */
 declare function healthCheckExtension(): KafkaExtension<{
   healthCheck: () => Promise<boolean>;
+}>;
+//#endregion
+//#region src/extensions/partition-calc.d.ts
+/** Defines the throughput metrics needed for the 4-Pillar calculation. */
+interface ThroughputMetrics {
+  /** Target total throughput (T) in MB/s. */
+  targetThroughputMBps: number;
+  /** Producer throughput per partition (P) in MB/s. */
+  producerPerPartitionMBps: number;
+  /** Consumer throughput per partition (C) in MB/s (slower part). */
+  consumerPerPartitionMBps: number;
+  /** Desired consumer parallelism (max active instances). */
+  desiredParallelism: number;
+  /** Projected growth factor (e.g., 2.0 for 100% growth). */
+  growthFactor: number;
+}
+interface PartitionSkewResult {
+  status: 'BALANCED' | 'SKEWED';
+  hotPartitions: string[];
+}
+/**
+ * Calculates the optimal number of partitions based on the 4-Pillar Framework
+ * derived from the video: Throughput, Latency, Consumer Parallelism, and Future Growth.
+ *
+ * @throws Error if any metric is negative.
+ */
+declare const calculateOptimalPartitions: (metrics: ThroughputMetrics) => number;
+/**
+ * CLIENT EXTENSION: Adds partition analysis and calculation utilities to the Kafka Client.
+ */
+declare const partitionAnalysisClient: () => KafkaExtension<{
+  calculatePartitions: typeof calculateOptimalPartitions;
+  checkPartitionSkew: (distribution: number[], skewThreshold?: number) => PartitionSkewResult;
 }>;
 declare namespace index_d_exports$1 {
   export { ValidationResult, _default$3 as default, validateMessage };
@@ -349,4 +382,4 @@ declare namespace index_d_exports {
 //#region src/utils/brokers.d.ts
 declare function resolveBrokersFromEnv(): string[];
 //#endregion
-export { BaseProducer, BaseProducerSchema, ConnectRetryOptions, ConsumeHandlerContext, Consumer, ConsumerConfig, CreateDLQPublisherOptions, CreateKafkaClientConfig, CreatePublisherOptions, DLQContext, DLQMessageParts, DLQOptions, EventPublisher, GenericKafkaProducer, ISerializer, JsonSerializer, KafkaClient, KafkaClientOptions, KafkaExtension, KafkaMetrics, KeyDeriver, ModularKafkaClient, type PartitionKeyFn, type Producer, TKafkaMessage, TReadyToPublishMessage, type TopicConfig, TopicConfigBuilder, type TopicConfigInput, TopicConfigSchema, TopicMap, TopicProvisioningOptions, type ValidatedTopicConfig, WithMetadata, chatTopics, connectWithRetry, consumeWithRetryAndDLQ, createDLQPublisher, createEventPublisher, createKafkaClient, createPublisher, createServicePublisherFactory, createSingleTopicConfig, createTopicConfig, defineTopic, defineTopics, ensureTopicsWithConfig, healthCheckExtension, initializeKafkaTopics, notificationTopics, orderTopics, paymentTopics, validate_and_send_d_exports as producer, resolveBrokersFromEnv, index_d_exports as schemas, topicBuilder, topicProvisioningExtension, topics, topicsToArray, userTopics, index_d_exports$1 as validation };
+export { BaseProducer, BaseProducerSchema, ConnectRetryOptions, ConsumeHandlerContext, Consumer, ConsumerConfig, CreateDLQPublisherOptions, CreateKafkaClientConfig, CreatePublisherOptions, DLQContext, DLQMessageParts, DLQOptions, EventPublisher, GenericKafkaProducer, ISerializer, JsonSerializer, KafkaClient, KafkaClientOptions, KafkaExtension, KafkaMetrics, KeyDeriver, ModularKafkaClient, type PartitionKeyFn, PartitionSkewResult, type Producer, TKafkaMessage, TReadyToPublishMessage, ThroughputMetrics, type TopicConfig, TopicConfigBuilder, type TopicConfigInput, TopicConfigSchema, TopicMap, TopicProvisioningOptions, type ValidatedTopicConfig, WithMetadata, calculateOptimalPartitions, chatTopics, connectWithRetry, consumeWithRetryAndDLQ, createDLQPublisher, createEventPublisher, createKafkaClient, createPublisher, createServicePublisherFactory, createSingleTopicConfig, createTopicConfig, defineTopic, defineTopics, ensureTopicsWithConfig, healthCheckExtension, initializeKafkaTopics, notificationTopics, orderTopics, partitionAnalysisClient, paymentTopics, validate_and_send_d_exports as producer, resolveBrokersFromEnv, index_d_exports as schemas, topicBuilder, topicProvisioningExtension, topics, topicsToArray, userTopics, index_d_exports$1 as validation };

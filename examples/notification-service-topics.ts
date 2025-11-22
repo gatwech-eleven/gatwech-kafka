@@ -11,7 +11,7 @@ import {
   TopicConfigBuilder,
   topicBuilder,
 } from "../src";
-import { createKafkaClient } from "../src/client/create-client";
+import { createKafkaClient } from '../src/client/core/create-client";
 import { topicProvisioningExtension } from "../src/extensions/topic-provisioning";
 
 // Define your message schemas

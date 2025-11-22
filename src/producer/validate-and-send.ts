@@ -2,9 +2,9 @@ import { z } from "@gatwech/utils";
 import { logger } from "../utils/logger";
 import type { TKafkaMessage } from "../types";
 import type { TopicConfig } from "../config/topics";
-import { KafkaClient } from "../client/kafka";
-import { GenericKafkaProducer } from "../client/generic-producer";
-import { KafkaError } from "@/client/errors";
+import { KafkaClient } from "../client/core/kafka";
+import { GenericKafkaProducer } from "../client/producers/generic-producer";
+import { KafkaError } from "../client/core/errors";
 
 /**
  * @deprecated Use `createServicePublisher` (preferred) or `createEventPublisher`.

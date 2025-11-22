@@ -34,6 +34,9 @@ export type SchemaHash = Brand<string, "SchemaHash">;
 /** Branded topic name for stronger compile-time guarantees */
 export type TopicName = Brand<string, "TopicName">;
 
+/** Branded consumer group id */
+export type ConsumerGroupId = Brand<string, "ConsumerGroupId">;
+
 /** Helper to brand a raw string as ServiceSource */
 export const asServiceSource = (value: string): ServiceSource =>
   value as ServiceSource;
@@ -41,5 +44,8 @@ export const asServiceSource = (value: string): ServiceSource =>
 export const asTopicName = (value: string): TopicName => value as TopicName;
 /** Helper to brand a raw string as SchemaHash */
 export const asSchemaHash = (value: string): SchemaHash => value as SchemaHash;
+/** Helper to brand a raw string as ConsumerGroupId */
+export const asConsumerGroupId = (value: string): ConsumerGroupId =>
+  value as ConsumerGroupId;
 
 export {};

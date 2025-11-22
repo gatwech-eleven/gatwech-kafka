@@ -1,10 +1,15 @@
-export * from "./base";
-export * from "./kafka";
-export * from "./create-client";
-export * from "./event.factory";
-export * from "./connect-with-retry";
-export * from "./consume-with-dlq";
-export * from "./generic-producer";
-export * from "./service-publisher-factory";
-export * from "./dlq.factory";
+// Core client exports
+export * from "./producers/base";
+export * from "./core/kafka";
+export * from "./core/create-client";
+export * from "./core/connect-with-retry";
+
+// Producer exports
+export * from "./producers/event.factory";
+export * from "./producers/generic-producer";
+export * from "./producers/service-publisher-factory";
+
+// Consumer exports
+export * from "./consumers/consume-with-dlq";
+export * from "./consumers/dlq.factory";
 

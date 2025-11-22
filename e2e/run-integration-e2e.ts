@@ -1,5 +1,5 @@
-import { KafkaClient } from "../src/client/kafka.ts";
-import { createServicePublisherFactory } from "../src/client/service-publisher-factory.ts";
+import { KafkaClient } from '../src/client/core/kafka.ts';
+import { createServicePublisherFactory } from '../src/client/producers/service-publisher-factory.ts';
 import { ensureTopicsWithConfig } from "../src/config/ensure-topics.ts";
 import { UserRegisteredSchema } from "../src/schemas/user-schemas.ts";
 import { z } from "@gatwech/utils/zod";

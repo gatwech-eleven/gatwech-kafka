@@ -1,4 +1,4 @@
-import { z } from "@gatwech/utils/zod";
+import { z, type ZodType } from "@gatwech/utils/zod";
 import type { TopicName } from "../../types/utility-types";
 
 /**
@@ -57,7 +57,7 @@ export const TopicConfigSchema = z.object({
    * Zod schema for message validation.
    * Should be a ZodType that validates the message payload.
    */
-  schema: z.any().optional(),
+  schema: z.custom<ZodType>().optional(),
 });
 
 /**
@@ -77,7 +77,7 @@ export type TopicConfigInput = {
   cleanupPolicy?: "delete" | "compact" | "compact,delete"; // Has default in schema
   partitions?: number;
   replicationFactor?: number;
-  schema?: any;
+  schema?: ZodType;
 };
 
 /**

@@ -1,5 +1,5 @@
-import type { KafkaClient } from "../client/kafka";
-import type { KafkaExtension } from "../client/create-client";
+import type { KafkaClient } from "../client/core/kafka";
+import type { KafkaExtension } from "../client/core/create-client";
 
 /**
  * Extension that provides health check functionality.

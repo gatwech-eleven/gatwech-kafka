@@ -1,41 +1,42 @@
-# payvo-kafka
+# @gatwech/kafka
 
-Lightweight Kafka helpers for strongly-typed, validated, observable event publishing & consumption using KafkaJS + Zod.
+Lightweight, production-grade Kafka client for Node.js with **strong typing**, **runtime validation**, and **built-in reliability patterns** using KafkaJS + Zod.
 
-## Highlights (recent changes)
+## Table of Contents
 
-- Resilient startup: `KafkaClient` supports `connectWithRetries` and `connectAsync`. Tune behavior with `maxConnectAttemptTimeMs` and `connectPollIntervalMs`.
-- Producer guarantees: default producers created by the library are idempotent and sends use `acks: all` to improve durability.
-- Broker readiness: the client can perform a readiness poll against the cluster controller before connecting a producer when retries are enabled.
-- Defaults centralised: `DEFAULT_OPTIONS` is now in `src/client/default-options.ts` and documents the runtime defaults used by the client.
-- Consumer creation refactor: consumer lifecycle and reconnect logic have been extracted into `src/client/create-consumer.ts`.
-- Admin client is lazy: the admin client connects only when required to avoid slowing startup.
-- Observability: new metrics for publish success/failure, connection retries and consumer connections; clearer logs on readiness and DLQ events.
-- CI/Workflows: workflows were adjusted to ensure `pnpm` is available before `actions/setup-node` uses the pnpm cache (fixes CI failures seen in some runners).
+- [Quick Start](#quick-start)
+- [Core Concepts](#core-concepts)
+- [API Reference](#api-reference)
+- [Architecture & Design](#architecture--design)
+- [Best Practices](#best-practices)
+- [Configuration](#configuration)
+- [Testing](#testing)
+- [Migration Guide](#migration-guide)
+- [License](#license)
 
-## Quick Start (Preferred Factory)
+## Quick Start
+
+### Producer (Service Factory Pattern - Recommended)
 
 ```ts
 import { Kafka } from "kafkajs";
 import { z } from "@gatwech/utils/zod";
-import { createServicePublisher } from "@gatwech/kafka";
+import { createServicePublisherFactory } from "@gatwech/kafka";
 
 const kafka = new Kafka({ clientId: "users", brokers: ["localhost:9092"] });
 const producer = kafka.producer();
 await producer.connect();
 
-const service = createServicePublisher(producer, "user-service-v1");
+const service = createServicePublisherFactory(producer, "user-service-v1");
 
 const UserRegistered = z.object({
   id: z.string(),
   email: z.string().email(),
   timestamp: z.number().optional(),
-  metadata: z
-    .object({
-      correlationId: z.string().optional(),
-      source: z.string().optional(),
-    })
-    .optional(),
+  metadata: z.object({
+    correlationId: z.string().optional(),
+    source: z.string().optional(),
+  }).optional(),
 });
 
 const getPartitionKey = (p: z.infer<typeof UserRegistered>) => p.id;
@@ -44,263 +45,404 @@ const publishUserRegistered = service(
   UserRegistered,
   getPartitionKey
 );
+
 await publishUserRegistered({ id: "123", email: "alice@example.com" });
 ```
 
-Injected automatically: `timestamp` (epoch ms), `metadata.source`, `metadata.correlationId` (if absent). Headers include `correlation-id`, `event-type`, `timestamp`, optionally `schema-hash`.
+**Auto-injected metadata:** `timestamp` (epoch ms), `metadata.source`, `metadata.correlationId`  
+**Headers:** `correlation-id`, `event-type`, `timestamp`, optionally `schema-hash`
 
-## Event Factory (Low-Level)
-
-Use `createEventPublisher` directly for one-off scripts or when you do not need service-wide metadata injection.
-
-```ts
-const publisher = createEventPublisher(
-  producer,
-  "user.registered",
-  UserRegistered,
-  // Prefer explicit naming for clarity
-  (p) => p.id,
-  "my-service"
-);
-await publisher({ id: "123", email: "a@example.com", timestamp: Date.now() });
-```
-
-## Service Factory Pattern
-
-`createServicePublisher` (formerly `createServicePublisherFactory`) centralizes source + correlation id logic. Define publishers per topic via the returned function. The deprecated `createServicePublisherFactory` remains as an alias until the next major release.
-
-## Consumer with Retry & DLQ
-
-Use `consumeWithRetryAndDLQ` to run consumers that:
-
-- perform schema validation (if topic config provides a schema),
-- retry failed message handling with exponential backoff, and
-- publish permanently failing messages to a Dead Letter Queue (DLQ) topic.
-
-Example:
+### Consumer with Retry & DLQ
 
 ```ts
-import { consumeWithRetryAndDLQ, KafkaClient } from "@gatwech/kafka";
+import { consumeWithRetryAndDLQ, createKafkaClient } from "@gatwech/kafka";
 
-const client = new KafkaClient("svc", ["localhost:9092"]);
+const client = createKafkaClient({
+  config: {
+    clientId: "svc",
+    brokers: ["localhost:9092"],
+  },
+});
 await client.connect();
 
 const topicConfig = {
-  name: "user.registered" /* ...topic config with optional schema... */,
-} as any;
+  name: "user.registered",
+  schema: UserRegistered, // Optional: enables type-safe payload inference
+};
 
 await consumeWithRetryAndDLQ(
   client,
   "user-service-group",
   topicConfig,
-  async ({ message }) => {
-    const payload = message.value
-      ? JSON.parse(message.value.toString())
-      : undefined;
-    // your message processing logic here
-    // throw to trigger retry -> DLQ after configured attempts
+  async (payload, ctx) => {
+    // payload is fully typed and validated when schema is provided
+    console.log(`Processing user: ${payload.email}`);
+    // Throws trigger retry -> DLQ after max attempts
+  },
+  {
+    maxRetries: 3,
+    retryBackoffMs: 500,
+    dlqEnabled: true,
   }
 );
 ```
 
-By default the DLQ topic is suffixed with `.dlq` (e.g. `user.registered.dlq`). DLQ messages include metadata about the original message, the consumer group and an error description.
+## Core Concepts
 
-### DLQ Publisher (Reusable)
+### Event Publishing (Producers)
 
-For consistency with event publishing, you can use a dedicated DLQ publisher when you need to push a message to the DLQ explicitly (e.g., from custom error paths or migration tools):
+**Service Factory** (`createServicePublisherFactory`): Best for services with multiple event types sharing metadata.
+
+**Event Factory** (`createEventPublisher`): Low-level, for one-off publishers or custom scenarios.
+
+**Type Safety**: All publishers validate payloads against Zod schemas before sending.
+
+### Event Consumption (Consumers)
+
+**Type-Safe Consumers**: When a topic config includes a `schema`, the consumer handler receives fully-typed, validated payloads.
+
+**Retry Logic**: Failed messages are retried with exponential backoff.
+
+**Dead Letter Queue (DLQ)**: Messages that fail after max retries are sent to `${topic}.dlq` with error metadata.
+
+### Type Safety with Zod
+
+Define schemas for all topics:
 
 ```ts
-import { createDLQPublisher } from "@gatwech/kafka";
+const OrderPlacedSchema = z.object({
+  orderId: z.string(),
+  items: z.array(z.object({
+    productId: z.string(),
+    quantity: z.number().positive(),
+    price: z.number().positive(),
+  })),
+  total: z.number().positive(),
+  timestamp: z.number(),
+});
+```
 
+Benefits:
+- **Compile-time** type checking with `z.infer<typeof Schema>`
+- **Runtime** validation to catch malformed messages
+- **Self-documenting** event contracts
+
+### Dead Letter Queues (DLQ)
+
+DLQ messages include:
+- Original message value, key, headers
+- Error message and stack trace
+- Source topic, partition, offset, consumer group
+
+Monitor DLQ depth as your primary signal for processing issues.
+
+## API Reference
+
+### Producers
+
+#### `createServicePublisherFactory(producer, serviceSource)`
+
+Creates a factory for defining multiple event publishers sharing the same producer and source metadata.
+
+Returns: `(topic, schema, getPartitionKey) => EventPublisher<T>`
+
+#### `createEventPublisher(producer, topic, schema, keyDeriver, source)`
+
+Creates a single event publisher for a specific topic.
+
+Returns: `(payload) => Promise<void>`
+
+#### `createDLQPublisher(producer, opts?)`
+
+Creates a reusable DLQ publisher.
+
+```ts
 const publishToDLQ = createDLQPublisher(producer, { dlqSuffix: ".dlq" });
 
 await publishToDLQ(
-  {
-    value: Buffer.from(JSON.stringify({ bad: "payload" })),
-    key: Buffer.from("user-123"),
-    headers: { "content-type": "application/json" },
-  },
+  { value: Buffer.from("..."), key: Buffer.from("..."), headers: {} },
   new Error("validation failed"),
   { topic: "user.registered", partition: 0, offset: "105", groupId: "svc-a" }
 );
 ```
 
-The publisher validates the envelope against the DLQ schema, normalizes headers, and writes to `${topic}.dlq` with `x-original-*` headers.
+### Consumers
 
-## Connection Retry Helper
+#### `consumeWithRetryAndDLQ(client, groupId, topic, handler, opts?)`
 
-The repository includes `connectWithRetry`, a helper that retries an async connect function with exponential backoff. It is designed to handle transient DNS/network errors and avoid blocking service startup indefinitely.
+Runs a consumer with automatic retry and DLQ handling.
 
-Example:
+**Options:**
+- `maxRetries` (default: 3)
+- `retryBackoffMs` (default: 500)
+- `dlqEnabled` (default: true)
+- `dlqSuffix` (default: ".dlq")
+
+**Type Inference:** When `topic` includes a `schema`, the handler's `payload` param is automatically typed.
+
+### Client Configuration
+
+#### `createKafkaClient(options)`
+
+Creates a modular Kafka client with extension support.
 
 ```ts
-import { connectWithRetry } from "@gatwech/kafka";
-import { KafkaClient } from "@gatwech/kafka";
+const client = createKafkaClient({
+  config: {
+    clientId: "my-service",
+    brokers: ["localhost:9092"],
+    connectWithRetries: true,      // Enable connection retries
+    maxConnectAttemptTimeMs: 30000, // Timeout for broker readiness
+    connectPollIntervalMs: 1000,    // Poll interval for readiness check
+  },
+  extensions: [
+    topicProvisioningExtension(topics),
+    healthCheckExtension(),
+  ],
+});
+```
 
-const client = new KafkaClient("svc", ["localhost:9092"]);
+**Key Options:**
+- `connectWithRetries`: Wait for broker readiness before connecting
+- `connectAsync`: Non-blocking async connection
+- `autoConnectAsync`: Auto-start async connection on instantiation
+- `maxConnectionRetries`: Max producer connection retry attempts
+- `retryDelayMs`: Delay between retries
+- `metricsEnabled`: Enable publish success/failure metrics
+
+### Utilities
+
+#### `connectWithRetry(connectFn, options?)`
+
+Helper for retrying async operations with exponential backoff.
+
+```ts
 await connectWithRetry(() => client.connect(), {
   maxAttempts: 10,
   initialDelayMs: 500,
 });
 ```
 
-## Quick Tips
+## Architecture & Design
 
-- **Send validated messages:** Use `createEventPublisher` for all outgoing events to guarantee runtime validation and consistent metadata.
-- **Prefer factories for larger codebases:** Use `createServicePublisher` when many events share the same producer & source metadata. (`createServicePublisherFactory` deprecated)
-- **DLQ handling:** Monitor the `.dlq` topics — a rising DLQ depth is the primary signal of processing issues.
-- **Idempotency:** Consumers should be written idempotently (e.g., use upserts) because retries and rebalances can cause duplicate deliveries.
-- **Broker readiness:** Set `connectWithRetries: true` (or `connectAsync: true`) on `KafkaClient` to have `connect()` wait until the broker reports a controller before connecting the producer. Tune with `maxConnectAttemptTimeMs` and `connectPollIntervalMs`. (Former names `waitForBrokerBeforeConnect`, `brokerWaitTimeoutMs`, and `brokerWaitPollIntervalMs` are deprecated.)
+### Connection Management & Retries
 
-## Configuration & provisioning reminders
+**Problem**: Kafka may be unavailable at startup (DNS issues, broker restarts, network partitions).
 
-- Provision topics with `scripts/kafka-init.sh` or call `ensureTopicsWithConfig` during startup (opt-in via `PROVISION_KAFKA_TOPICS=1`).
-- The E2E test harness lives in `e2e/run-e2e.ts` and demonstrates producer/consumer roundtrips including metadata and schema-hash headers.
+**Solution**: The client implements bounded retries with exponential backoff:
 
-If you want, I can expand the README with a small runnable example project or add a short troubleshooting section for common CI publish issues (NPM_TOKEN and GitHub Packages).
+1. **Broker Readiness Check**: When `connectWithRetries: true`, the client polls the cluster controller before connecting the producer
+2. **Bounded Retries**: Configurable max attempts prevent infinite blocking
+3. **Async Startup**: Use `connectAsync: true` to avoid blocking HTTP server startup
+4. **Lazy Admin Client**: Admin client connects only when needed, avoiding startup delays
 
-### Event Contract Requirements
+**Configuration:**
+```ts
+new KafkaClient("svc", brokers, {
+  connectWithRetries: true,
+  maxConnectionRetries: 10,
+  retryDelayMs: 1000,
+  maxConnectAttemptTimeMs: 30000,
+  connectPollIntervalMs: 1000,
+});
+```
 
-All outbound events MUST include:
+### Consumer Rebalances
 
-1. `timestamp: number` (epoch ms). If omitted in your payload the factories inject `Date.now()`. Use this for consistent, language‑neutral ordering and analytics.
-2. `metadata.source: string` identifying the emitting service.
-3. `metadata.correlationId: CorrelationId` (a branded string) either supplied by upstream trace context or auto‑generated via `generateCorrelationId("evt")`.
+**Optimizations**:
+- Tuned `sessionTimeout`, `heartbeatInterval`, and `rebalanceTimeout` for faster recovery
+- Automatic reconnection on consumer crashes with exponential backoff
+- Event listeners for `consumer.connect`, `consumer.disconnect`, `consumer.group_join`
 
-Branding utilities provide lightweight nominal typing:
+**Guaranteed Delivery**: Consumers only commit offsets **after** successful processing, ensuring at-least-once delivery.
 
-- `CorrelationId` for trace continuity
-- `ServiceSource` to distinguish origin identifiers from arbitrary strings
-- `TopicName` for compile-time topic specificity (optional)
-- `SchemaHash` for schema evolution tracking
+### Message Guarantees & Idempotence
 
-Use helpers `asServiceSource("user-service-v3")`, `asTopicName("user.registered")` etc. Branding is erased at runtime, so interoperability with plain string APIs (KafkaJS) is unaffected.
+**Producer Guarantees**:
+- **Idempotent producer** (`idempotent: true`): Prevents duplicate messages during retries
+- **acks=all**: Message written to all in-sync replicas before success
+- **Transactions**: `runTransaction()` for atomic multi-topic writes
 
-If you evolve schemas add optional fields rather than removing required ones; consumers validate via Zod plus headers aiding traceability.
+**Consumer Guarantees**:
+- **Manual commits**: Offsets committed only after successful processing
+- **Idempotent design required**: Use upserts/INSERT ON CONFLICT in your handlers
 
-## Validation & Typed Producers
+**Result**: Effectively-once processing when combined with idempotent handlers.
 
-This package exposes small helpers to perform runtime validation of Kafka messages using Zod.
+### Schema Evolution Strategy
 
-Usage examples
+**Current Approach**: Zod schemas provide compile-time and runtime validation.
 
-- Validate incoming consumer payloads:
+**Best Practices**:
+- Add new fields as **optional** to maintain backward compatibility
+- Never remove required fields (breaking change)
+- Use schema versioning for major changes (e.g., `user.registered.v2`)
+- Consider Schema Registry (Confluent, AWS Glue) for cross-team coordination
+
+**Metadata Tracking**: Messages include `schema-hash` header for schema evolution tracking.
+
+## Best Practices
+
+### 1. Idempotent Consumers
+
+Design handlers to be safely reprocessed:
 
 ```ts
-import { validation } from "@gatwech/kafka";
-const res = validation.validateMessage(MySchema, parsedMessage, {
-  topic: "user.registered",
+// ✅ Good: Idempotent upsert
+await db.user.upsert({
+  where: { id: payload.id },
+  create: { ...payload },
+  update: { ...payload },
 });
-if (!res.success) return; // already logged
-const payload = res.data;
+
+// ❌ Bad: Non-idempotent increment
+await db.user.update({
+  where: { id: payload.id },
+  data: { loginCount: { increment: 1 } },
+});
 ```
 
-- Validate before producing:
+### 2. Error Handling
 
-````ts
-import { producer } from "@gatwech/kafka";
+**Transient errors** (network issues, DB locks): Throw to trigger retry.
 
-## Usage & E2E Examples
+**Permanent errors** (invalid data): Log and return successfully to skip message (or implement custom DLQ logic).
 
-Run these from this package directory after starting a Kafka broker (e.g., docker compose) or by setting `KAFKA_BOOTSTRAP`.
-
-```bash
-pnpm run test:e2e           # basic producer/consumer roundtrip
-pnpm run test:e2e:service   # service publisher factory path
-pnpm run test:e2e:integration
-pnpm run test:e2e:smoke     # quick connectivity check
-pnpm run test:e2e:express   # Express-based integration + DLQ
-````
-
-Environment overrides:
-
-```bash
-KAFKA_BOOTSTRAP=localhost:9092 pnpm run test:e2e
-SERVICE_E2E_TOPIC=my-service-e2e pnpm run test:e2e:service
-INTEGRATION_TOPIC=user.registered pnpm run test:e2e:integration
-EXPRESS_INTEGRATION_TOPIC=user.registered pnpm run test:e2e:express
+```ts
+async (payload, ctx) => {
+  try {
+    await processMessage(payload);
+  } catch (err) {
+    if (isTransient(err)) {
+      throw err; // Retry
+    }
+    logger.error("Permanent error, skipping", { err, payload });
+    // Don't throw = commit offset, message skipped
+  }
+}
 ```
 
-The Express integration test exercises a realistic flow:
+### 3. Monitoring & Observability
 
-- Auth app exposes `POST /signup` and publishes `user.registered` using the service factory.
-- Notification service consumes with retry + DLQ via `consumeWithRetryAndDLQ`.
-- A happy-path signup is processed; a failing signup (name=`FAIL`) is retried then sent to `user.registered.dlq`, which is asserted by a DLQ consumer.
-  await producer.validateAndSend(kafkaClient, "user.registered", MySchema, {
-  key: "",
-  value: payload,
-  });
+**Key Metrics**:
+- `publishSuccess` / `publishFailures`
+- `connectionRetries`
+- `consumerConnections`
+- **Consumer lag** (most important): How far behind consumers are from topic end
 
-````
+**DLQ Monitoring**: Set alerts on DLQ topic depth (critical health indicator).
 
-This package provides Kafka helpers, topic definitions and provisioning scripts used by the microservices.
+**Distributed Tracing**: Inject trace context into message headers for end-to-end visibility.
 
-## Provisioning
+### 4. Performance Tuning
 
-Quick patterns
+**Batching**: Use `sendBatch()` for high-throughput scenarios
 
-1. Fast local developer flow (recommended)
+**Partition Key Selection**: Choose keys that evenly distribute load (avoid hot partitions)
 
-- Start Kafka (docker-compose or local).
-- Run the one-off init script once to create topics:
+**Consumer Groups**: Scale out by adding consumers to the same group
 
+**Compression**: Enable compression for large messages (`compression: CompressionTypes.GZIP`)
+
+## Configuration
+
+### Topic Provisioning
+
+**Option 1: Script (Recommended for dev)**
 ```bash
 cd packages/kafka
 bash scripts/kafka-init.sh
-````
-
-- Start your services normally (no provisioning during service startup):
-
-```bash
-pnpm --filter ./microservices/payvo-notification-service dev
 ```
 
-2. One-shot provisioning via environment (opt-in)
-
-- If you prefer the service to provision topics at startup, set the env var when starting the service:
-
+**Option 2: Runtime (Opt-in)**
 ```bash
-PROVISION_KAFKA_TOPICS=1 pnpm --filter ./microservices/payvo-notification-service dev
+PROVISION_KAFKA_TOPICS=1 pnpm dev
 ```
 
-This will run `ensureTopicsWithConfig` during startup; note that provisioning can add tens of seconds to startup because it waits for partition leaders and may attempt to alter topic configs.
-
-3. Docker / CI provisioning
-
-- For CI or containerized deploys, run the `packages/kafka/scripts/kafka-init.sh` as a job (CI step) or a short-lived init container before app containers start.
-
-Example `docker-compose` snippet for an init service (adapt to your existing compose):
-
+**Option 3: CI/Docker**
 ```yaml
-	kafka-init:
-		image: bash:5
-		entrypoint: ["/bin/sh","-c","/workspace/packages/kafka/scripts/kafka-init.sh"]
-		volumes:
-			- ./:/workspace:cached
-		depends_on:
-			- kafka
-		environment:
-			BOOTSTRAP_SERVER: kafka:9092
+kafka-init:
+  image: bash:5
+  entrypoint: ["/bin/sh", "-c", "/workspace/packages/kafka/scripts/kafka-init.sh"]
+  volumes:
+    - ./:/workspace:cached
+  depends_on:
+    - kafka
+  environment:
+    BOOTSTRAP_SERVER: kafka:9092
 ```
 
-Notes
+### Environment Variables
 
-- The script uses `kafka-topics.sh` if available or `docker exec kafka ...` if there is a container named `kafka`.
-- The `ensureTopicsWithConfig` function in the library attempts to `alterConfigs` on topics — some brokers (or ACL configurations) may reject that call; the code logs a warning and continues.
-- For fastest boot, provision once via the script and do not enable runtime provisioning in development.
+- `KAFKA_BOOTSTRAP`: Broker addresses (default: `localhost:9092`)
+- `PROVISION_KAFKA_TOPICS`: Enable runtime provisioning (`1` or `true`)
+- Topic-specific overrides: `SERVICE_E2E_TOPIC`, `INTEGRATION_TOPIC`, etc.
 
-## Deprecations
+### Client Options
 
-- `KeyDeriver<T>` (type) -> use `PartitionKeyFn<T>`.
-- Prefer naming the key function `getPartitionKey` at call sites for clarity.
-- `createServicePublisherFactory` remains supported; examples prefer the clearer key function naming.
-- `waitForBrokerBeforeConnect` -> use `connectWithRetries` or `connectAsync`.
-- `brokerWaitTimeoutMs` -> use `maxConnectAttemptTimeMs`.
-- `brokerWaitPollIntervalMs` -> use `connectPollIntervalMs`.
-- For E2E scripts previously calling a custom `waitForBroker`, consider switching to `new KafkaClient(...,{ connectWithRetries: true })`.
-- `producer.validateAndSend` and `producer.validateAndSendMany` are deprecated. Prefer `createServicePublisher` (or `createEventPublisher` for one-offs) which provide stronger typing, metadata injection, and consistent headers.
-  These helpers are annotated `@deprecated` in `src/producer/validate-and-send.ts` and will be removed in a future major release; migrate to the factory-based publishers.
+See [DEFAULT_OPTIONS](./src/client/core/default-options.ts) for all available options and defaults.
+
+## Testing
+
+### E2E Tests
+
+```bash
+pnpm run test:e2e           # Basic producer/consumer roundtrip
+pnpm run test:e2e:service   # Service publisher factory
+pnpm run test:e2e:integration
+pnpm run test:e2e:smoke     # Quick connectivity check
+pnpm run test:e2e:express   # Express integration + DLQ
+```
+
+### Integration Testing Strategy
+
+**Recommended**: Use Testcontainers to spin up real Kafka brokers in CI/CD:
+
+```ts
+import { GenericContainer } from "testcontainers";
+
+const kafka = await new GenericContainer("confluentinc/cp-kafka:7.5.0")
+  .withExposedPorts(9092)
+  .start();
+
+// Run tests against real broker
+```
+
+**Benefits**:
+- Catches serialization, connection, and rebalance issues
+- High confidence before production
+- No mocks needed for critical paths
+
+## Migration Guide
+
+### Deprecations
+
+#### Type Aliases
+- `KeyDeriver<T>` → use `PartitionKeyFn<T>`
+
+#### Function Names
+- `createServicePublisherFactory` → Prefer `createServicePublisherFactory` with explicit `getPartitionKey` naming
+
+#### Client Options
+- `waitForBrokerBeforeConnect` → use `connectWithRetries` or `connectAsync`
+- `brokerWaitTimeoutMs` → use `maxConnectAttemptTimeMs`
+- `brokerWaitPollIntervalMs` → use `connectPollIntervalMs`
+
+#### Producer Methods
+- `producer.validateAndSend()` → use `createServicePublisherFactory()` or `createEventPublisher()`
+- `producer.validateAndSendMany()` → use factory publishers with `sendBatch()`
+
+**Timeline**: Deprecated APIs will be removed in the next major release. Migrate to factory-based publishers for stronger typing and metadata injection.
+
+### Breaking Changes (Recent)
+
+**Directory restructure** (v1.x): Client files moved to subdirectories:
+- Core: `client/core/` (kafka.ts, create-client.ts, errors.ts, etc.)
+- Producers: `client/producers/` (factories, publishers)
+- Consumers: `client/consumers/` (DLQ, retry logic)
+
+Public exports unchanged; internal imports require updates if importing directly from file paths.
 
 ## License
 
-MIT (see repository root for details).
+MIT (see repository root for details)

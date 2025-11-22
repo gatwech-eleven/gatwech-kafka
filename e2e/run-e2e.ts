@@ -1,6 +1,6 @@
 import { nanoid } from "nanoid";
-import { KafkaClient } from "../src/client/kafka.ts";
-import { createEventPublisher } from "../src/client/event.factory.ts";
+import { KafkaClient } from '../src/client/core/kafka.ts';
+import { createEventPublisher } from '../src/client/producers/event.factory.ts';
 import { z } from "@gatwech/utils/zod";
 import assert from "node:assert";
 import crypto from "node:crypto";

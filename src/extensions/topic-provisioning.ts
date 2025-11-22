@@ -1,5 +1,5 @@
-import type { KafkaClient } from "../client/kafka";
-import type { KafkaExtension } from "../client/create-client";
+import type { KafkaClient } from "../client/core/kafka";
+import type { KafkaExtension } from "../client/core/create-client";
 import { initializeKafkaTopics } from "../config/ensure-topics";
 import type { TopicConfig, ValidatedTopicConfig } from "../config/topics/topic-config-schema";
 

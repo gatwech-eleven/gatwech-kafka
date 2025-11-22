@@ -1,5 +1,5 @@
 import { nanoid } from "nanoid";
-import { KafkaClient } from "../src/client/kafka.ts";
+import { KafkaClient } from '../src/client/core/kafka.ts';
 import { ensureTopicsWithConfig } from "../src/config/ensure-topics.ts";
 
 async function main() {

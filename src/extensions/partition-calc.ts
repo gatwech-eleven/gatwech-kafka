@@ -1,5 +1,6 @@
 import { KafkaClient } from '../client';
-import type { KafkaExtension } from '../client/create-client';
+import type { TopicConfig } from '../config/topics/topic-config-schema';
+import type { KafkaExtension } from '../client/core/create-client';
 import type { KafkaClientOptions } from '../types';
 
 /** Defines the throughput metrics needed for the 4-Pillar calculation. */

@@ -9,10 +9,12 @@ export * from "./utils/brokers";
 
 export type { Producer } from "kafkajs";
 
-export { createEventPublisher } from "./client/event.factory";
+export { createEventPublisher } from "./client/producers/event.factory";
+export { createServicePublisherFactory } from "./client/producers/service-publisher-factory";
+export { createPublisher } from "./client/producers/event.factory";
 export { BaseProducerSchema } from "./schemas/base.schema";
 
-export type { PartitionKeyFn } from "./client/generic-producer";
+export type { PartitionKeyFn } from "./client/producers/generic-producer";
 
 // Export new topic configuration API
 export {
