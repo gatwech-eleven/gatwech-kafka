@@ -1,7 +1,7 @@
-import { KafkaClient } from '../src/client/core/kafka.ts';
-import { createServicePublisherFactory } from '../src/client/producers/service-publisher-factory.ts';
-import { initializeKafkaTopics } from "../src/config/ensure-topics.ts";
-import { UserRegisteredSchema } from "../src/schemas/user-schemas.ts";
+import { KafkaClient } from '../../src/client/core/kafka.ts';
+import { createServicePublisherFactory } from '../../src/client/producers/service-publisher-factory.ts';
+import { initializeKafkaTopics } from "../../src/config/ensure-topics.ts";
+import { UserRegisteredSchema } from "../../src/schemas/user-schemas.ts";
 import { z } from "@gatwech/utils/zod";
 import { nanoid } from "nanoid";
 

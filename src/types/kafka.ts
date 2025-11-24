@@ -1,4 +1,5 @@
-import type { CompressionTypes, logLevel } from "kafkajs";
+import type { CompressionTypes, logLevel, SASLOptions, Mechanism } from "kafkajs";
+import type { ConnectionOptions } from "tls";
 import type { CorrelationId } from "./utility-types";
 
 export interface KafkaClientOptions {
@@ -13,6 +14,12 @@ export interface KafkaClientOptions {
   sessionTimeout?: number;
   heartbeatInterval?: number;
   requestTimeout?: number;
+  ssl?: boolean | ConnectionOptions;
+  sasl?: SASLOptions | Mechanism;
+  connectionTimeout?: number;
+  authenticationTimeout?: number;
+  reauthenticationThreshold?: number;
+  enforceRequestTimeout?: boolean;
   /**
    * When true, the client will invoke connectAsync() during construction,
    * allowing non-blocking startup. Defaults to false.

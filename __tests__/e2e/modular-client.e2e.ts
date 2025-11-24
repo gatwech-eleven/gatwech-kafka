@@ -3,7 +3,7 @@ import {
   topicProvisioningExtension,
   healthCheckExtension,
   createTopicConfig,
-} from "../src";
+} from "../../src";
 import { z } from "@gatwech/utils/zod";
 import { randomUUID } from "crypto";
 

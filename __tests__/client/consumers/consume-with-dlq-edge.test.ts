@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { consumeWithRetryAndDLQ } from '../../src/client/consumers/consume-with-dlq';
+import { consumeWithRetryAndDLQ } from '../../../src/client/consumers/consume-with-dlq';
 
 describe("consumeWithRetryAndDLQ - DLQ publishing edge case", () => {
   it("publishes to DLQ after retries when handler keeps failing", async () => {

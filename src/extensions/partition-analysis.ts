@@ -102,6 +102,13 @@ export const partitionAnalysisExtension = (): KafkaExtension<{
 
             // Expose a helper to validate partitioning key distribution (Hot Partition check)
             checkPartitionSkew: (distribution: number[], skewThreshold: number = DEFAULT_SKEW_THRESHOLD): PartitionSkewResult => {
+                if (skewThreshold <= 1.0) {
+                    throw new Error("skewThreshold must be greater than 1.0");
+                }
+                if (distribution.some(v => v < 0)) {
+                    throw new Error("Distribution cannot contain negative values");
+                }
+
                 if (distribution.length === 0) {
                      return { status: 'BALANCED', hotPartitions: [] };
                 }

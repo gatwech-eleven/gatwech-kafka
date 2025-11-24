@@ -6,6 +6,8 @@ import type { KafkaExtension } from "../client/core/create-client";
  *
  * While the base client has a healthCheck method, this extension allows
  * for more consistent access patterns in the modular architecture.
+ *
+ * @deprecated Use `client.healthCheck()` directly instead. This extension will be removed in a future version.
  */
 export function healthCheckExtension(): KafkaExtension<{
   healthCheck: () => Promise<boolean>;

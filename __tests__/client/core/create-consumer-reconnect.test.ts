@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { createConsumerForClient } from "../../src/client/consumers/create-consumer";
+import { createConsumerForClient } from "../../../src/client/consumers/create-consumer";
 
 describe("createConsumer reconnect behavior", () => {
   let kafkaMock: any;

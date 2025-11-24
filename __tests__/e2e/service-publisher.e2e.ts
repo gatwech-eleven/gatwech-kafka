@@ -1,10 +1,10 @@
 import { nanoid } from "nanoid";
-import { KafkaClient } from '../src/client/core/kafka.ts';
-import { createServicePublisherFactory } from '../src/client/producers/service-publisher-factory.ts';
+import { KafkaClient } from '../../src/client/core/kafka.ts';
+import { createServicePublisherFactory } from '../../src/client/producers/service-publisher-factory.ts';
 import { z } from "@gatwech/utils/zod";
 import crypto from "node:crypto";
 import assert from "node:assert";
-import { initializeKafkaTopics } from "../src/config/ensure-topics.ts";
+import { initializeKafkaTopics } from "../../src/config/ensure-topics.ts";
 
 // Schema for service-level event: timestamp epoch(ms) provided by factory if absent
 const ServiceEventSchema = z.object({

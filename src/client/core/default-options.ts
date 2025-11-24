@@ -3,7 +3,7 @@ import type { KafkaClientOptions } from "../../types";
 import type { Brand, DeepReadonly } from "../../types/utility-types";
 
 export type DefaultOptions = Brand<
-  DeepReadonly<Required<KafkaClientOptions>>,
+  DeepReadonly<KafkaClientOptions>,
   "DefaultOptions"
 >;
 
@@ -19,6 +19,12 @@ export const DEFAULT_OPTIONS = {
   sessionTimeout: 30000,
   heartbeatInterval: 3000,
   requestTimeout: 30000,
+  ssl: undefined,
+  sasl: undefined,
+  connectionTimeout: 1000,
+  authenticationTimeout: undefined,
+  reauthenticationThreshold: undefined,
+  enforceRequestTimeout: false,
   autoConnectAsync: false,
   connectWithRetries: false,
   connectAsync: false,

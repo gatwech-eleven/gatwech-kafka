@@ -14,10 +14,14 @@ import { createConsumerForClient } from "../consumers/create-consumer";
 
 const MAX_RETRY_DELAY_MS = 30000;
 
+type OptionalKeys = "ssl" | "sasl" | "authenticationTimeout" | "reauthenticationThreshold";
+type ResolvedKafkaClientOptions = Required<Omit<KafkaClientOptions, OptionalKeys>> &
+  Pick<KafkaClientOptions, OptionalKeys>;
+
 export class KafkaClient {
   private readonly producer: Producer;
   private readonly kafka: Kafka;
-  private readonly options: Required<KafkaClientOptions>;
+  private readonly options: ResolvedKafkaClientOptions;
   private isConnected = false;
   private connectionRetries = 0;
   private metrics: KafkaMetrics = {
@@ -34,13 +38,22 @@ export class KafkaClient {
     brokers: string[],
     options: KafkaClientOptions = {}
   ) {
-    this.options = { ...DEFAULT_OPTIONS, ...options };
+    if (!clientId) {
+      throw new Error("clientId is required");
+    }
+    this.options = { ...DEFAULT_OPTIONS, ...options } as ResolvedKafkaClientOptions;
 
     this.kafka = new Kafka({
       clientId,
       brokers,
       logLevel: this.options.logLevel,
       requestTimeout: this.options.requestTimeout,
+      ssl: this.options.ssl,
+      sasl: this.options.sasl,
+      connectionTimeout: this.options.connectionTimeout,
+      authenticationTimeout: this.options.authenticationTimeout,
+      reauthenticationThreshold: this.options.reauthenticationThreshold,
+      enforceRequestTimeout: this.options.enforceRequestTimeout,
     });
 
     this.producer = this.kafka.producer({
@@ -208,6 +221,20 @@ export class KafkaClient {
       throw new KafkaError("Producer not connected");
     }
 
+    if (!topic) {
+      throw new Error("topic is required");
+    }
+
+    if (!messages || messages.length === 0) {
+      throw new Error("messages array cannot be empty");
+    }
+
+    messages.forEach((m, i) => {
+      if (m.value === undefined || m.value === null) {
+        throw new Error(`Message at index ${i} is missing value`);
+      }
+    });
+
     try {
       await this.producer.send({
         topic,
@@ -261,7 +288,7 @@ export class KafkaClient {
   ): Promise<ReturnType<Kafka["consumer"]>> {
     return createConsumerForClient(
       this.kafka,
-      this.options,
+      this.options as any,
       groupId,
       options,
       this.consumers,

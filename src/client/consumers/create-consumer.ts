@@ -26,6 +26,10 @@ export async function createConsumerForClient(
     ...restOptions
   } = options;
 
+  if (!groupId) {
+    throw new Error("groupId is required");
+  }
+
   const consumerOptions: KafkaConsumerInit = {
     groupId,
     ...(restOptions as StrictOmit<ConsumerConfig, "groupId" | "retry">),

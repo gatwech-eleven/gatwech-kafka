@@ -1,5 +1,5 @@
-import { KafkaClient } from '../src/client/core/kafka';
-import { GenericKafkaProducer } from '../src/client/producers/generic-producer';
+import { KafkaClient } from '../../src/client/core/kafka';
+import { GenericKafkaProducer } from '../../src/client/producers/generic-producer';
 import { z } from "@gatwech/utils/zod";
 import { nanoid } from "nanoid";
 import crypto from "node:crypto";

@@ -1,15 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { createKafkaClient, type KafkaExtension } from '../../src/client/core/create-client';
-import { KafkaClient } from '../../src/client/core/kafka';
-import { topicProvisioningExtension } from "../../src/extensions/topic-provisioning";
-import { healthCheckExtension } from "../../src/extensions/health-check";
-import { createTopicConfig } from "../../src/config/topics/define-topics";
-import { initializeKafkaTopics } from "../../src/config/ensure-topics";
+import { createKafkaClient, type KafkaExtension } from '../../../src/client/core/create-client';
+import { KafkaClient } from '../../../src/client/core/kafka';
+import { topicProvisioningExtension } from "../../../src/extensions/topic-provisioning";
+import { healthCheckExtension } from "../../../src/extensions/health-check";
+import { createTopicConfig } from "../../../src/config/topics/define-topics";
+import { initializeKafkaTopics } from "../../../src/config/ensure-topics";
 import { z } from "@gatwech/utils/zod";
 
 // Mock dependencies
-vi.mock("../../src/client/core/kafka");
-vi.mock("../../src/config/ensure-topics");
+vi.mock("../../../src/client/core/kafka");
+vi.mock("../../../src/config/ensure-topics");
 
 describe("createKafkaClient", () => {
   const mockConfig = {

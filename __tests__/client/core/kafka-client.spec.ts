@@ -50,7 +50,7 @@ vi.mock("kafkajs", () => {
 });
 
 import * as kafkajs from "kafkajs";
-import { KafkaClient } from '../../src/client/core/kafka';
+import { KafkaClient } from '../../../src/client/core/kafka';
 
 describe("KafkaClient.createProducer", () => {
   beforeEach(() => {

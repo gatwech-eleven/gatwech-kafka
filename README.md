@@ -194,10 +194,13 @@ const client = createKafkaClient({
     connectWithRetries: true,      // Enable connection retries
     maxConnectAttemptTimeMs: 30000, // Timeout for broker readiness
     connectPollIntervalMs: 1000,    // Poll interval for readiness check
+    // New: Standard KafkaJS options
+    ssl: true,
+    sasl: { mechanism: "plain", username: "user", password: "password" },
   },
   extensions: [
     topicProvisioningExtension(topics),
-    healthCheckExtension(),
+    // healthCheck is now built-in: client.healthCheck()
   ],
 });
 ```
@@ -440,6 +443,12 @@ const kafka = await new GenericContainer("confluentinc/cp-kafka:7.5.0")
 - Core: `client/core/` (kafka.ts, create-client.ts, errors.ts, etc.)
 - Producers: `client/producers/` (factories, publishers)
 - Consumers: `client/consumers/` (DLQ, retry logic)
+
+**Test Reorganization**:
+- E2E tests moved from `e2e/` to `__tests__/e2e/`.
+
+**Renaming**:
+- `partition-calc` extension renamed to `partition-analysis`.
 
 Public exports unchanged; internal imports require updates if importing directly from file paths.
 

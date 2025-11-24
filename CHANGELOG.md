@@ -7,7 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Configuration**: Added direct support for `ssl`, `sasl`, `connectionTimeout`, `authenticationTimeout`, `reauthenticationThreshold`, and `enforceRequestTimeout` in `KafkaClientOptions`.
+
 ### Changed
+- **Tests**: Moved E2E tests from `e2e/` to `__tests__/e2e/` for better project structure.
+- **Extensions**: Renamed `partition-calc` to `partition-analysis` and updated export to `partitionAnalysisExtension`.
+
+### Refactoring
 
 #### Clean Code Refactoring - Phase 1 & 2
 

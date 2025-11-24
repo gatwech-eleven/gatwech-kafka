@@ -1,14 +1,14 @@
 import { describe, expect, it, vi, beforeEach, afterEach, type Mock } from "vitest";
 import { z } from "@gatwech/utils/zod";
-import { consumeWithRetryAndDLQ } from '../../src/client/consumers/consume-with-dlq';
-import type { TopicConfig } from "../../src/config/topics/topic-config-schema";
-import { createDLQPublisher } from "../../src/client/consumers/dlq.factory";
-import type { KafkaClient } from "../../src/client/core/kafka";
+import { consumeWithRetryAndDLQ } from '../../../src/client/consumers/consume-with-dlq';
+import type { TopicConfig } from "../../../src/config/topics/topic-config-schema";
+import { createDLQPublisher } from "../../../src/client/consumers/dlq.factory";
+import type { KafkaClient } from "../../../src/client/core/kafka";
 
 const RETRY_BACKOFF_MS = 1000;
 
 // Mock DLQ factory
-vi.mock("../../src/client/consumers/dlq.factory", () => ({
+vi.mock("../../../src/client/consumers/dlq.factory", () => ({
   createDLQPublisher: vi.fn(),
 }));
 

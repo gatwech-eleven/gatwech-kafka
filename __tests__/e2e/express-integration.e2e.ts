@@ -2,12 +2,12 @@ import { nanoid } from "nanoid";
 import supertest from "supertest";
 import { z } from "@gatwech/utils/zod";
 import express, { type Request, type Response } from "express";
-import { KafkaClient } from '../src/client/core/kafka.ts';
-import { createServicePublisherFactory } from '../src/client/producers/service-publisher-factory.ts';
-import { initializeKafkaTopics } from "../src/config/ensure-topics.ts";
-import { UserRegisteredSchema } from "../src/schemas/user-schemas.ts";
-import { consumeWithRetryAndDLQ } from '../src/client/consumers/consume-with-dlq.ts';
-import type { TopicConfig } from "../src/config/topics/topic-config-schema.ts";
+import { KafkaClient } from '../../src/client/core/kafka.ts';
+import { createServicePublisherFactory } from '../../src/client/producers/service-publisher-factory.ts';
+import { initializeKafkaTopics } from "../../src/config/ensure-topics.ts";
+import { UserRegisteredSchema } from "../../src/schemas/user-schemas.ts";
+import { consumeWithRetryAndDLQ } from '../../src/client/consumers/consume-with-dlq.ts';
+import type { TopicConfig } from "../../src/config/topics/topic-config-schema.ts";
 
 async function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
