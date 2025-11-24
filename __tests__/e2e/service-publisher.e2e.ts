@@ -84,7 +84,7 @@ async function main() {
 
   // Start consumer
   const groupId = `service-e2e-consumer-${nanoid().slice(0, 8)}`;
-  const consumer = await client.createConsumer(groupId, { groupId });
+  const consumer = client.createConsumer({ groupId });
   await consumer.connect();
   await consumer.subscribe({ topic, fromBeginning: true });
 

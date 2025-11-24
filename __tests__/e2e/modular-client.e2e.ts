@@ -1,6 +1,5 @@
 import {
   createKafkaClient,
-  topicProvisioningExtension,
   createTopicConfig,
 } from "../../src";
 import { z } from "@gatwech/utils/zod";
@@ -27,13 +26,13 @@ async function run() {
       clientId: "modular-e2e-test",
       brokers: [KAFKA_BOOTSTRAP],
       logLevel: 1, // ERROR
-    },
-    extensions: [
-      topicProvisioningExtension(TestTopics, {
+      topics: TestTopics,
+      topicProvisioning: {
         partitions: 1,
         replicationFactor: 1,
-      }),
-    ],
+      },
+    },
+    extensions: [],
   });
 
   try {
@@ -50,7 +49,7 @@ async function run() {
 
     // 3. Provision Topics
     console.log("Provisioning topics...");
-    await client.extensions.topicProvisioning.provisionTopics();
+    await client.provisionTopics();
     console.log("✅ Topics provisioned");
 
     // 4. Produce Message
@@ -67,7 +66,7 @@ async function run() {
     // 5. Consume Message (using base client consumer)
     console.log("Consuming message...");
     const groupId = `test-group-${randomUUID()}`;
-    const consumer = await client.createConsumer(groupId, { groupId });
+    const consumer = await client.createConsumer({ groupId });
     
     await consumer.connect();
     await consumer.subscribe({ topic, fromBeginning: true });
