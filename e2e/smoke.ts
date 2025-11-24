@@ -1,6 +1,6 @@
 import { nanoid } from "nanoid";
 import { KafkaClient } from '../src/client/core/kafka.ts';
-import { ensureTopicsWithConfig } from "../src/config/ensure-topics.ts";
+import { initializeKafkaTopics } from "../src/config/ensure-topics.ts";
 
 async function main() {
   const bootstrap = process.env.KAFKA_BOOTSTRAP || "localhost:9092";
@@ -17,8 +17,7 @@ async function main() {
   await client.connect();
 
   const admin = client.getAdmin();
-  await ensureTopicsWithConfig(admin, {
-    includeBuiltIn: false,
+  await initializeKafkaTopics(admin, {
     partitions: 1,
     replicationFactor: 1,
     additionalTopics: [

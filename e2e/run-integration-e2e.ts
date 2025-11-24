@@ -1,6 +1,6 @@
 import { KafkaClient } from '../src/client/core/kafka.ts';
 import { createServicePublisherFactory } from '../src/client/producers/service-publisher-factory.ts';
-import { ensureTopicsWithConfig } from "../src/config/ensure-topics.ts";
+import { initializeKafkaTopics } from "../src/config/ensure-topics.ts";
 import { UserRegisteredSchema } from "../src/schemas/user-schemas.ts";
 import { z } from "@gatwech/utils/zod";
 import { nanoid } from "nanoid";
@@ -34,11 +34,10 @@ async function main() {
   // Ensure only the specific topic needed for this test
   try {
     const admin = authClient.getAdmin();
-    await ensureTopicsWithConfig(admin, {
+    await initializeKafkaTopics(admin, {
       partitions: 3,
       replicationFactor: 1,
       waitForLeadersMs: 15000,
-      includeBuiltIn: false,
       additionalTopics: [
         {
           name: topic,

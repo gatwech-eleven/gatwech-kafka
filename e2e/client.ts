@@ -33,7 +33,6 @@ async function run() {
       topicProvisioningExtension(TestTopics, {
         partitions: 1,
         replicationFactor: 1,
-        includeBuiltIn: false,
       }),
       healthCheckExtension(),
     ],
@@ -47,13 +46,13 @@ async function run() {
 
     // 2. Health Check
     console.log("Checking health...");
-    const isHealthy = await client.healthCheck();
+    const isHealthy = await client.extensions.healthCheck.healthCheck();
     if (!isHealthy) throw new Error("Health check failed");
     console.log("✅ Health check passed");
 
     // 3. Provision Topics
     console.log("Provisioning topics...");
-    await client.provisionTopics();
+    await client.extensions.topicProvisioning.provisionTopics();
     console.log("✅ Topics provisioned");
 
     // 4. Produce Message

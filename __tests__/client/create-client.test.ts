@@ -5,6 +5,7 @@ import { topicProvisioningExtension } from "../../src/extensions/topic-provision
 import { healthCheckExtension } from "../../src/extensions/health-check";
 import { createTopicConfig } from "../../src/config/topics/define-topics";
 import { initializeKafkaTopics } from "../../src/config/ensure-topics";
+import { z } from "@gatwech/utils/zod";
 
 // Mock dependencies
 vi.mock("../../src/client/core/kafka");
@@ -32,7 +33,7 @@ describe("createKafkaClient", () => {
   });
 
   it("should apply extensions correctly", () => {
-    const mockExtension: KafkaExtension<{ testMethod: () => string }> = {
+    const mockExtension: KafkaExtension<{ testMethod: () => string }, "testExtension"> = {
       name: "testExtension",
       setup: () => ({
         testMethod: () => "success",
@@ -44,15 +45,15 @@ describe("createKafkaClient", () => {
       extensions: [mockExtension],
     });
 
-    expect(client.testMethod()).toBe("success");
+    expect(client.extensions.testExtension.testMethod()).toBe("success");
   });
 
   it("should support multiple extensions", () => {
-    const ext1: KafkaExtension<{ method1: () => number }> = {
+    const ext1: KafkaExtension<{ method1: () => number }, "ext1"> = {
       name: "ext1",
       setup: () => ({ method1: () => 1 }),
     };
-    const ext2: KafkaExtension<{ method2: () => number }> = {
+    const ext2: KafkaExtension<{ method2: () => number }, "ext2"> = {
       name: "ext2",
       setup: () => ({ method2: () => 2 }),
     };
@@ -62,8 +63,26 @@ describe("createKafkaClient", () => {
       extensions: [ext1, ext2],
     });
 
-    expect(client.method1()).toBe(1);
-    expect(client.method2()).toBe(2);
+    expect(client.extensions.ext1.method1()).toBe(1);
+    expect(client.extensions.ext2.method2()).toBe(2);
+  });
+
+  it("should throw on extension name collision", () => {
+    const ext1: KafkaExtension<{ method: () => void }> = {
+      name: "duplicate",
+      setup: () => ({ method: () => {} }),
+    };
+    const ext2: KafkaExtension<{ method: () => void }> = {
+      name: "duplicate",
+      setup: () => ({ method: () => {} }),
+    };
+
+    expect(() => {
+      createKafkaClient({
+        config: mockConfig,
+        extensions: [ext1, ext2],
+      });
+    }).toThrow("Extension name collision: 'duplicate' is already registered.");
   });
 });
 
@@ -76,7 +95,10 @@ describe("Extensions", () => {
   describe("topicProvisioningExtension", () => {
     it("should call initializeKafkaTopics with correct parameters", async () => {
       const topics = createTopicConfig({
-        TEST_TOPIC: { name: "test.topic" },
+        TEST_TOPIC: { 
+          name: "test.topic",
+          schema: z.object({ id: z.string() }),
+        },
       });
       
       const extension = topicProvisioningExtension(topics, {

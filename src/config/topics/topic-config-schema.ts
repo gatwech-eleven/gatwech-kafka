@@ -55,9 +55,9 @@ export const TopicConfigSchema = z.object({
 
   /**
    * Zod schema for message validation.
-   * Should be a ZodType that validates the message payload.
+   * Required to ensure type safety for all topic messages.
    */
-  schema: z.custom<ZodType>().optional(),
+  schema: z.custom<ZodType>(),
 });
 
 /**
@@ -77,7 +77,7 @@ export type TopicConfigInput = {
   cleanupPolicy?: "delete" | "compact" | "compact,delete"; // Has default in schema
   partitions?: number;
   replicationFactor?: number;
-  schema?: ZodType;
+  schema: ZodType; // Required for type safety
 };
 
 /**

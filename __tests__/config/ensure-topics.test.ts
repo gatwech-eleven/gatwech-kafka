@@ -1,30 +1,28 @@
 import type { Admin } from "kafkajs";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { ensureTopicsWithConfig } from "../../src/config/ensure-topics";
+import { initializeKafkaTopics } from "../../src/config/ensure-topics";
+import { z } from "@gatwech/utils/zod";
 
-describe("ensureTopicsWithConfig - additionalTopics/includeBuiltIn", () => {
+describe("initializeKafkaTopics - topics provisioning", () => {
   beforeEach(() => {
     vi.useRealTimers();
   });
 
-  it("ensures only the provided dynamic topic when includeBuiltIn is false", async () => {
+  it("ensures only the provided dynamic topic", async () => {
     const { admin, calls } = globalThis.__appMocks.makeAdminMock();
 
     const topicName = "dynamic.topic";
-    await ensureTopicsWithConfig(admin as Admin, {
-      includeBuiltIn: false,
+    await initializeKafkaTopics(admin as Admin, {
       partitions: 3,
       replicationFactor: 1,
-      additionalTopics: [
-        {
+      topics: {
+        DYNAMIC_TOPIC: {
           name: topicName,
-          config: {
-            name: topicName,
-            retentionMs: 86_400_000,
-            cleanupPolicy: "delete",
-          },
+          retentionMs: 86_400_000,
+          cleanupPolicy: "delete",
+          schema: z.unknown(),
         },
-      ],
+      },
     });
 
     expect(admin.connect).toHaveBeenCalledTimes(1);
@@ -49,7 +47,7 @@ describe("ensureTopicsWithConfig - additionalTopics/includeBuiltIn", () => {
   }, 20_000);
 });
 
-describe("ensureTopicsWithConfig - behaviors", () => {
+describe("initializeKafkaTopics - behaviors", () => {
   beforeEach(() => {
     vi.useRealTimers();
   });
@@ -60,20 +58,17 @@ describe("ensureTopicsWithConfig - behaviors", () => {
     });
 
     const topicName = "dynamic.topic";
-    await ensureTopicsWithConfig(admin as Admin, {
-      includeBuiltIn: false,
+    await initializeKafkaTopics(admin as Admin, {
       partitions: 3,
       replicationFactor: 1,
-      additionalTopics: [
-        {
+      topics: {
+        DYNAMIC_TOPIC: {
           name: topicName,
-          config: {
-            name: topicName,
-            retentionMs: 86_400_000,
-            cleanupPolicy: "delete",
-          },
+          retentionMs: 86_400_000,
+          cleanupPolicy: "delete",
+          schema: z.unknown(),
         },
-      ],
+      },
     });
 
     expect(calls.createTopics).toHaveLength(1);
@@ -94,20 +89,17 @@ describe("ensureTopicsWithConfig - behaviors", () => {
       },
     });
 
-    await ensureTopicsWithConfig(admin as Admin, {
-      includeBuiltIn: false,
+    await initializeKafkaTopics(admin as Admin, {
       partitions: 3,
       replicationFactor: 1,
-      additionalTopics: [
-        {
+      topics: {
+        DYNAMIC_TOPIC: {
           name: topicName,
-          config: {
-            name: topicName,
-            retentionMs: 86_400_000,
-            cleanupPolicy: "delete",
-          },
+          retentionMs: 86_400_000,
+          cleanupPolicy: "delete",
+          schema: z.unknown(),
         },
-      ],
+      },
     });
 
     expect(calls.alterConfigs).toHaveLength(1);

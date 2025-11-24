@@ -12,6 +12,8 @@ import { KafkaError } from "./errors";
 import { DEFAULT_OPTIONS } from "./default-options";
 import { createConsumerForClient } from "../consumers/create-consumer";
 
+const MAX_RETRY_DELAY_MS = 30000;
+
 export class KafkaClient {
   private readonly producer: Producer;
   private readonly kafka: Kafka;
@@ -136,7 +138,7 @@ export class KafkaClient {
 
         const delay = Math.min(
           this.options.retryDelayMs * 2 ** this.connectionRetries,
-          30000
+          MAX_RETRY_DELAY_MS
         );
         await new Promise((resolve) => setTimeout(resolve, delay));
       }

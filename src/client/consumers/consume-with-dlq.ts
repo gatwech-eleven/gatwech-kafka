@@ -21,6 +21,111 @@ function hasSchema(topic: TopicConfig): topic is TopicConfig & { schema: ZodType
   return topic.schema !== undefined && topic.schema !== null;
 }
 
+const MAX_RETRY_DELAY_MS = 30_000;
+
+/**
+ * Validates and parses message payload against topic schema.
+ * @returns Parsed payload if validation succeeds, undefined if it fails.
+ */
+function validatePayload<TSchema extends ZodType>(
+  topic: TopicConfig & { schema: TSchema },
+  messageValue: Buffer | null
+): z.infer<TSchema> | undefined {
+  try {
+    const rawData = messageValue ? JSON.parse(messageValue.toString()) : undefined;
+    const result = topic.schema.safeParse(rawData);
+    if (!result.success) {
+      logger.warn("Schema validation failed", {
+        topic: topic.name,
+        errors: result.error.issues,
+      });
+      return undefined;
+    }
+    return result.data;
+  } catch (e) {
+    logger.warn("Failed to parse message value", {
+      topic: topic.name,
+      error: e,
+    });
+    return undefined;
+  }
+}
+
+/**
+ * Executes handler with exponential backoff retry logic.
+ * @returns true if handler succeeded, false if all retries exhausted.
+ */
+async function executeWithRetry<T>(
+  handler: () => Promise<void>,
+  maxRetries: number,
+  backoffBase: number,
+  context: {
+    topic: string;
+    partition: number;
+    offset: string;
+    groupId: string;
+  }
+): Promise<boolean> {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    logger.debug("Handler attempt", { attempt: attempt + 1, ...context });
+    try {
+      await handler();
+      return true; // success
+    } catch (err) {
+      const delay = Math.min(backoffBase * 2 ** attempt, MAX_RETRY_DELAY_MS);
+      logger.warn("Consumer handler failed; scheduling retry", {
+        ...context,
+        attempt: attempt + 1,
+        delay,
+        error: err,
+      });
+      if (attempt < maxRetries - 1) {
+        await sleep(delay);
+        logger.debug("Woke from sleep", { attempt: attempt + 1 });
+      }
+    }
+  }
+  return false; // all retries exhausted
+}
+
+/**
+ * Publishes failed message to DLQ.
+ */
+async function handleDLQPublish(
+  publishToDLQ: ReturnType<typeof createDLQPublisher>,
+  message: { value: Buffer | null; key: Buffer | null; headers?: any },
+  context: {
+    topic: string;
+    partition: number;
+    offset: string;
+    groupId: string;
+  }
+): Promise<void> {
+  try {
+    logger.debug("Publishing to DLQ", context);
+    await publishToDLQ(
+      {
+        value: message.value ?? null,
+        key: message.key ?? null,
+        headers: message.headers,
+      },
+      new Error("Message processing failed after retries"),
+      {
+        topic: asTopicName(context.topic),
+        partition: context.partition,
+        offset: context.offset,
+        groupId: asConsumerGroupId(context.groupId),
+      }
+    );
+    logger.debug("Published to DLQ", context);
+  } catch (err) {
+    logger.error("Failed to publish to DLQ", {
+      ...context,
+      error: err,
+    });
+  }
+}
+
 export interface ConsumeHandlerContext {
   topic: TopicConfig;
   groupId: string;
@@ -72,94 +177,47 @@ export async function consumeWithRetryAndDLQ(
         offset: message.offset,
       });
 
-      let attempt = 0;
+      const context = {
+        topic: topicName,
+        partition,
+        offset: message.offset,
+        groupId,
+      };
+
       let parsedPayload: EachMessagePayload | unknown = payload;
+      let validationFailed = false;
 
       if (hasSchema(topic)) {
-        try {
-          const result = topic.schema.safeParse(
-            message.value ? JSON.parse(message.value.toString()) : undefined
-          );
-          if (!result.success) {
-            throw new Error("Schema validation failed");
-          }
-          parsedPayload = result.data;
-        } catch (e) {
-          // If validation fails, treat as processing failure to DLQ
-          attempt = maxRetries; // jump to DLQ path below
+        const validated = validatePayload(topic, message.value);
+        if (validated === undefined) {
+          validationFailed = true;
+        } else {
+          parsedPayload = validated;
         }
       }
 
-      for (; attempt < maxRetries; attempt++) {
-        logger.debug("consumeWithRetryAndDLQ: handler attempt", {
-          attempt: attempt + 1,
-        });
-        try {
-          await handler(parsedPayload, { topic, groupId });
-          return; // success, commit offset
-        } catch (err) {
-          const delay = Math.min(backoffBase * 2 ** attempt, 30_000);
-          logger.warn("Consumer handler failed; scheduling retry", {
-            topic: topicName,
-            partition,
-            offset: message.offset,
-            groupId,
-            attempt: attempt + 1,
-            delay,
-            error: err,
-          });
-          await sleep(delay);
-          logger.debug("consumeWithRetryAndDLQ: woke from sleep", {
-            attempt: attempt + 1,
-          });
+      if (validationFailed) {
+        if (dlqEnabled) {
+          await handleDLQPublish(publishToDLQ, message, context);
+        } else {
+          logger.error("Schema validation failed and DLQ disabled; giving up on message", context);
         }
+        return;
       }
 
-      if (!dlqEnabled) {
-        logger.error("DLQ disabled; giving up on message", {
-          topic: topicName,
-          partition,
-          offset: message.offset,
-          groupId,
-        });
-        return; // give up; offset will commit to avoid blocking partition
-      }
+      const success = await executeWithRetry(
+        () => handler(parsedPayload, { topic, groupId }),
+        maxRetries,
+        backoffBase,
+        context
+      );
 
-      try {
-        logger.debug("consumeWithRetryAndDLQ: publishing to DLQ", {
-          topic: topicName,
-          partition,
-          offset: message.offset,
-        });
-
-
-        await publishToDLQ(
-          {
-            value: message.value ?? null,
-            key: message.key ?? null,
-            headers: message.headers,
-          },
-          new Error("Message processing failed after retries"),
-          {
-            topic: asTopicName(topicName),
-            partition,
-            offset: message.offset,
-            groupId: asConsumerGroupId(groupId),
-          }
-        );
-        logger.debug("consumeWithRetryAndDLQ: published to DLQ", {
-          topic: topicName,
-          partition,
-          offset: message.offset,
-        });
-      } catch (err) {
-        logger.error("Failed to publish to DLQ", {
-          topic: topicName,
-          partition,
-          offset: message.offset,
-          groupId,
-          error: err,
-        });
+      if (!success) {
+        if (dlqEnabled) {
+          await handleDLQPublish(publishToDLQ, message, context);
+        } else {
+          logger.error("DLQ disabled; giving up on message", context);
+        }
       }
     },
   });

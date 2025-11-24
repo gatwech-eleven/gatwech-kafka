@@ -1,8 +1,11 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach, type Mock } from "vitest";
 import { z } from "@gatwech/utils/zod";
 import { consumeWithRetryAndDLQ } from '../../src/client/consumers/consume-with-dlq';
 import type { TopicConfig } from "../../src/config/topics/topic-config-schema";
 import { createDLQPublisher } from "../../src/client/consumers/dlq.factory";
+import type { KafkaClient } from "../../src/client/core/kafka";
+
+const RETRY_BACKOFF_MS = 1000;
 
 // Mock DLQ factory
 vi.mock("../../src/client/consumers/dlq.factory", () => ({
@@ -10,23 +13,19 @@ vi.mock("../../src/client/consumers/dlq.factory", () => ({
 }));
 
 const mockPublishToDLQ = vi.fn();
-(createDLQPublisher as any).mockReturnValue(mockPublishToDLQ);
+vi.mocked(createDLQPublisher).mockReturnValue(mockPublishToDLQ);
 
 const mockClient = {
   createConsumer: async (groupId: string, _opts: any) => {
     return {
       subscribe: async (_: any) => {},
       run: async ({ eachMessage }: any) => {
-        // Store the callback to be called manually in tests if needed, 
-        // or just let the test helper call it.
-        // For this mock, we'll assume the test calls consumeWithRetryAndDLQ 
-        // which calls run, and we want to intercept the eachMessage handler.
         (mockClient as any).lastEachMessage = eachMessage;
       },
     };
   },
   getProducer: () => ({ send: async () => {} }),
-} as any;
+} as unknown as KafkaClient;
 
 // Define a topic with Zod schema
 const TestSchema = z.object({ id: z.string() });
@@ -40,7 +39,7 @@ describe("consumeWithRetryAndDLQ generic inference", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers();
-    (createDLQPublisher as any).mockReturnValue(mockPublishToDLQ);
+    vi.mocked(createDLQPublisher).mockReturnValue(mockPublishToDLQ);
   });
 
   afterEach(() => {
@@ -95,7 +94,7 @@ describe("consumeWithRetryAndDLQ generic inference", () => {
     
     const consumerPromise = consumeWithRetryAndDLQ(mockClient, "group1", testTopic, handler, {
       maxRetries: 2,
-      retryBackoffMs: 1000,
+      retryBackoffMs: RETRY_BACKOFF_MS,
     });
     
     await consumerPromise;

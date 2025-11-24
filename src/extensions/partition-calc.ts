@@ -1,7 +1,8 @@
 import { KafkaClient } from '../client';
-import type { TopicConfig } from '../config/topics/topic-config-schema';
-import type { KafkaExtension } from '../client/core/create-client';
-import type { KafkaClientOptions } from '../types';
+ import type { KafkaExtension } from '../client/core/create-client';
+ import { logger } from '../utils/logger';
+
+const DEFAULT_SKEW_THRESHOLD = 1.5;
 
 /** Defines the throughput metrics needed for the 4-Pillar calculation. */
 export interface ThroughputMetrics {
@@ -87,20 +88,20 @@ export const calculateOptimalPartitions = (metrics: ThroughputMetrics): number =
 /**
  * CLIENT EXTENSION: Adds partition analysis and calculation utilities to the Kafka Client.
  */
-export const partitionAnalysisClient = (): KafkaExtension<{
+export const partitionAnalysisExtension = (): KafkaExtension<{
     calculatePartitions: typeof calculateOptimalPartitions;
     checkPartitionSkew: (distribution: number[], skewThreshold?: number) => PartitionSkewResult;
-}> => ({
-    name: "PartitionAnalysisClient",
+}, "partitionAnalysis"> => ({
+    name: "partitionAnalysis",
     setup: (client: KafkaClient) => {
-        console.log(`[Extension] Installing partition analysis client...`);
+        logger.info(`[Extension] Installing partition analysis client...`);
         
         return {
             // Expose the core calculation method
             calculatePartitions: calculateOptimalPartitions,
 
             // Expose a helper to validate partitioning key distribution (Hot Partition check)
-            checkPartitionSkew: (distribution: number[], skewThreshold: number = 1.5): PartitionSkewResult => {
+            checkPartitionSkew: (distribution: number[], skewThreshold: number = DEFAULT_SKEW_THRESHOLD): PartitionSkewResult => {
                 if (distribution.length === 0) {
                      return { status: 'BALANCED', hotPartitions: [] };
                 }
@@ -116,7 +117,7 @@ export const partitionAnalysisClient = (): KafkaExtension<{
                 }).filter((item): item is string => item !== null);
 
                 if (hotPartitions.length > 0) {
-                    console.warn(`[PartitionSkew] Detected ${hotPartitions.length} hot partition(s).`);
+                    logger.warn(`[PartitionSkew] Detected ${hotPartitions.length} hot partition(s).`);
                     return { status: 'SKEWED', hotPartitions };
                 }
 

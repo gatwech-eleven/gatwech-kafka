@@ -25,7 +25,7 @@ type BaseEventFields = {
   metadata?: EventMetadata | Record<string, unknown>;
 };
 
-export type TReadyToPublishMessage<T> = StrictOmit<
+export type ReadyToPublishMessage<T> = StrictOmit<
   TKafkaMessage<T>,
   "key" | "headers"
 > & {
@@ -60,7 +60,7 @@ export class GenericKafkaProducer<
   protected enrichAndFormatMessage(
     payload: DeepReadonly<z.infer<TSchema>>,
     overrideKey?: string
-  ): TReadyToPublishMessage<z.infer<TSchema>> {
+  ): ReadyToPublishMessage<z.infer<TSchema>> {
     const key = this.generateKey(payload, overrideKey);
 
     const withBase = payload as z.infer<TSchema> & BaseEventFields;

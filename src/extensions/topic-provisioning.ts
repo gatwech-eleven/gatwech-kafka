@@ -16,10 +16,6 @@ export interface TopicProvisioningOptions {
    * Max time to wait for leaders after create/partition increase
    */
   waitForLeadersMs?: number;
-  /**
-   * Whether to include built-in package topics
-   */
-  includeBuiltIn?: boolean;
 }
 
 /**
@@ -31,7 +27,7 @@ export interface TopicProvisioningOptions {
 export function topicProvisioningExtension(
   topics?: Record<string, ValidatedTopicConfig | TopicConfig>,
   options: TopicProvisioningOptions = {}
-): KafkaExtension<{ provisionTopics: () => Promise<void> }> {
+): KafkaExtension<{ provisionTopics: () => Promise<void> }, "topicProvisioning"> {
   return {
     name: "topicProvisioning",
     setup: (client: KafkaClient) => {
@@ -47,7 +43,6 @@ export function topicProvisioningExtension(
             partitions: options.partitions,
             replicationFactor: options.replicationFactor,
             waitForLeadersMs: options.waitForLeadersMs,
-            includeBuiltIn: options.includeBuiltIn,
           });
         },
       };

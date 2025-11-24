@@ -3,7 +3,7 @@ import { z } from "@gatwech/utils/zod";
 import { createKafkaClient } from '../src/client/core/create-client';
 import { consumeWithRetryAndDLQ } from '../src/client/consumers/consume-with-dlq';
 import type { TopicConfig } from "../src/config/topics/topic-config-schema";
-import { ensureTopicsWithConfig } from "../src/config/ensure-topics";
+import { initializeKafkaTopics } from "../src/config/ensure-topics";
 
 // Define schema
 const UserCreatedSchema = z.object({
@@ -42,8 +42,7 @@ async function main() {
 
   // Ensure topic exists
   const admin = kafka.getAdmin();
-  await ensureTopicsWithConfig(admin, {
-    includeBuiltIn: false,
+  await initializeKafkaTopics(admin, {
     partitions: 1,
     replicationFactor: 1,
     additionalTopics: [

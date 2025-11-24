@@ -1,11 +1,14 @@
 const CONFIG_RESOURCE_TYPE_TOPIC = 2;
-import { topics } from "./topics";
 import { logger } from "../utils/logger";
 import type { Admin, DescribeConfigResponse } from "kafkajs";
 import type {
   TopicConfig,
   ValidatedTopicConfig,
 } from "./topics/topic-config-schema";
+
+const RETRY_DELAY_BASE_MS = 250;
+const RETRY_DELAY_CAP_MS = 2000;
+const WAIT_FOR_LEADERS_DEFAULT_MS = 15_000;
 
 /**
  * Options for topic provisioning defaults.
@@ -22,19 +25,6 @@ type EnsureOpts = {
   replicationFactor?: number;
   /** Max time to wait for leaders after create/partition increase, in milliseconds. */
   waitForLeadersMs?: number;
-  /**
-   * Additional topics to ensure beyond the built-in TOPICS map.
-   * Useful for tests/E2E that need ephemeral topics.
-   * @deprecated Use `topics` parameter instead.
-   */
-  additionalTopics?:
-    | TopicMap
-    | Array<{
-        name: string;
-        config: TopicConfig;
-      }>;
-  /** If false, only ensure additionalTopics/topics (skip built-in TOPICS). Default: false */
-  includeBuiltIn?: boolean;
 };
 
 /**
@@ -86,7 +76,7 @@ async function withRetry<T>(fn: () => Promise<T>, attempts = 5): Promise<T> {
     } catch (e: any) {
       i++;
       if (i >= attempts) throw e;
-      const delay = Math.min(250 * 2 ** (i - 1), 2000);
+      const delay = Math.min(RETRY_DELAY_BASE_MS * 2 ** (i - 1), RETRY_DELAY_CAP_MS);
       await sleep(delay);
     }
   }
@@ -213,7 +203,7 @@ async function safeDescribeConfigs(
 }
 
 /**
- * Initialize Kafka topics with application-level or built-in configurations.
+ * Initialize Kafka topics with application-level configurations.
  *
  * **What this does:**
  * 1. **Create** any missing topics with initial `numPartitions`, `replicationFactor`, and `configEntries`.
@@ -246,23 +236,12 @@ async function safeDescribeConfigs(
  * });
  * ```
  *
- * @example Using built-in topics
- * ```ts
- * await initializeKafkaTopics(admin, {
- *   includeBuiltIn: true,
- *   partitions: 3,
- *   replicationFactor: 1,
- * });
- * ```
- *
  * @param admin - KafkaJS Admin client.
  * @param opts - Initialization options.
  * @param opts.topics - Application-defined topics (from `createTopicConfig()`).
  * @param opts.partitions - Default partitions for new topics (default: 3).
  * @param opts.replicationFactor - Default replication factor for new topics (default: 1).
  * @param opts.waitForLeadersMs - Max time to wait for leader election after changes (default: 15000ms).
- * @param opts.includeBuiltIn - Include built-in package topics (default: false).
- * @param opts.additionalTopics - Legacy: additional topics to ensure (use `topics` instead).
  * @param manageConnection - If `true`, this function connects/disconnects the Admin (default: `true`).
  * @returns Promise that resolves when topics are initialized.
  * @throws Propagates unexpected admin errors (topic creation races are handled gracefully).
@@ -274,39 +253,21 @@ export async function initializeKafkaTopics(
 ) {
   const partitionsDefault = opts.partitions ?? 3;
   const rfDefault = opts.replicationFactor ?? 1;
-  const waitForLeadersMs = opts.waitForLeadersMs ?? 15_000;
+  const waitForLeadersMs = opts.waitForLeadersMs ?? WAIT_FOR_LEADERS_DEFAULT_MS;
 
-  // Flatten nested topics map to a flat TopicMap
-  const flatTopics: TopicMap =
-    opts.includeBuiltIn === false
-      ? {}
-      : (() => {
-          // "topics" export is a flat object of TopicConfig entries keyed by constants
-          const builtIn = topics as unknown as Record<string, TopicConfig>;
-          const entries = Object.values(builtIn).map((t) => [
-            t.name,
-            { name: t.name, config: t },
-          ]) as [string, { name: string; config: TopicConfig }][];
-          return Object.fromEntries(entries);
-        })();
-  // Merge in any caller-provided additional topics
-  if (opts.additionalTopics) {
-    if (Array.isArray(opts.additionalTopics)) {
-      for (const t of opts.additionalTopics) {
-        flatTopics[t.name] = { name: t.name, config: t.config };
-      }
-    } else {
-      for (const [k, v] of Object.entries(opts.additionalTopics)) {
-        flatTopics[k] = v as any;
-      }
+  // Convert provided topics to TopicMap format
+  const flatTopics: TopicMap = {};
+  if (opts.topics) {
+    for (const [key, value] of Object.entries(opts.topics)) {
+      flatTopics[key] = { name: value.name, config: value };
     }
   }
+
   const defs = asTopicDefs(flatTopics);
   validateTopics(defs);
 
   if (manageConnection) await admin.connect();
   try {
-    // Create missing topics with initial configs
     const md = await withRetry(() => admin.fetchTopicMetadata());
     const existing = new Set(md.topics.map((t) => t.name));
 
@@ -342,7 +303,7 @@ export async function initializeKafkaTopics(
       }
     }
 
-    // Increase partitions when desired > current
+
     const md2 = await withRetry(() => admin.fetchTopicMetadata());
     const current = new Map(md2.topics.map((t) => [t.name, t]));
     const partitionsToIncrease = defs
@@ -370,7 +331,7 @@ export async function initializeKafkaTopics(
       }
     }
 
-    // Enforce configs (best effort)
+
     const topicNames = defs.map((t) => t.name);
     const desiredByTopic = new Map(
       defs.map((t) => [t.name, toConfigEntries(t.config)])
@@ -444,20 +405,3 @@ export async function initializeKafkaTopics(
   }
 }
 
-/**
- * @deprecated Use `initializeKafkaTopics` instead. This function is kept for backward compatibility.
- *
- * Ensure all topics declared in `TOPICS` exist with the desired partition counts and configs.
- *
- * @param admin - KafkaJS Admin client.
- * @param opts - Default provisioning options (per-topic overrides take precedence).
- * @param manageConnection - If `true`, this function connects/disconnects the Admin (default: `true`).
- * @returns Promise that resolves when topics are ensured.
- */
-export async function ensureTopicsWithConfig(
-  admin: Admin,
-  opts: EnsureOpts = {},
-  manageConnection = true
-) {
-  return initializeKafkaTopics(admin, opts, manageConnection);
-}

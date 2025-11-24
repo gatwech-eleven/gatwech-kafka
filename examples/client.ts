@@ -11,10 +11,15 @@ import {
   topicProvisioningExtension,
   healthCheckExtension,
   createTopicConfig,
+  type GatwechKafkaExtensions,
 } from "../src";
+import { logger } from "../src/utils/logger";
 import { z } from "@gatwech/utils/zod";
 
-// 1. Define your topics
+const DEFAULT_PORT = 3000;
+const LOG_LEVEL_INFO = 4;
+
+// Define your topics
 const TopicSpecifications = createTopicConfig({
   USER_CREATED: {
     name: "user.created",
@@ -28,24 +33,27 @@ const TopicSpecifications = createTopicConfig({
   },
 });
 
-// 2. Initialize the Kafka client
+// Define extensions with proper typing
+const extensions = [
+  topicProvisioningExtension(TopicSpecifications, {
+    partitions: 3,
+    replicationFactor: 1,
+  }),
+  healthCheckExtension(),
+] satisfies GatwechKafkaExtensions;
+
+// Initialize the Kafka client
 const kafka = createKafkaClient({
   config: {
     clientId: "express-service",
     brokers: [process.env.KAFKA_BOOTSTRAP || "localhost:9092"],
     metricsEnabled: true,
-    logLevel: 4, // INFO
+    logLevel: LOG_LEVEL_INFO,
   },
-  extensions: [
-    topicProvisioningExtension(TopicSpecifications, {
-      partitions: 3,
-      replicationFactor: 1,
-    }),
-    healthCheckExtension(),
-  ],
+  extensions,
 });
 
-// 3. Setup Express App
+// Setup Express App
 const app = express();
 app.use(express.json());
 
@@ -54,7 +62,7 @@ app.post("/users", async (req, res) => {
   try {
     const { id, email } = req.body;
     
-    // Validate payload against topic schema (optional but recommended)
+    // Validate payload against topic schema
     const payload = TopicSpecifications.USER_CREATED.schema.parse({ id, email });
 
     await kafka.sendMessage(
@@ -67,14 +75,14 @@ app.post("/users", async (req, res) => {
 
     res.status(201).json({ message: "User created event published" });
   } catch (error) {
-    console.error("Failed to publish message:", error);
+    logger.error("Failed to publish message:", error);
     res.status(500).json({ error: "Internal Server Error" });
   }
 });
 
 // Health check endpoint using the extension
 app.get("/health", async (req, res) => {
-  const isHealthy = await kafka.healthCheck();
+  const isHealthy = await kafka.extensions.healthCheck.healthCheck();
   if (isHealthy) {
     res.status(200).json({ status: "ok", kafka: "connected" });
   } else {
@@ -83,26 +91,26 @@ app.get("/health", async (req, res) => {
 });
 
 // Start server
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || DEFAULT_PORT;
 
 async function start() {
   try {
     // Connect to Kafka
     await kafka.connect();
-    console.log("✅ Kafka connected");
+    logger.info("✅ Kafka connected");
 
     // Provision topics
-    await kafka.provisionTopics();
-    console.log("✅ Topics provisioned");
+    await kafka.extensions.topicProvisioning.provisionTopics();
+    logger.info("✅ Topics provisioned");
 
     // Start Express
     const server = app.listen(PORT, () => {
-      console.log(`🚀 Server running on http://localhost:${PORT}`);
+      logger.info(`🚀 Server running on http://localhost:${PORT}`);
     });
 
     // Graceful shutdown
     const shutdown = async () => {
-      console.log("Shutting down...");
+      logger.info("Shutting down...");
       server.close();
       await kafka.disconnect();
       process.exit(0);
@@ -112,7 +120,7 @@ async function start() {
     process.on("SIGINT", shutdown);
 
   } catch (error) {
-    console.error("Failed to start application:", error);
+    logger.error("Failed to start application:", error);
     process.exit(1);
   }
 }

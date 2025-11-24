@@ -9,7 +9,7 @@ import type { KafkaExtension } from "../client/core/create-client";
  */
 export function healthCheckExtension(): KafkaExtension<{
   healthCheck: () => Promise<boolean>;
-}> {
+}, "healthCheck"> {
   return {
     name: "healthCheck",
     setup: (client: KafkaClient) => {

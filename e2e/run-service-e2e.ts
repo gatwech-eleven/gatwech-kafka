@@ -4,7 +4,7 @@ import { createServicePublisherFactory } from '../src/client/producers/service-p
 import { z } from "@gatwech/utils/zod";
 import crypto from "node:crypto";
 import assert from "node:assert";
-import { ensureTopicsWithConfig } from "../src/config/ensure-topics.ts";
+import { initializeKafkaTopics } from "../src/config/ensure-topics.ts";
 
 // Schema for service-level event: timestamp epoch(ms) provided by factory if absent
 const ServiceEventSchema = z.object({
@@ -46,11 +46,10 @@ async function main() {
   // Ensure topic exists using library ensure-topics (with dynamic topic injection)
   try {
     const admin = client.getAdmin();
-    await ensureTopicsWithConfig(admin, {
+    await initializeKafkaTopics(admin, {
       partitions: 3,
       replicationFactor: 1,
       waitForLeadersMs: 15_000,
-      includeBuiltIn: false,
       additionalTopics: [
         {
           name: topic,

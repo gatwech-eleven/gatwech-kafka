@@ -11,7 +11,7 @@ import {
   TopicConfigBuilder,
   topicBuilder,
 } from "../src";
-import { createKafkaClient } from '../src/client/core/create-client";
+import { createKafkaClient } from "../src/client/core/create-client";
 import { topicProvisioningExtension } from "../src/extensions/topic-provisioning";
 
 // Define your message schemas
@@ -37,9 +37,7 @@ const NotificationFailedSchema = z.object({
   failedAt: z.number(),
 });
 
-// ============================================================================
 // Method 1: Using createTopicConfig (Recommended)
-// ============================================================================
 
 export const notificationTopics = createTopicConfig({
   // User events that trigger notifications
@@ -72,18 +70,18 @@ export const notificationTopics = createTopicConfig({
 const userTopicName = notificationTopics.USER_REGISTERED.name; // TopicName (branded)
 const userSchema = notificationTopics.USER_REGISTERED.schema; // ZodType
 
-// ============================================================================
 // Method 2: Using TopicConfigBuilder (Fluent API)
-// ============================================================================
 
 export const analyticsTopics = {
   PAGE_VIEW: new TopicConfigBuilder("analytics.page_view")
+    .withSchema(z.unknown()) // Schema is now required
     .withRetentionDays(30)
     .withCleanupPolicy("delete")
     .withPartitions(12)
     .build(),
 
   USER_ACTION: topicBuilder("analytics.user_action")
+    .withSchema(z.unknown()) // Schema is now required
     .withRetentionHours(24 * 90) // 90 days
     .withCleanupPolicy("compact,delete")
     .withPartitions(6)
@@ -91,9 +89,7 @@ export const analyticsTopics = {
     .build(),
 };
 
-// ============================================================================
 // Initialize Topics in Your Application
-// ============================================================================
 
 async function initializeNotificationServiceTopics() {
   const client = createKafkaClient({
@@ -106,7 +102,6 @@ async function initializeNotificationServiceTopics() {
       topicProvisioningExtension(notificationTopics, {
         partitions: 3, // Default for topics without explicit partitions
         replicationFactor: 1, // Default for local dev
-        includeBuiltIn: false, // Don't include package's built-in topics
       }),
     ],
   });
@@ -115,7 +110,7 @@ async function initializeNotificationServiceTopics() {
 
   try {
     // Initialize application-specific topics only
-    await client.provisionTopics();
+    await client.extensions.topicProvisioning.provisionTopics();
 
     console.log("✅ Notification service topics initialized");
   } finally {
@@ -123,9 +118,7 @@ async function initializeNotificationServiceTopics() {
   }
 }
 
-// ============================================================================
 // Mixed: Application + Built-in Topics
-// ============================================================================
 
 async function initializeWithBuiltInTopics() {
   const client = createKafkaClient({
@@ -135,7 +128,6 @@ async function initializeWithBuiltInTopics() {
     },
     extensions: [
       topicProvisioningExtension(notificationTopics, {
-        includeBuiltIn: true, // Also include package's built-in topics
         partitions: 3,
         replicationFactor: 1,
       }),
@@ -146,7 +138,7 @@ async function initializeWithBuiltInTopics() {
 
   try {
     // Use both application topics AND built-in package topics
-    await client.provisionTopics();
+    await client.extensions.topicProvisioning.provisionTopics();
 
     console.log("✅ All topics initialized (app + built-in)");
   } finally {
@@ -154,9 +146,7 @@ async function initializeWithBuiltInTopics() {
   }
 }
 
-// ============================================================================
 // Type Safety Benefits
-// ============================================================================
 
 // ✅ Compile-time type checking
 const topic = notificationTopics.USER_REGISTERED;
@@ -171,14 +161,13 @@ try {
     INVALID: {
       name: "", // ❌ Will throw: "Topic name cannot be empty"
       retentionMs: -1000, // ❌ Will throw: "Retention must be positive"
+      schema: z.unknown(), // Schema is now required
     },
   });
 } catch (error) {
   console.error("Validation failed:", error);
 }
 
-// ============================================================================
 // Export for use in your application
-// ============================================================================
 
 export { initializeNotificationServiceTopics, initializeWithBuiltInTopics };
