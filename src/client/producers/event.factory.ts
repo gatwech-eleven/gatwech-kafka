@@ -1,7 +1,7 @@
 import { z } from "@gatwech/utils";
 import type { Producer } from "kafkajs";
 import { type EventMetadata } from "../../utils";
-import { GenericKafkaProducer, type KeyDeriver } from "./generic-producer";
+import { GenericKafkaProducer, type PartitionKeyFn } from "./generic-producer";
 import type { DeepReadonly } from "../../types/utility-types";
 import { generateCorrelationId } from "../../utils/helpers";
 
@@ -19,13 +19,13 @@ export function createEventPublisher<TSchema extends z.ZodObject<any, any>>(
   producer: Producer,
   topic: string,
   schema: TSchema,
-  keyDeriver: KeyDeriver<z.infer<TSchema>>,
+  partitionKey: PartitionKeyFn<z.infer<TSchema>>,
   source: string
 ) {
   const producerInstance = new GenericKafkaProducer<TSchema>(
     producer,
     topic,
-    keyDeriver
+    partitionKey
   );
 
   return async (payload: z.input<TSchema>): Promise<void> => {
@@ -73,14 +73,14 @@ export function createPublisher<TSchema extends z.ZodObject<any, any>>(
   schema?: TSchema
 ) {
   const make = (s: TSchema) => {
-    const keyDeriver: KeyDeriver<z.infer<TSchema>> = (p) =>
+    const partitionKey: PartitionKeyFn<z.infer<TSchema>> = (p) =>
       opts.key(p as unknown as z.input<TSchema>);
 
     const publisher = createEventPublisher(
       opts.producer,
       opts.topic,
       s,
-      keyDeriver,
+      partitionKey,
       opts.source ?? "unknown-service"
     );
 

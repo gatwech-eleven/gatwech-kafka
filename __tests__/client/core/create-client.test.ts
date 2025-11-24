@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createKafkaClient, type KafkaExtension } from '../../../src/client/core/create-client';
 import { KafkaClient } from '../../../src/client/core/kafka';
 import { topicProvisioningExtension } from "../../../src/extensions/topic-provisioning";
-import { healthCheckExtension } from "../../../src/extensions/health-check";
 import { createTopicConfig } from "../../../src/config/topics/define-topics";
 import { initializeKafkaTopics } from "../../../src/config/ensure-topics";
 import { z } from "@gatwech/utils/zod";
@@ -119,17 +118,5 @@ describe("Extensions", () => {
     });
   });
 
-  describe("healthCheckExtension", () => {
-    it("should delegate to client.healthCheck", async () => {
-      const extension = healthCheckExtension();
-      const { healthCheck } = extension.setup(mockClient);
-      
-      (mockClient.healthCheck as any).mockResolvedValue(true);
-      
-      const result = await healthCheck();
-      
-      expect(mockClient.healthCheck).toHaveBeenCalled();
-      expect(result).toBe(true);
-    });
-  });
+
 });

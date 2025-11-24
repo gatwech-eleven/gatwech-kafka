@@ -16,7 +16,7 @@ const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 // Define schemas
 const UserCreatedSchema = z.object({
-  userId: z.string().uuid(),
+  userId: z.uuid(),
   email: z.string().email(),
   name: z.string(),
   timestamp: z.number(),
@@ -24,7 +24,7 @@ const UserCreatedSchema = z.object({
 
 const OrderPlacedSchema = z.object({
   orderId: z.string(),
-  userId: z.string().uuid(),
+  userId: z.uuid(),
   items: z.array(z.object({
     productId: z.string(),
     quantity: z.number().positive(),
@@ -120,26 +120,24 @@ async function main() {
   });
 }
 
-// Example 3: Show what happens without a schema
+// Example 3: Show what happens with a permissive schema
 const rawTopic: TopicConfig = {
   name: "raw.events",
   retentionMs: SEVEN_DAYS_MS,
   cleanupPolicy: "delete",
-  // No schema provided
+  schema: z.unknown(), // Accepts any payload without validation
 };
 
 async function exampleWithoutSchema() {
-  // Without a schema, handler receives the raw EachMessagePayload
+  // With z.unknown() schema, payload is typed as 'unknown'
   await consumeWithRetryAndDLQ(
     kafka,
     "raw-group",
     rawTopic,
     async (payload, ctx) => {
-      // payload is of type EachMessagePayload (from kafkajs)
-      // You need to manually parse and validate
-      const { message } = payload;
-      const value = message.value?.toString();
-      logger.info("Raw message:", value);
+      // payload is of type 'unknown' - you need to validate/cast it yourself
+      // This provides minimal type safety but maximum flexibility
+      logger.info("Raw message:", payload);
     }
   );
 }

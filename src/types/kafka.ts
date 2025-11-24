@@ -54,6 +54,12 @@ export interface KafkaClientOptions {
   brokerWaitTimeoutMs?: number;
   /** @deprecated Use `connectPollIntervalMs`. */
   brokerWaitPollIntervalMs?: number;
+  /** Default metadata to include in all messages sent by this client. Message-level metadata takes precedence. */
+  defaultMetadata?: Record<string, unknown>;
+  /** Default headers to include in all messages sent by this client. Message-level headers take precedence. */
+  defaultHeaders?: Record<string, string | Buffer>;
+  /** Topic configurations for this client. Accessible via client.topics */
+  topics?: Record<string, any>;
 }
 
 export interface KafkaMetrics {

@@ -38,15 +38,15 @@ export class GenericKafkaProducer<
   TSchema extends z.ZodObject<any, any>
 > extends BaseProducer<z.infer<TSchema>> {
   protected readonly topic: string;
-  private readonly keyDeriver: KeyDeriver<z.infer<TSchema>>;
+  private readonly partitionKey: PartitionKeyFn<z.infer<TSchema>>;
   constructor(
     producer: Producer,
     topic: string,
-    keyDeriver: KeyDeriver<z.infer<TSchema>>
+    partitionKey: PartitionKeyFn<z.infer<TSchema>>
   ) {
     super(producer);
     this.topic = topic;
-    this.keyDeriver = keyDeriver;
+    this.partitionKey = partitionKey;
   }
 
   private generateKey(
@@ -54,7 +54,7 @@ export class GenericKafkaProducer<
     overrideKey?: string
   ): string {
     if (overrideKey) return overrideKey;
-    return this.keyDeriver(payload);
+    return this.partitionKey(payload);
   }
 
   protected enrichAndFormatMessage(

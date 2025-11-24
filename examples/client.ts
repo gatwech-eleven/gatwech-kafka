@@ -9,7 +9,6 @@ import express from "express";
 import {
   createKafkaClient,
   topicProvisioningExtension,
-  healthCheckExtension,
   createTopicConfig,
   type GatwechKafkaExtensions,
 } from "../src";
@@ -39,7 +38,6 @@ const extensions = [
     partitions: 3,
     replicationFactor: 1,
   }),
-  healthCheckExtension(),
 ] satisfies GatwechKafkaExtensions;
 
 // Initialize the Kafka client
@@ -80,9 +78,9 @@ app.post("/users", async (req, res) => {
   }
 });
 
-// Health check endpoint using the extension
+// Health check endpoint using built-in method
 app.get("/health", async (req, res) => {
-  const isHealthy = await kafka.extensions.healthCheck.healthCheck();
+  const isHealthy = await kafka.healthCheck();
   if (isHealthy) {
     res.status(200).json({ status: "ok", kafka: "connected" });
   } else {

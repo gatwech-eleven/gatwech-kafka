@@ -2,7 +2,7 @@ import { z } from "@gatwech/utils/zod";
 
 const OrderPlacedSchema = z.object({
   orderId: z.string(),
-  userId: z.string().uuid(),
+  userId: z.uuid(),
   items: z.array(z.object({
     productId: z.string(),
     quantity: z.number().positive(),

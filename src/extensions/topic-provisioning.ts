@@ -37,9 +37,18 @@ export function topicProvisioningExtension(
          * Creates missing topics, updates configs, and increases partitions if needed.
          */
         provisionTopics: async () => {
+          // Use provided topics or fall back to client.topics
+          const topicsToProvision = topics || client.topics;
+          
+          if (!topicsToProvision) {
+            throw new Error(
+              'No topics configured. Either pass topics to topicProvisioningExtension() or configure them in client options.'
+            );
+          }
+
           const admin = client.getAdmin();
           await initializeKafkaTopics(admin, {
-            topics,
+            topics: topicsToProvision,
             partitions: options.partitions,
             replicationFactor: options.replicationFactor,
             waitForLeadersMs: options.waitForLeadersMs,

@@ -32,6 +32,9 @@ export class KafkaClient {
   };
   private admin?: Admin;
   private consumers: Map<string, ReturnType<Kafka["consumer"]>> = new Map();
+  private readonly defaultMetadata: Record<string, unknown>;
+  private readonly defaultHeaders: Record<string, string | Buffer>;
+  private readonly _topics?: Record<string, any>;
 
   constructor(
     clientId: string,
@@ -42,6 +45,9 @@ export class KafkaClient {
       throw new Error("clientId is required");
     }
     this.options = { ...DEFAULT_OPTIONS, ...options } as ResolvedKafkaClientOptions;
+    this.defaultMetadata = options.defaultMetadata || {};
+    this.defaultHeaders = options.defaultHeaders || {};
+    this._topics = options.topics;
 
     this.kafka = new Kafka({
       clientId,
@@ -235,11 +241,18 @@ export class KafkaClient {
       }
     });
 
+    // Merge default metadata and headers with message-level ones
+    const enrichedMessages = messages.map((m) => ({
+      ...m,
+      metadata: { ...this.defaultMetadata, ...(m.metadata || {}) },
+      headers: { ...this.defaultHeaders, ...(m.headers || {}) },
+    }));
+
     try {
       await this.producer.send({
         topic,
         acks: -1,
-        messages: messages.map((m) => ({
+        messages: enrichedMessages.map((m) => ({
           key: m.key,
           value: JSON.stringify(m.value),
           headers: m.headers,
@@ -324,6 +337,18 @@ export class KafkaClient {
 
   public isReady(): boolean {
     return this.isConnected;
+  }
+
+  public getDefaultMetadata(): Readonly<Record<string, unknown>> {
+    return { ...this.defaultMetadata };
+  }
+
+  public getDefaultHeaders(): Readonly<Record<string, string | Buffer>> {
+    return { ...this.defaultHeaders };
+  }
+
+  public get topics(): Readonly<Record<string, any>> | undefined {
+    return this._topics;
   }
 
   public async healthCheck(): Promise<boolean> {

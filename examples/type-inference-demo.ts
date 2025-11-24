@@ -3,8 +3,9 @@
  */
 
 import { z } from "@gatwech/utils/zod";
-import { consumeWithRetryAndDLQ, type ConsumeHandlerContext } from '../src/client/consumers/consume-with-dlq";
+import { consumeWithRetryAndDLQ, type ConsumeHandlerContext } from '../src/client/consumers/consume-with-dlq';
 import type { TopicConfig } from "../src/config/topics/topic-config-schema";
+import type { KafkaClient } from "../src/client/core/kafka";
 
 // Define a schema
 const UserSchema = z.object({
@@ -22,13 +23,13 @@ const userTopic = {
 } as TopicConfig & { schema: typeof UserSchema };
 
 // Mock client for demonstration
-const mockClient: any = {
-  createConsumer: () => ({
+const mockClient = {
+  createConsumer: async () => ({
     subscribe: async () => {},
     run: async () => {},
-  }),
-  getProducer: () => ({}),
-};
+  } as any),
+  getProducer: () => ({} as any),
+} as unknown as KafkaClient;
 
 // ✅ Type inference demo - payload type is automatically inferred!
 async function demo() {

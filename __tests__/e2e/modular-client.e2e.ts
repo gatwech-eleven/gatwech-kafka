@@ -1,7 +1,6 @@
 import {
   createKafkaClient,
   topicProvisioningExtension,
-  healthCheckExtension,
   createTopicConfig,
 } from "../../src";
 import { z } from "@gatwech/utils/zod";
@@ -34,7 +33,6 @@ async function run() {
         partitions: 1,
         replicationFactor: 1,
       }),
-      healthCheckExtension(),
     ],
   });
 
@@ -46,7 +44,7 @@ async function run() {
 
     // 2. Health Check
     console.log("Checking health...");
-    const isHealthy = await client.extensions.healthCheck.healthCheck();
+    const isHealthy = await client.healthCheck();
     if (!isHealthy) throw new Error("Health check failed");
     console.log("✅ Health check passed");
 

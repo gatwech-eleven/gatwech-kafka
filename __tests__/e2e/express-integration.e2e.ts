@@ -2,9 +2,10 @@ import { nanoid } from "nanoid";
 import supertest from "supertest";
 import { z } from "@gatwech/utils/zod";
 import express, { type Request, type Response } from "express";
-import { KafkaClient } from '../../src/client/core/kafka.ts';
+import { createKafkaClient } from '../../src/client/core/create-client.ts';
+import { topicProvisioningExtension } from '../../src/extensions/topic-provisioning.ts';
+import { createTopicConfig } from '../../src/config/topics/define-topics.ts';
 import { createServicePublisherFactory } from '../../src/client/producers/service-publisher-factory.ts';
-import { initializeKafkaTopics } from "../../src/config/ensure-topics.ts";
 import { UserRegisteredSchema } from "../../src/schemas/user-schemas.ts";
 import { consumeWithRetryAndDLQ } from '../../src/client/consumers/consume-with-dlq.ts';
 import type { TopicConfig } from "../../src/config/topics/topic-config-schema.ts";
@@ -20,74 +21,82 @@ async function main() {
 
   console.log(`🧪 Express Integration: bootstrap=${bootstrap}, topic=${topic}`);
 
-  // Shared: ensure topic exists
-  const adminClient = new KafkaClient("admin-express-e2e", [bootstrap], {
-    metricsEnabled: false,
-    connectWithRetries: true,
+  // Define topics using createTopicConfig
+  const TestTopics = createTopicConfig({
+    USER_REGISTERED: {
+      name: topic,
+      schema: UserRegisteredSchema,
+      retentionMs: 86400000,
+      cleanupPolicy: "delete",
+    },
+    USER_REGISTERED_DLQ: {
+      name: `${topic}.dlq`,
+      schema: z.any(), // DLQ can contain any failed message
+      retentionMs: 86400000,
+      cleanupPolicy: "delete",
+    },
   });
+
+  // Shared: ensure topic exists using modular client
+  const adminClient = createKafkaClient({
+    config: {
+      clientId: "admin-express-e2e",
+      brokers: [bootstrap],
+      metricsEnabled: false,
+      connectWithRetries: true,
+    },
+    extensions: [
+      topicProvisioningExtension(TestTopics, {
+        partitions: 3,
+        replicationFactor: 1,
+        waitForLeadersMs: 15000,
+      }),
+    ],
+  });
+
   await adminClient.connect();
   try {
-    await initializeKafkaTopics(adminClient.getAdmin(), {
-      partitions: 3,
-      replicationFactor: 1,
-      waitForLeadersMs: 15000,
-      additionalTopics: [
-        {
-          name: topic,
-          config: {
-            name: topic,
-            retentionMs: 86400000,
-            cleanupPolicy: "delete",
-          } as any,
-        },
-        {
-          name: `${topic}.dlq`,
-          config: {
-            name: `${topic}.dlq`,
-            retentionMs: 86400000,
-            cleanupPolicy: "delete",
-          } as any,
-        },
-      ],
-    });
+    await adminClient.extensions.topicProvisioning.provisionTopics();
   } finally {
     await adminClient.disconnect();
   }
 
   // Notification service (consumer) + app
-  const notificationClient = new KafkaClient(
-    "notification-express-e2e",
-    [bootstrap],
-    { metricsEnabled: false, connectWithRetries: true }
-  );
+  const notificationClient = createKafkaClient({
+    config: {
+      clientId: "notification-express-e2e",
+      brokers: [bootstrap],
+      metricsEnabled: false,
+      connectWithRetries: true,
+    },
+  });
+
   await notificationClient.connect();
   const groupId = `notification-express-${nanoid().slice(0, 6)}`;
   let lastProcessed: any = null;
   let lastDlq: any = null;
 
-  const topicConfig: TopicConfig = {
+  const topicConfig = {
     name: topic,
     retentionMs: 86400000,
-    cleanupPolicy: "delete",
+    cleanupPolicy: "delete" as const,
     schema: UserRegisteredSchema,
-  } as any;
+  };
 
   // Main consumer with retry + DLQ
   const consumer = await consumeWithRetryAndDLQ(
     notificationClient,
     groupId,
     topicConfig,
-    async ({ message }) => {
-      const raw = message.value?.toString() || "{}";
-      const json = JSON.parse(raw);
+    async (payload: z.infer<typeof UserRegisteredSchema>) => {
       // Simulate failure for DLQ when requested
       if (
-        json?.name === "FAIL" ||
-        String(json?.email).startsWith("express-dlq-")
+        payload?.name === "FAIL" ||
+        String(payload?.email).startsWith("express-dlq-")
       ) {
         throw new Error("simulated failure for DLQ");
       }
-      lastProcessed = json;
+      lastProcessed = payload;
     },
     { dlqEnabled: true, maxRetries: 2, retryBackoffMs: 200 }
   );
@@ -118,10 +127,15 @@ async function main() {
     res.json({ lastProcessed })
   );
 
-  const authClient = new KafkaClient("auth-express-e2e", [bootstrap], {
-    metricsEnabled: false,
-    connectWithRetries: true,
+  const authClient = createKafkaClient({
+    config: {
+      clientId: "auth-express-e2e",
+      brokers: [bootstrap],
+      metricsEnabled: false,
+      connectWithRetries: true,
+    },
   });
+
   await authClient.connect();
   const producer = authClient.getProducer();
   const defineEvent = createServicePublisherFactory(producer, authSource);
