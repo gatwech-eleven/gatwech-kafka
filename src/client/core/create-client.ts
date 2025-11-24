@@ -50,6 +50,35 @@ export interface CreateKafkaClientConfig<
 }
 
 /**
+ * Type-safe configuration for Kafka client that incorporates default options.
+ * Use with `satisfies` to ensure configuration correctness while preserving type inference.
+ * 
+ * All fields from {@link DEFAULT_OPTIONS} are optional and will be merged with defaults.
+ * Only `clientId` and `brokers` are required.
+ * 
+ * @example
+ * ```typescript
+ * import { createKafkaClient, type KafkaClientConfig } from '@gatwech/kafka';
+ * 
+ * export const kafka = createKafkaClient({
+ *   config: {
+ *     clientId: 'my-service',
+ *     brokers: ['localhost:9092'],
+ *     // All other options are optional and use defaults from DEFAULT_OPTIONS
+ *     topics: AppTopics,
+ *     topicProvisioning: {
+ *       partitions: 3,
+ *       replicationFactor: 1,
+ *     },
+ *   },
+ * } satisfies KafkaClientConfig);
+ * ```
+ * 
+ * @see {@link DEFAULT_OPTIONS} for default values
+ */
+export type KafkaClientConfig<TExtensions extends KafkaExtension<any>[] = KafkaExtension<any>[]> = CreateKafkaClientConfig<TExtensions>;
+
+/**
  * Helper type to extract the return type of an extension's setup function
  */
 type ExtensionReturnType<T extends KafkaExtension<any>> = ReturnType<T["setup"]>;

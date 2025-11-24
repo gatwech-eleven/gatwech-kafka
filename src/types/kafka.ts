@@ -74,38 +74,34 @@ export interface TopicProvisioningOptions {
   waitForLeadersMs?: number;
 }
 
+export interface RetryOptions {
+  maxAttempts: number;
+  initialDelayMs: number;
+  maxDelayMs: number;
+  backoffMultiplier: number;
+}
+
+export interface ReconnectionOptions {
+  enabled: boolean;
+  intervalMs: number;
+  onReconnect?: () => Promise<void>;
+}
+
+export interface CircuitBreakerOptions {
+  enabled: boolean;
+  failureThreshold: number;
+  /**
+   * Time in milliseconds to wait before allowing a test request (Half-Open state)
+   * @default 30000 (30 seconds)
+   */
+  resetTimeoutMs: number;
+}
+
 export interface ResilienceOptions {
-  /**
-   * Enable resilience features (default: true)
-   */
-  enabled?: boolean;
-
-  /**
-   * Retry configuration
-   */
-  retry?: {
-    maxAttempts?: number;
-    initialDelayMs?: number;
-    maxDelayMs?: number;
-    backoffMultiplier?: number;
-  };
-
-  /**
-   * Reconnection monitoring configuration
-   */
-  reconnection?: {
-    enabled?: boolean;
-    intervalMs?: number;
-    onReconnect?: () => Promise<void>;
-  };
-
-  /**
-   * Circuit breaker configuration
-   */
-  circuitBreaker?: {
-    enabled?: boolean;
-    failureThreshold?: number;
-  };
+  enabled: boolean;
+  retry?: Partial<RetryOptions>;
+  reconnection?: Partial<ReconnectionOptions>;
+  circuitBreaker?: Partial<CircuitBreakerOptions>;
 }
 
 export interface KafkaMetrics {

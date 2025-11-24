@@ -1,6 +1,7 @@
 import {
   createKafkaClient,
   type Logger,
+  type KafkaClientConfig,
 } from '@gatwech/kafka';
 import { AppTopics } from './topics';
 
@@ -32,9 +33,24 @@ export const kafka = createKafkaClient({
         maxDelayMs: 30000,
         backoffMultiplier: 2,
       },
+      /**
+       * Circuit Breaker with Half-Open State
+       * Opens after 5 consecutive failures, Waits 30 seconds before allowing a test request (Half-Open)
+       * If test succeeds, circuit closes; if fails, reopens
+       */
+      circuitBreaker: {
+        enabled: true,
+        failureThreshold: 5,
+        resetTimeoutMs: 30000, // 30 seconds Half-Open timeout
+      },
+      /**
+       * Background Reconnection Monitor. Checks connection every 60 seconds,
+       * prevents overlapping reconnection attempts (concurrency-safe),
+       * re-provisions topics after successful reconnection
+       */
       reconnection: {
         enabled: true,
-        intervalMs: 60000,
+        intervalMs: 60000, // Check every 60 seconds
         onReconnect: async () => {
           customLogger.info('Reconnected to Kafka! Re-provisioning topics...');
           try {
@@ -45,28 +61,24 @@ export const kafka = createKafkaClient({
           }
         },
       },
-      circuitBreaker: {
-        enabled: true,
-        failureThreshold: 5,
-      },
     },
   },
-});
+} satisfies KafkaClientConfig);
 
 export async function initKafka() {
   try {
     customLogger.info('Initializing Kafka connection...');
     
     await kafka.connect();
-    customLogger.info('✅ Connected to Kafka successfully');
+    customLogger.info('Connected to Kafka successfully');
     
     customLogger.info('Provisioning topics...');
     await kafka.provisionTopics();
-    customLogger.info('✅ Topics provisioned successfully');
+    customLogger.info('Topics provisioned successfully');
     
     return true;
   } catch (error) {
-    customLogger.error('❌ Kafka initialization failed', error);
+    customLogger.error('Kafka initialization failed', error);
     customLogger.info('Background reconnection will retry automatically...');
     return false;
   }
@@ -75,7 +87,7 @@ export async function initKafka() {
 export async function shutdownKafka() {
   try {
     await kafka.disconnect();
-    customLogger.info('✅ Kafka disconnected');
+    customLogger.info('Kafka disconnected');
   } catch (error) {
     customLogger.error('Error disconnecting Kafka', error);
     throw error;

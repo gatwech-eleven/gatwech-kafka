@@ -5,6 +5,7 @@ export * from "./extensions";
 export * from "./utils/brokers";
 
 export type { Producer } from "kafkajs";
+export type { KafkaClientConfig } from "./client/core/create-client";
 
 export { createEventPublisher } from "./client/producers/event.factory";
 export { createServicePublisherFactory } from "./client/producers/service-publisher-factory";

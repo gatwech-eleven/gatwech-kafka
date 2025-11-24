@@ -10,8 +10,8 @@ import type {
 import type { KafkaClientOptions, KafkaMetrics, TKafkaMessage, ResilienceOptions } from "../../types";
 import { KafkaError } from "./errors";
 import { DEFAULT_OPTIONS } from "./default-options";
-import { CircuitBreaker } from "./CircuitBreaker";
-import { ReconnectionMonitor } from "./ReconnectionMonitor";
+import { createCircuitBreaker, type CircuitBreaker } from "./circuit-breaker";
+import { createReconnectionMonitor, type ReconnectionMonitor } from "./reconnection-monitor";
 import { initializeKafkaTopics } from "../../config/ensure-topics";
 import { connectWithRetry } from "./connect-with-retry";
 
@@ -88,17 +88,18 @@ export class KafkaClient {
     // Initialize resilience components if enabled
     if (this.resilienceConfig?.enabled !== false) {
       if (this.resilienceConfig?.circuitBreaker?.enabled !== false) {
-        this.circuitBreaker = new CircuitBreaker(
-          this.resilienceConfig?.circuitBreaker?.failureThreshold ?? 5
-        );
+        this.circuitBreaker = createCircuitBreaker({
+          threshold: this.resilienceConfig?.circuitBreaker?.failureThreshold ?? 5,
+          resetTimeoutMs: this.resilienceConfig?.circuitBreaker?.resetTimeoutMs ?? 30000,
+        });
       }
 
       if (this.resilienceConfig?.reconnection?.enabled !== false) {
-        this.reconnectionMonitor = new ReconnectionMonitor(
-          this.resilienceConfig?.reconnection?.intervalMs ?? 60000,
+        this.reconnectionMonitor = createReconnectionMonitor({
+          intervalMs: this.resilienceConfig?.reconnection?.intervalMs ?? 60000,
           logger,
-          this.resilienceConfig?.reconnection?.onReconnect
-        );
+          onReconnect: this.resilienceConfig?.reconnection?.onReconnect,
+        });
       }
     }
 
@@ -134,7 +135,7 @@ export class KafkaClient {
       this.options.maxConnectAttemptTimeMs ?? this.options.brokerWaitTimeoutMs;
     const pollMs =
       this.options.connectPollIntervalMs ??
-      this.options.brokerWaitPollIntervalMs;
+      this.options.connectPollIntervalMs;
     const timeoutAt = Date.now() + timeoutMs;
     const admin = this.getAdmin();
     try {
@@ -451,9 +452,7 @@ export class KafkaClient {
     }
   }
 
-  // ==========================================================================
-  // Resilience API
-  // ==========================================================================
+
 
   public getConnectionStatus() {
     return {
@@ -506,9 +505,7 @@ export class KafkaClient {
     }
   }
 
-  // ==========================================================================
-  // Topic Provisioning API
-  // ==========================================================================
+
 
   public async provisionTopics(): Promise<void> {
     if (!this._topics) {

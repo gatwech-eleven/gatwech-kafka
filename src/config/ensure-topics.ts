@@ -73,7 +73,7 @@ async function withRetry<T>(fn: () => Promise<T>, attempts = 5): Promise<T> {
   while (true) {
     try {
       return await fn();
-    } catch (e: any) {
+    } catch (e: unknown) {
       i++;
       if (i >= attempts) throw e;
       const delay = Math.min(RETRY_DELAY_BASE_MS * 2 ** (i - 1), RETRY_DELAY_CAP_MS);
@@ -288,9 +288,10 @@ export async function initializeKafkaTopics(
         await withRetry(() =>
           admin.createTopics({ topics: createList, waitForLeaders: true })
         );
-      } catch (e: any) {
+      } catch (e: unknown) {
         // Race between services; ignore benign "already exists"
-        if (!/already exists/i.test(e?.message || "")) throw e;
+        const errorMessage = e instanceof Error ? e.message : String(e);
+        if (!/already exists/i.test(errorMessage)) throw e;
       }
       // Extra wait to be safe on some clusters
       for (const t of createList) {
@@ -320,10 +321,11 @@ export async function initializeKafkaTopics(
         await withRetry(() =>
           admin.createPartitions({ topicPartitions: partitionsToIncrease })
         );
-      } catch (e: any) {
+      } catch (e: unknown) {
         // Some brokers may throw if already increased by another service; log and continue
+        const errorMessage = e instanceof Error ? e.message : String(e);
         logger.warn("createPartitions returned error; continuing", {
-          error: e?.message,
+          error: errorMessage,
         });
       }
       for (const t of partitionsToIncrease) {
@@ -389,11 +391,12 @@ export async function initializeKafkaTopics(
         logger.info("topic configs ensured", {
           topics: resources.map((r) => r.name),
         });
-      } catch (e: any) {
+      } catch (e: unknown) {
+        const errorMessage = e instanceof Error ? e.message : String(e);
         logger.warn(
           "alterConfigs failed (check ACLs / broker version). Topics still created.",
           {
-            error: e?.message,
+            error: errorMessage,
           }
         );
       }

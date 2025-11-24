@@ -1,4 +1,4 @@
-import type { EachMessagePayload, Consumer } from "kafkajs";
+import type { EachMessagePayload, Consumer, IHeaders } from "kafkajs";
 import { logger } from "../../utils/logger";
 import type { DLQOptions, TKafkaMessage } from "../../types";
 import {
@@ -93,7 +93,7 @@ async function executeWithRetry<T>(
  */
 async function handleDLQPublish(
   publishToDLQ: ReturnType<typeof createDLQPublisher>,
-  message: { value: Buffer | null; key: Buffer | null; headers?: any },
+  message: { value: Buffer | null; key: Buffer | null; headers?: IHeaders },
   context: {
     topic: string;
     partition: number;
@@ -155,6 +155,7 @@ export async function consumeWithRetryAndDLQ(
   client: KafkaClient,
   groupId: string,
   topic: TopicConfig,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   handler: (payload: any, ctx: ConsumeHandlerContext) => Promise<void>,
   opts: DLQOptions = {}
 ) {
@@ -183,11 +184,11 @@ export async function consumeWithRetryAndDLQ(
     logger.info("Kafka consumer disconnected", { groupId });
   });
 
-  consumer.on("consumer.network.request_timeout", (payload: any) => {
+  consumer.on("consumer.network.request_timeout", (payload: unknown) => {
     logger.warn("Kafka consumer network request timeout", { groupId, payload });
   });
 
-  consumer.on("consumer.crash", (err: any) => {
+  consumer.on("consumer.crash", (err: unknown) => {
     logger.error("Kafka consumer crash", { groupId, error: err });
   });
 

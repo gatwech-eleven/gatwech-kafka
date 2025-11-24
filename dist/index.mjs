@@ -1,6 +1,6 @@
 import { n as logger, t as initializeKafkaTopics } from "./ensure-topics-Mazqk00P.mjs";
 import { t as JsonSerializer } from "./types-Ca2NNx9a.mjs";
-import { a as createPublisher, c as KafkaClient, i as createEventPublisher, l as connectWithRetry, n as createDLQPublisher, o as GenericKafkaProducer, r as createServicePublisherFactory, s as createKafkaClient, t as consumeWithRetryAndDLQ, u as BaseProducer } from "./client-Cw9aP7WN.mjs";
+import { a as createPublisher, c as KafkaClient, d as BaseProducer, i as createEventPublisher, l as connectWithRetry, n as createDLQPublisher, o as GenericKafkaProducer, r as createServicePublisherFactory, s as createKafkaClient, t as consumeWithRetryAndDLQ, u as DEFAULT_OPTIONS } from "./client-BbgyiANQ.mjs";
 import "./utility-types-jjjEc54g.mjs";
 import { a as topicsToArray, i as createTopicConfig, n as topicBuilder, o as TopicConfigSchema, r as createSingleTopicConfig, t as TopicConfigBuilder } from "./topics-BMuCBlzd.mjs";
 
@@ -67,6 +67,38 @@ const partitionAnalysisExtension = () => ({
 });
 
 //#endregion
+//#region src/extensions/consumer-extension.ts
+/**
+* Consumer extension for Kafka client.
+* Provides convenient access to consumer functionality with retry and DLQ handling.
+* 
+* @example
+* ```typescript
+* const client = createKafkaClient({
+*   config: { clientId: 'my-service', brokers: ['localhost:9092'] },
+*   extensions: [consumerExtension()]
+* });
+* 
+* await client.extensions.consumer.consume(
+*   'my-group',
+*   userTopic,
+*   async (payload) => {
+*     // Handle message - payload is typed based on schema
+*   }
+* );
+* ```
+*/
+const consumerExtension = () => ({
+	name: "consumer",
+	setup: (client) => {
+		logger.info("[Extension] Installing consumer extension...");
+		return { consume: (groupId, topic, handler, opts) => {
+			return consumeWithRetryAndDLQ(client, groupId, topic, handler, opts);
+		} };
+	}
+});
+
+//#endregion
 //#region src/utils/brokers.ts
 function resolveBrokersFromEnv() {
 	const raw = process.env.KAFKA_BROKERS || process.env.KAFKA_BOOTSTRAP_SERVERS;
@@ -76,4 +108,4 @@ function resolveBrokersFromEnv() {
 }
 
 //#endregion
-export { BaseProducer, GenericKafkaProducer, JsonSerializer, KafkaClient, TopicConfigBuilder, TopicConfigSchema, calculateOptimalPartitions, connectWithRetry, consumeWithRetryAndDLQ, createDLQPublisher, createEventPublisher, createKafkaClient, createPublisher, createServicePublisherFactory, createSingleTopicConfig, createTopicConfig, initializeKafkaTopics, partitionAnalysisExtension, resolveBrokersFromEnv, topicBuilder, topicsToArray };
+export { BaseProducer, DEFAULT_OPTIONS, GenericKafkaProducer, JsonSerializer, KafkaClient, TopicConfigBuilder, TopicConfigSchema, calculateOptimalPartitions, connectWithRetry, consumeWithRetryAndDLQ, consumerExtension, createDLQPublisher, createEventPublisher, createKafkaClient, createPublisher, createServicePublisherFactory, createSingleTopicConfig, createTopicConfig, initializeKafkaTopics, partitionAnalysisExtension, resolveBrokersFromEnv, topicBuilder, topicsToArray };
