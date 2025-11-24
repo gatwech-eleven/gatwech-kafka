@@ -16,13 +16,16 @@ const mockPublishToDLQ = vi.fn();
 vi.mocked(createDLQPublisher).mockReturnValue(mockPublishToDLQ);
 
 const mockClient = {
-  createConsumer: async (groupId: string, _opts: any) => {
-    return {
-      subscribe: async (_: any) => {},
-      run: async ({ eachMessage }: any) => {
+  createConsumer: (config: any) => {
+    const consumer = {
+      on: vi.fn(),
+      connect: vi.fn().mockResolvedValue(undefined),
+      subscribe: vi.fn().mockResolvedValue(undefined),
+      run: vi.fn().mockImplementation(async ({ eachMessage }: any) => {
         (mockClient as any).lastEachMessage = eachMessage;
-      },
+      }),
     };
+    return consumer;
   },
   getProducer: () => ({ send: async () => {} }),
 } as unknown as KafkaClient;

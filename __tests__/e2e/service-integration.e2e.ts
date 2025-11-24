@@ -38,16 +38,13 @@ async function main() {
       partitions: 3,
       replicationFactor: 1,
       waitForLeadersMs: 15000,
-      additionalTopics: [
-        {
+      topics: {
+        integrationTopic: {
           name: topic,
-          config: {
-            name: topic,
-            retentionMs: 24 * 60 * 60 * 1000,
-            cleanupPolicy: "delete",
-          } as any,
-        },
-      ],
+          retentionMs: 24 * 60 * 60 * 1000,
+          cleanupPolicy: "delete",
+        } as any,
+      },
     });
     console.log(`🪶 Topic ensured: ${topic}`);
   } catch (err: any) {
@@ -55,7 +52,7 @@ async function main() {
   }
 
   // Notification service subscribes and processes events
-  const consumer = await notificationClient.createConsumer(notificationGroup, {
+  const consumer = await notificationClient.createConsumer({
     groupId: notificationGroup,
   });
   await consumer.connect();

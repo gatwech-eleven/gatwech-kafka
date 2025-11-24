@@ -67,6 +67,31 @@ importers:
         specifier: ^4.0.9
         version: 4.0.9(@types/node@24.10.1)(tsx@4.20.6)
 
+  examples/express-app:
+    dependencies:
+      '@gatwech/kafka':
+        specifier: workspace:*
+        version: link:../..
+      '@gatwech/utils':
+        specifier: ^0.5.3
+        version: 0.5.3(zod@4.1.12)
+      express:
+        specifier: ^4.21.2
+        version: 4.21.2
+    devDependencies:
+      '@types/express':
+        specifier: ^4.17.21
+        version: 4.17.25
+      '@types/node':
+        specifier: ^24.10.1
+        version: 24.10.1
+      tsx:
+        specifier: ^4.20.6
+        version: 4.20.6
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
 packages:
 
   '@babel/generator@7.28.5':

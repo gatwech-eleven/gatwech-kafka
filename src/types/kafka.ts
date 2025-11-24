@@ -39,13 +39,6 @@ export interface KafkaClientOptions {
    */
   connectAsync?: boolean;
 
-  /**
-   * @deprecated Use `connectWithRetries` instead.
-   * When true, KafkaClient.connect() waits for the broker to be ready
-   * (describeCluster has a controller) before connecting the producer.
-   * Defaults to false.
-   */
-  waitForBrokerBeforeConnect?: boolean;
   /** Total time to wait for broker readiness (ms). Default 30000. */
   maxConnectAttemptTimeMs?: number;
   /** Poll interval for broker readiness checks (ms). Default 500. */
@@ -60,6 +53,59 @@ export interface KafkaClientOptions {
   defaultHeaders?: Record<string, string | Buffer>;
   /** Topic configurations for this client. Accessible via client.topics */
   topics?: Record<string, any>;
+  /** Resilience configuration options */
+  resilience?: ResilienceOptions;
+  /** Topic provisioning configuration options */
+  topicProvisioning?: TopicProvisioningOptions;
+}
+
+export interface TopicProvisioningOptions {
+  /**
+   * Default number of partitions for new topics
+   */
+  partitions?: number;
+  /**
+   * Default replication factor for new topics
+   */
+  replicationFactor?: number;
+  /**
+   * Max time to wait for leaders after create/partition increase
+   */
+  waitForLeadersMs?: number;
+}
+
+export interface ResilienceOptions {
+  /**
+   * Enable resilience features (default: true)
+   */
+  enabled?: boolean;
+
+  /**
+   * Retry configuration
+   */
+  retry?: {
+    maxAttempts?: number;
+    initialDelayMs?: number;
+    maxDelayMs?: number;
+    backoffMultiplier?: number;
+  };
+
+  /**
+   * Reconnection monitoring configuration
+   */
+  reconnection?: {
+    enabled?: boolean;
+    intervalMs?: number;
+    onReconnect?: () => Promise<void>;
+  };
+
+  /**
+   * Circuit breaker configuration
+   */
+  circuitBreaker?: {
+    enabled?: boolean;
+    failureThreshold?: number;
+  };
 }
 
 export interface KafkaMetrics {
@@ -103,6 +149,16 @@ export type WithMetadata = {
 
 export type { ConsumerConfig, Consumer, Producer } from "kafkajs";
 
+/**
+ * Logger interface for custom logging implementations.
+ * Allows applications to provide their own logger to the Kafka client.
+ */
+export interface Logger {
+  info: (message: string, meta?: any) => void;
+  warn: (message: string, meta?: any) => void;
+  error: (message: string, meta?: any) => void;
+}
+
 export interface DLQOptions {
   dlqEnabled?: boolean;
   /** Number of total attempts (1 original + retries - 1). Default 3 */
@@ -112,3 +168,4 @@ export interface DLQOptions {
   /** Suffix appended to original topic for DLQ topic name. Default ".dlq" */
   dlqSuffix?: string;
 }
+

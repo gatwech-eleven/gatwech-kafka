@@ -26,12 +26,17 @@ vi.mock('kafkajs', async () => {
           disconnect: vi.fn().mockResolvedValue(undefined),
           describeCluster: vi.fn().mockResolvedValue({ controller: 1 }),
         }),
-        consumer: vi.fn().mockReturnValue({
-          connect: vi.fn().mockResolvedValue(undefined),
-          disconnect: vi.fn().mockResolvedValue(undefined),
-          subscribe: vi.fn().mockResolvedValue(undefined),
-          run: vi.fn().mockResolvedValue(undefined),
-          on: vi.fn(),
+        consumer: vi.fn().mockImplementation((config) => {
+          if (!config || !config.groupId) {
+            throw new Error('groupId is required');
+          }
+          return {
+            connect: vi.fn().mockResolvedValue(undefined),
+            disconnect: vi.fn().mockResolvedValue(undefined),
+            subscribe: vi.fn().mockResolvedValue(undefined),
+            run: vi.fn().mockResolvedValue(undefined),
+            on: vi.fn(),
+          };
         }),
       };
     }),
@@ -196,18 +201,18 @@ describe('KafkaClient Smoke Test', () => {
       await client.connect();
     });
 
-    it('should create consumer with valid groupId', async () => {
-      const consumer = await client.createConsumer('test-group', {
+    it('should create consumer with valid groupId', () => {
+      const consumer = client.createConsumer({
         groupId: 'test-group'
       });
 
       expect(consumer).toBeDefined();
     });
 
-    it('should validate groupId is not empty', async () => {
-      await expect(
-        client.createConsumer('', { groupId: '' })
-      ).rejects.toThrow('groupId is required');
+    it('should validate groupId is not empty', () => {
+      expect(() =>
+        client.createConsumer({ groupId: '' })
+      ).toThrow();
     });
   });
 

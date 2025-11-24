@@ -56,16 +56,13 @@ async function main() {
       partitions: 3,
       replicationFactor: 1,
       waitForLeadersMs: 15_000,
-      additionalTopics: [
-        {
+      topics: {
+        testTopic: {
           name: topic,
-          config: {
-            name: topic,
-            retentionMs: 24 * 60 * 60 * 1000,
-            cleanupPolicy: "delete",
-          } as any,
-        },
-      ],
+          retentionMs: 24 * 60 * 60 * 1000,
+          cleanupPolicy: "delete",
+        } as any,
+      },
     });
     console.log(`🪶 Topic ensured: ${topic}`);
   } catch (err: any) {
@@ -93,7 +90,7 @@ async function main() {
 
   // Start consumer
   const groupId = `e2e-consumer-${nanoid().slice(0, 8)}`;
-  const consumer = await client.createConsumer(groupId, { groupId });
+  const consumer = await client.createConsumer({ groupId });
   await consumer.connect();
   await consumer.subscribe({ topic, fromBeginning: true });
 

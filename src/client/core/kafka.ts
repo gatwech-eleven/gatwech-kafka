@@ -7,10 +7,13 @@ import type {
   Admin,
   ProducerConfig,
 } from "kafkajs";
-import type { KafkaClientOptions, KafkaMetrics, TKafkaMessage } from "../../types";
+import type { KafkaClientOptions, KafkaMetrics, TKafkaMessage, ResilienceOptions } from "../../types";
 import { KafkaError } from "./errors";
 import { DEFAULT_OPTIONS } from "./default-options";
-import { createConsumerForClient } from "../consumers/create-consumer";
+import { CircuitBreaker } from "./CircuitBreaker";
+import { ReconnectionMonitor } from "./ReconnectionMonitor";
+import { initializeKafkaTopics } from "../../config/ensure-topics";
+import { connectWithRetry } from "./connect-with-retry";
 
 const MAX_RETRY_DELAY_MS = 30000;
 
@@ -36,6 +39,14 @@ export class KafkaClient {
   private readonly defaultHeaders: Record<string, string | Buffer>;
   private readonly _topics?: Record<string, any>;
 
+  // Resilience components
+  private readonly circuitBreaker?: CircuitBreaker;
+  private readonly reconnectionMonitor?: ReconnectionMonitor;
+  private readonly resilienceConfig?: ResilienceOptions;
+  private lastConnectedAt: Date | null = null;
+  private lastDisconnectedAt: Date | null = null;
+  private lastConnectionError: string | null = null;
+
   constructor(
     clientId: string,
     brokers: string[],
@@ -48,6 +59,7 @@ export class KafkaClient {
     this.defaultMetadata = options.defaultMetadata || {};
     this.defaultHeaders = options.defaultHeaders || {};
     this._topics = options.topics;
+    this.resilienceConfig = options.resilience;
 
     this.kafka = new Kafka({
       clientId,
@@ -73,6 +85,23 @@ export class KafkaClient {
       },
     });
 
+    // Initialize resilience components if enabled
+    if (this.resilienceConfig?.enabled !== false) {
+      if (this.resilienceConfig?.circuitBreaker?.enabled !== false) {
+        this.circuitBreaker = new CircuitBreaker(
+          this.resilienceConfig?.circuitBreaker?.failureThreshold ?? 5
+        );
+      }
+
+      if (this.resilienceConfig?.reconnection?.enabled !== false) {
+        this.reconnectionMonitor = new ReconnectionMonitor(
+          this.resilienceConfig?.reconnection?.intervalMs ?? 60000,
+          logger,
+          this.resilienceConfig?.reconnection?.onReconnect
+        );
+      }
+    }
+
     this.setupEventListeners();
 
     // Optionally kick off a non-blocking connection on startup
@@ -84,11 +113,14 @@ export class KafkaClient {
   private setupEventListeners(): void {
     this.producer.on("producer.connect", () => {
       this.isConnected = true;
+      this.lastConnectedAt = new Date();
+      this.circuitBreaker?.recordSuccess();
       logger.info("Kafka producer connected");
     });
 
     this.producer.on("producer.disconnect", () => {
       this.isConnected = false;
+      this.lastDisconnectedAt = new Date();
       logger.info("Kafka producer disconnected");
     });
 
@@ -131,17 +163,78 @@ export class KafkaClient {
   public async connect(): Promise<void> {
     if (this.isConnected) return;
 
+    // If resilience is disabled, use original logic
+    if (this.resilienceConfig?.enabled === false) {
+      return this.connectLegacy();
+    }
+
+    // Check circuit breaker
+    if (this.circuitBreaker?.isCircuitOpen()) {
+      throw new Error(
+        "Circuit breaker is open - too many failed connection attempts. Call resetCircuitBreaker() to retry."
+      );
+    }
+
+    // Use connectWithRetry for retry logic
+    try {
+      await connectWithRetry(
+        async () => {
+          if (
+            this.options.connectWithRetries ||
+            this.options.connectAsync
+          ) {
+            await this.initializeKafkaConnection();
+          }
+          await this.producer.connect();
+        },
+        {
+          maxAttempts: this.resilienceConfig?.retry?.maxAttempts ?? 5,
+          initialDelayMs: this.resilienceConfig?.retry?.initialDelayMs ?? 1000,
+          maxDelayMs: this.resilienceConfig?.retry?.maxDelayMs ?? 30000,
+          factor: this.resilienceConfig?.retry?.backoffMultiplier ?? 2,
+        }
+      );
+
+      this.isConnected = true;
+      this.lastConnectedAt = new Date();
+      this.connectionRetries = 0;
+      this.lastConnectionError = null;
+      this.circuitBreaker?.recordSuccess();
+
+      // Start reconnection monitor
+      if (this.reconnectionMonitor) {
+        this.reconnectionMonitor.start(
+          () => this.isConnected,
+          async () => {
+            try {
+              // We call the internal connect logic directly to avoid recursion/circuit breaker checks during background reconnect
+              await this.producer.connect();
+              this.isConnected = true;
+              this.lastConnectedAt = new Date();
+              return true;
+            } catch {
+              return false;
+            }
+          }
+        );
+      }
+    } catch (error) {
+      this.circuitBreaker?.recordFailure();
+      this.lastConnectionError = error instanceof Error ? error.message : String(error);
+      throw new Error("Failed to connect after all retry attempts");
+    }
+  }
+
+  private async connectLegacy(): Promise<void> {
     while (this.connectionRetries < this.options.maxConnectionRetries) {
       try {
         if (
           this.options.connectWithRetries ||
-          this.options.connectAsync ||
-          this.options.waitForBrokerBeforeConnect
+          this.options.connectAsync
         ) {
           await this.initializeKafkaConnection();
         }
         await this.producer.connect();
-        // Mark ready after successful connect to avoid relying solely on events
         this.isConnected = true;
         return;
       } catch (error) {
@@ -172,6 +265,8 @@ export class KafkaClient {
 
   public async disconnect(): Promise<void> {
     try {
+      this.reconnectionMonitor?.stop();
+
       for (const [groupId, consumer] of this.consumers.entries()) {
         try {
           logger.info("Disconnecting consumer during client shutdown", {
@@ -190,6 +285,7 @@ export class KafkaClient {
 
       await this.producer.disconnect();
       this.isConnected = false;
+      this.lastDisconnectedAt = new Date();
 
       if (this.admin) {
         await this.admin.disconnect();
@@ -292,22 +388,6 @@ export class KafkaClient {
     return this.admin;
   }
 
-  /**
-   * @deprecated Use `consumeWithRetryAndDLQ` instead for better type safety and DLQ support.
-   */
-  public async createConsumer(
-    groupId: string,
-    options: ConsumerConfig & { groupInstanceId?: string }
-  ): Promise<ReturnType<Kafka["consumer"]>> {
-    return createConsumerForClient(
-      this.kafka,
-      this.options as any,
-      groupId,
-      options,
-      this.consumers,
-      this.metrics
-    );
-  }
 
   public createProducer(overrides?: Partial<Parameters<Kafka["producer"]>[0]>) {
     const opts = {
@@ -325,6 +405,10 @@ export class KafkaClient {
     const p = this.kafka.producer(opts);
 
     return p;
+  }
+
+  public createConsumer(config: ConsumerConfig) {
+    return this.kafka.consumer(config);
   }
 
   public getProducer(): Producer {
@@ -365,5 +449,81 @@ export class KafkaClient {
       logger.error("Kafka health check failed", error);
       return false;
     }
+  }
+
+  // ==========================================================================
+  // Resilience API
+  // ==========================================================================
+
+  public getConnectionStatus() {
+    return {
+      connected: this.isConnected,
+      connectionAttempts: this.connectionRetries,
+      lastError: this.lastConnectionError,
+      lastConnectedAt: this.lastConnectedAt,
+      lastDisconnectedAt: this.lastDisconnectedAt,
+      circuitBreakerOpen: this.circuitBreaker?.isCircuitOpen() ?? false,
+    };
+  }
+
+  public getHealthStatus() {
+    const status = this.getConnectionStatus();
+    const uptime = status.lastConnectedAt
+      ? Date.now() - status.lastConnectedAt.getTime()
+      : null;
+
+    let healthStatus: "healthy" | "degraded" | "unhealthy";
+    if (status.connected) {
+      healthStatus = "healthy";
+    } else if (status.circuitBreakerOpen) {
+      healthStatus = "unhealthy";
+    } else {
+      healthStatus = "degraded";
+    }
+
+    return {
+      status: healthStatus,
+      connected: status.connected,
+      details: {
+        connectionAttempts: status.connectionAttempts,
+        lastError: status.lastError,
+        uptime,
+      },
+    };
+  }
+
+  public resetCircuitBreaker(): void {
+    this.circuitBreaker?.reset();
+    logger.info("Circuit breaker manually reset");
+  }
+
+  public async reconnect(): Promise<boolean> {
+    try {
+      await this.connect();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  // ==========================================================================
+  // Topic Provisioning API
+  // ==========================================================================
+
+  public async provisionTopics(): Promise<void> {
+    if (!this._topics) {
+      logger.warn("No topics configured for provisioning");
+      return;
+    }
+
+    const options = this.options.topicProvisioning || {};
+    const admin = this.getAdmin();
+
+    await initializeKafkaTopics(admin, {
+      topics: this._topics,
+      partitions: options.partitions,
+      replicationFactor: options.replicationFactor,
+      waitForLeadersMs: options.waitForLeadersMs,
+    });
   }
 }

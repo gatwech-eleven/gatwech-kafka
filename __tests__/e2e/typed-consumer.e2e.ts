@@ -45,12 +45,9 @@ async function main() {
   await initializeKafkaTopics(admin, {
     partitions: 1,
     replicationFactor: 1,
-    additionalTopics: [
-      {
-        name: userCreatedTopic.name,
-        config: userCreatedTopic,
-      },
-    ],
+    topics: {
+      userCreated: userCreatedTopic,
+    },
   });
   console.log("✅ Topic ensured");
 

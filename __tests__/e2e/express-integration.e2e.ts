@@ -3,12 +3,11 @@ import supertest from "supertest";
 import { z } from "@gatwech/utils/zod";
 import express, { type Request, type Response } from "express";
 import { createKafkaClient } from '../../src/client/core/create-client.ts';
-import { topicProvisioningExtension } from '../../src/extensions/topic-provisioning.ts';
 import { createTopicConfig } from '../../src/config/topics/define-topics.ts';
 import { createServicePublisherFactory } from '../../src/client/producers/service-publisher-factory.ts';
 import { UserRegisteredSchema } from "../../src/schemas/user-schemas.ts";
 import { consumeWithRetryAndDLQ } from '../../src/client/consumers/consume-with-dlq.ts';
-import type { TopicConfig } from "../../src/config/topics/topic-config-schema.ts";
+
 
 async function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
@@ -44,19 +43,18 @@ async function main() {
       brokers: [bootstrap],
       metricsEnabled: false,
       connectWithRetries: true,
-    },
-    extensions: [
-      topicProvisioningExtension(TestTopics, {
+      topics: TestTopics,
+      topicProvisioning: {
         partitions: 3,
         replicationFactor: 1,
         waitForLeadersMs: 15000,
-      }),
-    ],
+      },
+    },
   });
 
   await adminClient.connect();
   try {
-    await adminClient.extensions.topicProvisioning.provisionTopics();
+    await adminClient.provisionTopics();
   } finally {
     await adminClient.disconnect();
   }
@@ -103,7 +101,7 @@ async function main() {
 
   // DLQ consumer to assert DLQ publication
   const dlqGroupId = `${groupId}-dlq`;
-  const dlqConsumer = await notificationClient.createConsumer(dlqGroupId, {
+  const dlqConsumer = notificationClient.createConsumer({
     groupId: dlqGroupId,
   });
   await dlqConsumer.connect();

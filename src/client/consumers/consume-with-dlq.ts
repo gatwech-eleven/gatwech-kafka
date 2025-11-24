@@ -163,7 +163,35 @@ export async function consumeWithRetryAndDLQ(
   const backoffBase = Math.max(1, opts.retryBackoffMs ?? 500);
   const dlqSuffix = opts.dlqSuffix ?? ".dlq";
 
-  const consumer = await client.createConsumer(groupId, { groupId });
+  // Create consumer with proper configuration
+  const consumer = client.createConsumer({
+    groupId,
+    retry: {
+      maxRetryTime: 30000,
+      initialRetryTime: 1000,
+      factor: 2,
+      multiplier: 2,
+      retries: 5,
+    },
+  });
+
+  consumer.on("consumer.connect", () => {
+    logger.info("Kafka consumer connected", { groupId });
+  });
+
+  consumer.on("consumer.disconnect", () => {
+    logger.info("Kafka consumer disconnected", { groupId });
+  });
+
+  consumer.on("consumer.network.request_timeout", (payload: any) => {
+    logger.warn("Kafka consumer network request timeout", { groupId, payload });
+  });
+
+  consumer.on("consumer.crash", (err: any) => {
+    logger.error("Kafka consumer crash", { groupId, error: err });
+  });
+
+  await consumer.connect();
   await consumer.subscribe({ topic: topic.name, fromBeginning: false });
 
   const publishToDLQ = createDLQPublisher(client.getProducer(), { dlqSuffix });

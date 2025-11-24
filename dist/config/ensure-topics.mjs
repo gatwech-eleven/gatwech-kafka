@@ -1,6 +1,3 @@
-import "../logger-BCcyae9U.mjs";
-import "../dlq.schema-K42xDTcu.mjs";
-import "../topics-DLYMu4hC.mjs";
-import { n as initializeKafkaTopics, t as ensureTopicsWithConfig } from "../ensure-topics-CG3Bl2tc.mjs";
+import { t as initializeKafkaTopics } from "../ensure-topics-Mazqk00P.mjs";
 
-export { ensureTopicsWithConfig, initializeKafkaTopics };
+export { initializeKafkaTopics };

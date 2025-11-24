@@ -50,19 +50,16 @@ async function main() {
       partitions: 3,
       replicationFactor: 1,
       waitForLeadersMs: 15_000,
-      additionalTopics: [
-        {
+      topics: {
+        serviceTopic: {
           name: topic,
-          config: {
-            name: topic,
-            // basic retention & delete policy suitable for tests
-            retentionMs: 24 * 60 * 60 * 1000,
-            cleanupPolicy: "delete",
-            partitions: 3,
-            replicationFactor: 1,
-          } as any,
-        },
-      ],
+          // basic retention & delete policy suitable for tests
+          retentionMs: 24 * 60 * 60 * 1000,
+          cleanupPolicy: "delete",
+          partitions: 3,
+          replicationFactor: 1,
+        } as any,
+      },
     });
     console.log(`🪶 Topic ensured: ${topic}`);
   } catch (err: any) {

@@ -8,6 +8,7 @@ describe("consumeWithRetryAndDLQ - DLQ publishing edge case", () => {
 
     // Consumer that will call provided eachMessage once
     const fakeConsumer = {
+      on: vi.fn(),
       subscribe: vi.fn().mockResolvedValue(undefined),
       connect: vi.fn().mockResolvedValue(undefined),
       disconnect: vi.fn().mockResolvedValue(undefined),
@@ -32,7 +33,7 @@ describe("consumeWithRetryAndDLQ - DLQ publishing edge case", () => {
     } as any;
 
     const fakeClient: any = {
-      createConsumer: vi.fn().mockResolvedValue(fakeConsumer),
+      createConsumer: vi.fn().mockReturnValue(fakeConsumer),
       getProducer: vi.fn().mockReturnValue(fakeProducer),
     };
 

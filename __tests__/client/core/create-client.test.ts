@@ -1,14 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createKafkaClient, type KafkaExtension } from '../../../src/client/core/create-client';
 import { KafkaClient } from '../../../src/client/core/kafka';
-import { topicProvisioningExtension } from "../../../src/extensions/topic-provisioning";
-import { createTopicConfig } from "../../../src/config/topics/define-topics";
-import { initializeKafkaTopics } from "../../../src/config/ensure-topics";
-import { z } from "@gatwech/utils/zod";
 
 // Mock dependencies
 vi.mock("../../../src/client/core/kafka");
-vi.mock("../../../src/config/ensure-topics");
 
 describe("createKafkaClient", () => {
   const mockConfig = {
@@ -85,38 +80,3 @@ describe("createKafkaClient", () => {
   });
 });
 
-describe("Extensions", () => {
-  const mockClient = {
-    getAdmin: vi.fn(),
-    healthCheck: vi.fn(),
-  } as unknown as KafkaClient;
-
-  describe("topicProvisioningExtension", () => {
-    it("should call initializeKafkaTopics with correct parameters", async () => {
-      const topics = createTopicConfig({
-        TEST_TOPIC: { 
-          name: "test.topic",
-          schema: z.object({ id: z.string() }),
-        },
-      });
-      
-      const extension = topicProvisioningExtension(topics, {
-        partitions: 5,
-      });
-      
-      const { provisionTopics } = extension.setup(mockClient);
-      await provisionTopics();
-
-      expect(mockClient.getAdmin).toHaveBeenCalled();
-      expect(initializeKafkaTopics).toHaveBeenCalledWith(
-        undefined, // admin mock result
-        expect.objectContaining({
-          topics,
-          partitions: 5,
-        })
-      );
-    });
-  });
-
-
-});

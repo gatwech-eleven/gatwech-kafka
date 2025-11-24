@@ -28,7 +28,6 @@ export const DEFAULT_OPTIONS = {
   autoConnectAsync: false,
   connectWithRetries: false,
   connectAsync: false,
-  waitForBrokerBeforeConnect: false,
   maxConnectAttemptTimeMs: 180000,
   connectPollIntervalMs: 1000,
   brokerWaitTimeoutMs: 180000,

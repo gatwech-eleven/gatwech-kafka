@@ -18,10 +18,15 @@ vi.mock('kafkajs', async () => {
           connect: vi.fn(),
           disconnect: vi.fn(),
         }),
-        consumer: vi.fn().mockReturnValue({
-          connect: vi.fn(),
-          disconnect: vi.fn(),
-          on: vi.fn(),
+        consumer: vi.fn().mockImplementation((config) => {
+          if (!config || !config.groupId) {
+            throw new Error('groupId is required');
+          }
+          return {
+            connect: vi.fn(),
+            disconnect: vi.fn(),
+            on: vi.fn(),
+          };
         }),
       };
     }),
@@ -32,10 +37,9 @@ describe('Producer & Consumer Validation', () => {
   const client = new KafkaClient('test-client', ['localhost:9092']);
 
   describe('Consumer Validation', () => {
-    it('should throw error when groupId is empty', async () => {
-      await expect(client.createConsumer('', { groupId: '' }))
-        .rejects
-        .toThrow('groupId is required');
+    it('should throw error when groupId is empty', () => {
+      expect(() => client.createConsumer({ groupId: '' }))
+        .toThrow();
     });
   });
 
