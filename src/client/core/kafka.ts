@@ -37,7 +37,7 @@ export class KafkaClient {
   private consumers: Map<string, ReturnType<Kafka["consumer"]>> = new Map();
   private readonly defaultMetadata: Record<string, unknown>;
   private readonly defaultHeaders: Record<string, string | Buffer>;
-  private readonly _topics?: Record<string, any>;
+  private readonly _topics?: Record<string, unknown>;
 
   // Resilience components
   private readonly circuitBreaker?: CircuitBreaker;
@@ -517,7 +517,7 @@ export class KafkaClient {
     const admin = this.getAdmin();
 
     await initializeKafkaTopics(admin, {
-      topics: this._topics,
+      topics: this._topics as Record<string, import("../../config/topics/topic-config-schema").TopicConfig | import("../../config/topics/topic-config-schema").ValidatedTopicConfig>,
       partitions: options.partitions,
       replicationFactor: options.replicationFactor,
       waitForLeadersMs: options.waitForLeadersMs,

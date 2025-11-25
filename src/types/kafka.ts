@@ -1,6 +1,7 @@
 import type { CompressionTypes, logLevel, SASLOptions, Mechanism } from "kafkajs";
 import type { ConnectionOptions } from "tls";
 import type { CorrelationId } from "./utility-types";
+import type { TopicConfig, ValidatedTopicConfig } from "../config/topics/topic-config-schema";
 
 export interface KafkaClientOptions {
   allowAutoTopicCreation?: boolean;
@@ -42,20 +43,37 @@ export interface KafkaClientOptions {
   /** Total time to wait for broker readiness (ms). Default 30000. */
   maxConnectAttemptTimeMs?: number;
   /** Poll interval for broker readiness checks (ms). Default 500. */
+
   connectPollIntervalMs?: number;
   /** @deprecated Use `maxConnectAttemptTimeMs`. */
+  
   brokerWaitTimeoutMs?: number;
   /** @deprecated Use `connectPollIntervalMs`. */
+
   brokerWaitPollIntervalMs?: number;
-  /** Default metadata to include in all messages sent by this client. Message-level metadata takes precedence. */
+  
+  /** 
+   * Default metadata to include in all messages sent by this client. Message-level metadata takes precedence. 
+   */
   defaultMetadata?: Record<string, unknown>;
-  /** Default headers to include in all messages sent by this client. Message-level headers take precedence. */
+
+
+  /** 
+   * Default headers to include in all messages sent by this client. Message-level headers take precedence. 
+   */
   defaultHeaders?: Record<string, string | Buffer>;
-  /** Topic configurations for this client. Accessible via client.topics */
-  topics?: Record<string, any>;
-  /** Resilience configuration options */
+
+  /** 
+   * Topic configurations for this client. Accessible via client.topics 
+   */
+  topics?: Record<string, unknown>;
+  /** 
+   * Resilience configuration options 
+   */
   resilience?: ResilienceOptions;
-  /** Topic provisioning configuration options */
+  /** 
+   * Topic provisioning configuration options 
+   */
   topicProvisioning?: TopicProvisioningOptions;
 }
 
