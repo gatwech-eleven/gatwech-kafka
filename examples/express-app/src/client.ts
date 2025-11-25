@@ -96,4 +96,3 @@ export async function shutdownKafka() {
   }
 }
 
-export const kafkaClient = kafka;

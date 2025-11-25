@@ -5,7 +5,9 @@ import type { TopicConfig, ValidatedTopicConfig } from "../config/topics/topic-c
 
 export interface KafkaClientOptions {
   allowAutoTopicCreation?: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   createPartitioner?: () => (args: any) => number;
+  // Using 'any' here to match KafkaJS's partitioner signature which accepts dynamic arguments
   maxConnectionRetries?: number;
   retryDelayMs?: number;
   compression?: CompressionTypes;
@@ -42,11 +44,11 @@ export interface KafkaClientOptions {
 
   /** Total time to wait for broker readiness (ms). Default 30000. */
   maxConnectAttemptTimeMs?: number;
-  /** Poll interval for broker readiness checks (ms). Default 500. */
 
+  /** Poll interval for broker readiness checks (ms). Default 500. */
   connectPollIntervalMs?: number;
+
   /** @deprecated Use `maxConnectAttemptTimeMs`. */
-  
   brokerWaitTimeoutMs?: number;
   /** @deprecated Use `connectPollIntervalMs`. */
 
@@ -168,9 +170,9 @@ export type { ConsumerConfig, Consumer, Producer } from "kafkajs";
  * Allows applications to provide their own logger to the Kafka client.
  */
 export interface Logger {
-  info: (message: string, meta?: any) => void;
-  warn: (message: string, meta?: any) => void;
-  error: (message: string, meta?: any) => void;
+  info: (message: string, meta?: Record<string, unknown>) => void;
+  warn: (message: string, meta?: Record<string, unknown>) => void;
+  error: (message: string, meta?: Record<string, unknown>) => void;
 }
 
 export interface DLQOptions {
