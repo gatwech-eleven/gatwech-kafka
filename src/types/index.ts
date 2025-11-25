@@ -25,7 +25,6 @@ export {
   JsonSerializer,
 } from "./kafka";
 
-// Utility Types
 
 export type {
   DeepReadonly,

@@ -3,7 +3,6 @@
  * Provides core Kafka client functionality, producers, and consumers
  */
 
-// Core Client
 
 export { createKafkaClient } from "./core/create-client";
 export { connectWithRetry } from "./core/connect-with-retry";
@@ -21,7 +20,6 @@ export type {
   ConnectRetryOptions,
 } from "./core/connect-with-retry";
 
-// Producers
 
 export { BaseProducer } from "./producers/base";
 export { createEventPublisher, createPublisher } from "./producers/event.factory";
@@ -42,7 +40,6 @@ export type {
   ReadyToPublishMessage,
 } from "./producers/generic-producer";
 
-// Consumers
 
 export { consumeWithRetryAndDLQ } from "./consumers/consume-with-dlq";
 export { createDLQPublisher } from "./consumers/dlq.factory";

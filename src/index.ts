@@ -1,4 +1,3 @@
-// Core Client Exports
 
 export { createKafkaClient } from "./client/core/create-client";
 export { connectWithRetry } from "./client/core/connect-with-retry";
