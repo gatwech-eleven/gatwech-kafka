@@ -57,7 +57,7 @@ export const kafka = createKafkaClient({
             await kafka.provisionTopics();
             customLogger.info('Topics re-provisioned successfully');
           } catch (error) {
-            customLogger.error('Failed to re-provision topics after reconnection', error);
+            customLogger.error('Failed to re-provision topics after reconnection', { error });
           }
         },
       },
@@ -80,7 +80,7 @@ export async function initKafka() {
     
     return true;
   } catch (error) {
-    customLogger.error('Kafka initialization failed', error);
+    customLogger.error('Kafka initialization failed', { error });
     customLogger.info('Background reconnection will retry automatically...');
     return false;
   }
@@ -91,7 +91,7 @@ export async function shutdownKafka() {
     await kafka.disconnect();
     customLogger.info('Kafka disconnected');
   } catch (error) {
-    customLogger.error('Error disconnecting Kafka', error);
+    customLogger.error('Error disconnecting Kafka', { error });
     throw error;
   }
 }
