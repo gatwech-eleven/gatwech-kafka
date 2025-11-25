@@ -1,4 +1,4 @@
-import { KafkaClient } from '../../src/client/core/kafka';
+import { BaseKafkaClient } from '../../src/client/core/kafka';
 import { GenericKafkaProducer } from '../../src/client/producers/generic-producer';
 import { z } from "@gatwech/utils/zod";
 import { nanoid } from "nanoid";
@@ -24,7 +24,7 @@ function hrtimeMs(): number {
   return s * 1000 + ns / 1e6;
 }
 
-async function ensureTopic(client: KafkaClient, topic: string, partitions = 3) {
+async function ensureTopic(client: BaseKafkaClient, topic: string, partitions = 3) {
   try {
     const admin = client.getAdmin();
     await admin.connect();
@@ -63,7 +63,7 @@ async function runBenchmark() {
   const topicBase = process.env.BENCH_TOPIC || `bench-${Date.now()}`;
   const iterations = Number(process.env.BENCH_MESSAGES || 5000);
   const batchSize = Number(process.env.BENCH_BATCH_SIZE || 100);
-  const client = new KafkaClient("bench-client", [bootstrap], {
+  const client = new BaseKafkaClient("bench-client", [bootstrap], {
     metricsEnabled: false,
   });
   await client.connect();

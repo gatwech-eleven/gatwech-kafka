@@ -70,8 +70,8 @@ importers:
   examples/express-app:
     dependencies:
       '@gatwech/kafka':
-        specifier: 0.0.8-beta.2
-        version: 0.0.8-beta.2
+        specifier: workspace:*
+        version: link:../..
       '@gatwech/utils':
         specifier: ^0.5.3
         version: 0.5.3(zod@4.1.12)
@@ -290,9 +290,6 @@ packages:
     engines: {node: '>=18'}
     cpu: [x64]
     os: [win32]
-
-  '@gatwech/kafka@0.0.8-beta.2':
-    resolution: {integrity: sha512-MVjWTd6KH2lOPmXexD5PUNynSYIOjIfKCu8vc9zk4EDvv2/OZRvuSYlRzq+ukXPBDvtI/43RBOLQkByozuaAqA==}
 
   '@gatwech/utils@0.5.3':
     resolution: {integrity: sha512-mAhi+mp3ftsmM9j9VBAhk/2psqLYYhislq8ZZcR4MkgOKid+nC3fT5OgIkY52UGD4uw1RjSPNw2B4hspRJCE+A==}
@@ -2020,16 +2017,6 @@ snapshots:
 
   '@esbuild/win32-x64@0.25.12':
     optional: true
-
-  '@gatwech/kafka@0.0.8-beta.2':
-    dependencies:
-      '@gatwech/utils': 0.5.3(zod@4.1.12)
-      buffer: 6.0.3
-      kafkajs: 2.2.4
-      nanoid: 5.1.6
-      prom-client: 15.1.3
-      winston: 3.18.3
-      zod: 4.1.12
 
   '@gatwech/utils@0.5.3(zod@4.1.12)':
     dependencies:

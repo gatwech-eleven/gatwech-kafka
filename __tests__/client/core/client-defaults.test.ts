@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { KafkaClient } from '../../../src/client/core/kafka';
+import { BaseKafkaClient } from '../../../src/client/core/kafka';
 
 // Mock KafkaJS
 vi.mock('kafkajs', async () => {
@@ -26,7 +26,7 @@ vi.mock('kafkajs', async () => {
 describe('Client-Level Defaults', () => {
   it('should store and return default metadata', () => {
     const defaultMetadata = { service: 'test-service', version: '1.0.0' };
-    const client = new KafkaClient('test-client', ['localhost:9092'], {
+    const client = new BaseKafkaClient('test-client', ['localhost:9092'], {
       defaultMetadata,
     });
 
@@ -35,7 +35,7 @@ describe('Client-Level Defaults', () => {
 
   it('should store and return default headers', () => {
     const defaultHeaders = { 'x-service-id': 'test-service' };
-    const client = new KafkaClient('test-client', ['localhost:9092'], {
+    const client = new BaseKafkaClient('test-client', ['localhost:9092'], {
       defaultHeaders,
     });
 
@@ -44,7 +44,7 @@ describe('Client-Level Defaults', () => {
 
   it('should merge default headers with message headers', async () => {
     const defaultHeaders = { 'x-service-id': 'test-service', 'x-env': 'prod' };
-    const client = new KafkaClient('test-client', ['localhost:9092'], {
+    const client = new BaseKafkaClient('test-client', ['localhost:9092'], {
       defaultHeaders,
     });
 
@@ -71,7 +71,7 @@ describe('Client-Level Defaults', () => {
 
   it('should allow message-level headers to override defaults', async () => {
     const defaultHeaders = { 'x-service-id': 'test-service', 'x-env': 'prod' };
-    const client = new KafkaClient('test-client', ['localhost:9092'], {
+    const client = new BaseKafkaClient('test-client', ['localhost:9092'], {
       defaultHeaders,
     });
 

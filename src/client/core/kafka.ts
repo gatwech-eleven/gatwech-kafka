@@ -6,8 +6,10 @@ import type {
   Transaction,
   Admin,
   ProducerConfig,
+  Consumer,
 } from "kafkajs";
-import type { KafkaClientOptions, KafkaMetrics, TKafkaMessage, ResilienceOptions } from "../../types";
+import type { KafkaClientOptions, KafkaMetrics, TKafkaMessage, ResilienceOptions, DLQOptions } from "../../types";
+import type { AnyTopic, RawTopic, SchemaConsumerPayload, RawConsumerPayload, ConsumerDlqOptions } from "../../types/consumer";
 import { KafkaError } from "./errors";
 import { DEFAULT_OPTIONS } from "./default-options";
 import { connectWithRetry } from "./connect-with-retry";
@@ -15,6 +17,9 @@ import { createCircuitBreaker, type CircuitBreaker } from "./circuit-breaker";
 import { createReconnectionMonitor, type ReconnectionMonitor } from "./reconnection-monitor";
 import { initializeKafkaTopics } from "../../config/initialize.topics";
 import type { TopicConfig, ValidatedTopicConfig } from "../../config/topics/topic-config-schema";
+import { consumeWithRetryAndDLQ, type ConsumeHandlerContext } from "../consumers/consume-with-dlq";
+import type { ZodType, z } from "@gatwech/utils/zod";
+
 
 type AnyTopicConfig = TopicConfig | ValidatedTopicConfig;
 
@@ -24,7 +29,13 @@ type OptionalKeys = "ssl" | "sasl" | "authenticationTimeout" | "reauthentication
 type ResolvedKafkaClientOptions = Required<Omit<KafkaClientOptions, OptionalKeys>> &
   Pick<KafkaClientOptions, OptionalKeys>;
 
-export class KafkaClient {
+/**
+ * Core Kafka client with connection management, resilience features, and message production.
+ * This is the base class that provides all core Kafka functionality.
+ * 
+ * @internal - Use the `createKafkaClient` factory function instead
+ */
+export class BaseKafkaClient {
   private readonly producer: Producer;
   private readonly kafka: Kafka;
   private readonly options: ResolvedKafkaClientOptions;
@@ -443,6 +454,61 @@ export class KafkaClient {
 
   public createConsumer(config: ConsumerConfig) {
     return this.kafka.consumer(config);
+  }
+
+  /**
+   * Consume messages from a topic with automatic retry and DLQ handling.
+   * Validates messages against the topic schema if provided.
+   * 
+   * @param groupId - Consumer group ID
+   * @param topic - Topic configuration with optional schema
+   * @param handler - Message handler function (payload type inferred from schema)
+   * @param opts - Optional DLQ configuration
+   * @returns Consumer instance
+   * 
+   * @example
+   * // With schema (typed payload)
+   * await client.consume(
+   *   'my-group',
+   *   userTopic, // has schema: z.object({id: z.string()})
+   *   async (payload, ctx) => {
+   *     console.log(payload.id); // TypeScript knows this is a string
+   *   }
+   * );
+   * 
+   * @example
+   * // Without schema (raw payload)
+   * await client.consume(
+   *   'my-group',
+   *   rawTopic,
+   *   async (payload, ctx) => {
+   *     console.log(payload.message.value); // EachMessagePayload
+   *   }
+   * );
+   */
+  public consume<TSchema extends ZodType>(
+    groupId: string,
+    topic: TopicConfig & { schema: TSchema },
+    handler: (payload: SchemaConsumerPayload<TSchema>, ctx: ConsumeHandlerContext) => Promise<void>,
+    opts?: ConsumerDlqOptions
+  ): Promise<Consumer>;
+  
+  public consume<TRawTopic extends RawTopic>(
+    groupId: string,
+    topic: TRawTopic,
+    handler: (payload: RawConsumerPayload, ctx: ConsumeHandlerContext) => Promise<void>,
+    opts?: ConsumerDlqOptions
+  ): Promise<Consumer>;
+  
+  public async consume(
+    groupId: string,
+    topic: AnyTopic,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    handler: any,
+    opts?: ConsumerDlqOptions
+  ): Promise<Consumer> {
+    // Cast topic to any to bypass overload resolution since implementation handles AnyTopic
+    return consumeWithRetryAndDLQ(this, groupId, topic as any, handler, opts);
   }
 
   public getProducer(): Producer {

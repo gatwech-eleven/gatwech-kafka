@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createKafkaClient, type KafkaExtension } from '../../../src/client/core/create-client';
-import { KafkaClient } from '../../../src/client/core/kafka';
+import { BaseKafkaClient } from '../../../src/client/core/kafka';
 
 // Mock dependencies
 vi.mock("../../../src/client/core/kafka");
@@ -18,12 +18,12 @@ describe("createKafkaClient", () => {
   it("should create a base KafkaClient with provided config", () => {
     const client = createKafkaClient({ config: mockConfig });
     
-    expect(KafkaClient).toHaveBeenCalledWith(
+    expect(BaseKafkaClient).toHaveBeenCalledWith(
       mockConfig.clientId,
       mockConfig.brokers,
       expect.objectContaining({})
     );
-    expect(client).toBeInstanceOf(KafkaClient);
+    expect(client).toBeInstanceOf(BaseKafkaClient);
   });
 
   it("should apply extensions correctly", () => {
@@ -39,7 +39,8 @@ describe("createKafkaClient", () => {
       extensions: [mockExtension],
     });
 
-    expect(client.extensions.testExtension.testMethod()).toBe("success");
+    // Extension methods are flattened directly onto client
+    expect(client.testMethod()).toBe("success");
   });
 
   it("should support multiple extensions", () => {
@@ -57,8 +58,9 @@ describe("createKafkaClient", () => {
       extensions: [ext1, ext2],
     });
 
-    expect(client.extensions.ext1.method1()).toBe(1);
-    expect(client.extensions.ext2.method2()).toBe(2);
+    // Extension methods are flattened directly onto client
+    expect(client.method1()).toBe(1);
+    expect(client.method2()).toBe(2);
   });
 
   it("should throw on extension name collision", () => {

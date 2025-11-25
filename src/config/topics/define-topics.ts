@@ -41,12 +41,16 @@ import {
  *
  * @template T - Record of topic configurations
  * @param topics - Object mapping topic keys to their configurations
- * @returns Deeply readonly, validated topic configurations with branded names
+ * @returns Deeply readonly, validated topic configurations with branded names and preserved schema types
  * @throws {z.ZodError} If any topic configuration is invalid
  */
 export function createTopicConfig<T extends Record<string, TopicConfigInput>>(
   topics: T
-): { readonly [K in keyof T]: ValidatedTopicConfig } {
+): {
+  readonly [K in keyof T]: T[K] extends {schema: infer TSchema} 
+    ? ValidatedTopicConfig & {schema: TSchema}
+    : ValidatedTopicConfig
+} {
   const validated: Record<string, ValidatedTopicConfig> = {};
 
   for (const [key, config] of Object.entries(topics)) {
@@ -60,10 +64,8 @@ export function createTopicConfig<T extends Record<string, TopicConfigInput>>(
     } as ValidatedTopicConfig;
   }
 
-  // Return as readonly but not deeply readonly to maintain type compatibility
-  return Object.freeze(validated) as {
-    readonly [K in keyof T]: ValidatedTopicConfig;
-  };
+  // Return as readonly while preserving specific schema types
+  return Object.freeze(validated) as any;
 }
 
 /**

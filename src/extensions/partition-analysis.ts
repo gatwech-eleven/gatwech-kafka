@@ -1,4 +1,4 @@
-import { KafkaClient } from '../client';
+import type { BaseKafkaClient } from '../client/core/kafka';
  import type { KafkaExtension } from '../client/core/create-client';
  import { logger } from '../utils/logger';
 
@@ -93,7 +93,7 @@ export const partitionAnalysisExtension = (): KafkaExtension<{
     checkPartitionSkew: (distribution: number[], skewThreshold?: number) => PartitionSkewResult;
 }, "partitionAnalysis"> => ({
     name: "partitionAnalysis",
-    setup: (client: KafkaClient) => {
+    setup: (client: BaseKafkaClient) => {
         logger.info(`[Extension] Installing partition analysis client...`);
         
         return {

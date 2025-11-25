@@ -1,5 +1,5 @@
 import { nanoid } from "nanoid";
-import { KafkaClient } from '../../src/client/core/kafka.ts';
+import { BaseKafkaClient } from '../../src/client/core/kafka.ts';
 import { createEventPublisher } from '../../src/client/producers/event.factory.ts';
 import { z } from "@gatwech/utils/zod";
 import assert from "node:assert";
@@ -19,7 +19,7 @@ const e2eSchema = z.object({
     .optional(),
 });
 
-async function waitForBroker(client: KafkaClient, timeoutMs = 30000) {
+async function waitForBroker(client: BaseKafkaClient, timeoutMs = 30000) {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     try {
@@ -41,7 +41,7 @@ async function main() {
   const topic = process.env.E2E_TOPIC || `e2e-test-${Date.now()}`;
   console.log(`E2E Kafka test: bootstrap=${bootstrap}, topic=${topic}`);
 
-  const client = new KafkaClient("e2e-client", [bootstrap], {
+  const client = new BaseKafkaClient("e2e-client", [bootstrap], {
     metricsEnabled: false,
     maxConnectionRetries: 1, // Fail fast for E2E
     resilience: {

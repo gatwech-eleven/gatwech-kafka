@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { KafkaClient } from '../../../src/client/core/kafka';
+import { BaseKafkaClient } from '../../../src/client/core/kafka';
 import { Kafka } from 'kafkajs';
 
 // Mock KafkaJS
@@ -28,7 +28,7 @@ describe('KafkaClient Configuration', () => {
     const sslOptions = { rejectUnauthorized: false };
     const saslOptions = { mechanism: 'plain', username: 'user', password: 'password' };
 
-    new KafkaClient('test-client', ['localhost:9092'], {
+    new BaseKafkaClient('test-client', ['localhost:9092'], {
       ssl: sslOptions,
       sasl: saslOptions as any, // Cast because mechanism string vs enum
       connectionTimeout: 5000,

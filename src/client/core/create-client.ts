@@ -1,4 +1,4 @@
-import { KafkaClient } from "./kafka";
+import { BaseKafkaClient } from "./kafka";
 import type { KafkaClientOptions } from "../../types";
 
 /**
@@ -12,7 +12,7 @@ export interface KafkaExtension<T = unknown, Name extends string = string> {
    * @param client The Kafka client instance
    * @returns The extension's public API
    */
-  setup: (client: KafkaClient) => T;
+  setup: (client: BaseKafkaClient) => T;
 }
 
 /**
@@ -78,25 +78,46 @@ export interface CreateKafkaClientConfig<
  */
 export type KafkaClientConfig<TExtensions extends KafkaExtension<any>[] = KafkaExtension<any>[]> = CreateKafkaClientConfig<TExtensions>;
 
+
 /**
  * Helper type to extract the return type of an extension's setup function
  */
 type ExtensionReturnType<T extends KafkaExtension<any>> = ReturnType<T["setup"]>;
 
 /**
- * Helper type to map extension names to their return types
+ * Extract the TModule type from a single extension
  */
-type ExtensionsMap<TExtensions extends KafkaExtension<any>[]> = {
-  [K in TExtensions[number] as K["name"]]: ExtensionReturnType<K>;
-};
+type ExtractModuleType<TExtension> = 
+  TExtension extends KafkaExtension<infer TModule> ? TModule : {};
 
 /**
- * The resulting client type, which is the base KafkaClient extended with extension functionality.
+ * Convert a union type to an intersection type.
+ * This is the key to merging all extension methods into a single type.
  */
-export type ModularKafkaClient<TExtensions extends KafkaExtension<any>[]> =
-  KafkaClient & {
-    extensions: ExtensionsMap<TExtensions>;
-  };
+type UnionToIntersection<U> = 
+  (U extends any ? (k: U) => void : never) extends ((k: infer I) => void) ? I : never;
+
+/**
+ * Merge all extracted modules into a single interface.
+ * This complex utility type iterates over the array of extensions and safely merges
+ * all their exposed methods into one final type.
+ * 
+ * Special handling for empty arrays: returns {} instead of never
+ */
+type MergeExtensions<TExtensions extends KafkaExtension<any>[]> = 
+  TExtensions extends [] 
+    ? {} 
+    : TExtensions extends readonly [] 
+      ? {}
+      : UnionToIntersection<ExtractModuleType<TExtensions[number]>>;
+
+/**
+ * The Kafka client type with optional extension functionality.
+ * Extension methods are flattened directly onto the client object for simpler usage.
+ * This type explicitly preserves all BaseKafkaClient methods including their overload signatures.
+ */
+export type KafkaClient<TExtensions extends KafkaExtension<any>[] = []> = 
+  BaseKafkaClient & MergeExtensions<TExtensions>;
 
 /**
  * Create a modular Kafka client with extensions.
@@ -109,43 +130,56 @@ export type ModularKafkaClient<TExtensions extends KafkaExtension<any>[]> =
  *     brokers: ['localhost:9092'],
  *   },
  *   extensions: [
- *     topicProvisioningExtension(topics),
- *     healthCheckExtension(),
+ *     partitionAnalysisExtension(),
  *   ]
  * });
  *
  * // Access base client methods
  * await client.connect();
  *
- * // Access extension methods
- * await client.extensions.topicProvisioning.provisionTopics();
- * await client.extensions.healthCheck.check();
+ * // Access extension methods (flattened directly on client)
+ * await client.analyzePartitionSkew(...);
+ * const optimal = client.calculateOptimalPartitions(...);
  * ```
  */
+// Overload: When extensions are explicitly provided
+export function createKafkaClient<TExtensions extends KafkaExtension<any>[]>(
+  options: CreateKafkaClientConfig<TExtensions> & { extensions: TExtensions }
+): KafkaClient<TExtensions>;
+
+// Overload: When no extensions property is provided (defaults to empty array)
+export function createKafkaClient(
+  options: Omit<CreateKafkaClientConfig<[]>, 'extensions'>
+): KafkaClient<[]>;
+
+// Implementation
 export function createKafkaClient<TExtensions extends KafkaExtension<any>[]>(
   options: CreateKafkaClientConfig<TExtensions>
-): ModularKafkaClient<TExtensions> {
+): KafkaClient<TExtensions> {
   const { config, extensions = [] } = options;
   const { clientId, brokers, ...clientOptions } = config;
 
   // Initialize the base client
-  const client = new KafkaClient(clientId, brokers, clientOptions);
+  const client = new BaseKafkaClient(clientId, brokers, clientOptions);
 
-  // Apply extensions
-  const extensionsMap: Record<string, any> = {};
+  // Apply extensions - flatten methods directly onto client
+  const flattenedExtensions: Record<string, any> = {};
+  const extensionNames = new Set<string>();
 
   for (const extension of extensions) {
-    if (extensionsMap[extension.name]) {
+    // Check for name collisions
+    if (extensionNames.has(extension.name)) {
       throw new Error(
         `Extension name collision: '${extension.name}' is already registered.`
       );
     }
-    extensionsMap[extension.name] = extension.setup(client);
+    extensionNames.add(extension.name);
+
+    // Get extension methods and flatten them onto the client
+    const methods = extension.setup(client);
+    Object.assign(flattenedExtensions, methods);
   }
 
-  // Return the extended client with namespaced extensions
-  const extendedClient = client as unknown as ModularKafkaClient<TExtensions>;
-  extendedClient.extensions = extensionsMap as ExtensionsMap<TExtensions>;
-
-  return extendedClient;
+  // Return the extended client with flattened extension methods
+  return Object.assign(client, flattenedExtensions) as unknown as KafkaClient<TExtensions>;
 }

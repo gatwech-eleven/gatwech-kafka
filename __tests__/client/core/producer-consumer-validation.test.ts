@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { KafkaClient } from '../../../src/client/core/kafka';
+import { BaseKafkaClient } from '../../../src/client/core/kafka';
 
 // Mock KafkaJS
 vi.mock('kafkajs', async () => {
@@ -34,7 +34,7 @@ vi.mock('kafkajs', async () => {
 });
 
 describe('Producer & Consumer Validation', () => {
-  const client = new KafkaClient('test-client', ['localhost:9092']);
+  const client = new BaseKafkaClient('test-client', ['localhost:9092']);
 
   describe('Consumer Validation', () => {
     it('should throw error when groupId is empty', () => {

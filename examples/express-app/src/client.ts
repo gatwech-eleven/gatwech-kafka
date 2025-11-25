@@ -14,6 +14,10 @@ export const customLogger: Logger = {
 const KAFKA_BROKERS = process.env.KAFKA_BROKERS?.split(',') || ['localhost:9092'];
 const SERVICE_NAME = process.env.SERVICE_NAME || 'express-demo-service';
 
+import type { KafkaClient } from '@gatwech/kafka';
+
+export type AppKafkaClient = KafkaClient<[]>;
+
 export const kafka = createKafkaClient({
   config: {
     clientId: SERVICE_NAME,
@@ -63,7 +67,7 @@ export const kafka = createKafkaClient({
       },
     },
   },
-} satisfies KafkaClientConfig);
+});
 
 
 

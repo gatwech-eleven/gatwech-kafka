@@ -7,15 +7,15 @@
 // Core Client
 // ============================================================================
 
-export { KafkaClient } from "./core/kafka";
+// KafkaClient type is exported from create-client
 export { createKafkaClient } from "./core/create-client";
 export { connectWithRetry } from "./core/connect-with-retry";
 export { DEFAULT_OPTIONS } from "./core/default-options";
 
 export type {
+  KafkaClient,
   KafkaClientConfig,
   CreateKafkaClientConfig,
-  ModularKafkaClient,
   KafkaExtension,
   GatwechKafkaExtensions,
 } from "./core/create-client";

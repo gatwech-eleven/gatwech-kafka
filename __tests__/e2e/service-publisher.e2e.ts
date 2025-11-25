@@ -1,5 +1,5 @@
 import { nanoid } from "nanoid";
-import { KafkaClient } from "../../src/client/core/kafka.ts";
+import { BaseKafkaClient } from "../../src/client/core/kafka.ts";
 import { createServicePublisherFactory } from "../../src/client/producers/service-publisher-factory.ts";
 import { z } from "@gatwech/utils/zod";
 import crypto from "node:crypto";
@@ -33,7 +33,7 @@ async function main() {
     ? Number(process.env.SERVICE_E2E_MAX_CONNECT_MS)
     : defaultMaxConnectMs;
 
-  const client = new KafkaClient("service-e2e-client", [bootstrap], {
+  const client = new BaseKafkaClient("service-e2e-client", [bootstrap], {
     metricsEnabled: false,
     connectWithRetries: true,
     maxConnectAttemptTimeMs,

@@ -2,6 +2,7 @@ import { nanoid } from "nanoid";
 import supertest from "supertest";
 import { z } from "@gatwech/utils/zod";
 import express, { type Request, type Response } from "express";
+import type { EachMessagePayload } from "kafkajs";
 import { createKafkaClient } from '../../src/client/core/create-client.ts';
 import { createTopicConfig } from '../../src/config/topics/define-topics.ts';
 import { createServicePublisherFactory } from '../../src/client/producers/service-publisher-factory.ts';
@@ -108,14 +109,14 @@ async function main() {
   await dlqConsumer.subscribe({ topic: `${topic}.dlq`, fromBeginning: true });
   dlqConsumer
     .run({
-      eachMessage: async ({ message }) => {
+      eachMessage: async ({ message }: EachMessagePayload) => {
         try {
           const raw = message.value?.toString() || "{}";
           lastDlq = JSON.parse(raw);
         } catch {}
       },
     })
-    .catch((e) => console.error("DLQ consumer error", e));
+    .catch((e: Error) => console.error("DLQ consumer error", e));
 
   const notificationApp = express();
   notificationApp.get("/health", (_req: Request, res: Response) =>

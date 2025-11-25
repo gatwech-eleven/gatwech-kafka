@@ -13,13 +13,3 @@ export type {
   PartitionSkewResult,
   ThroughputMetrics,
 } from "./partition-analysis";
-
-// ============================================================================
-// Consumer Extension
-// ============================================================================
-
-export { consumerExtension } from "./consumer-extension";
-
-export type {
-  ConsumerExtensionAPI,
-} from "./consumer-extension";

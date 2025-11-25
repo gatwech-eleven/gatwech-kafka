@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { calculateOptimalPartitions, partitionAnalysisExtension, type ThroughputMetrics } from '../../src/extensions/partition-analysis';
-import { KafkaClient } from '../../src/client/core/kafka';
+import { BaseKafkaClient } from '../../src/client/core/kafka';
 
 describe('Partition Strategy Test Suite', () => {
     describe('I. Unit Tests (Partition Calculation Logic)', () => {
@@ -79,7 +79,7 @@ describe('Partition Strategy Test Suite', () => {
 
     describe('II. End-to-End (E2E) Test Scenarios (Skew Validation)', () => {
         // Setup the extension
-        const mockClient = {} as KafkaClient;
+        const mockClient = {} as BaseKafkaClient;
         const extension = partitionAnalysisExtension();
         const installed = extension.setup(mockClient);
         const { checkPartitionSkew } = installed;

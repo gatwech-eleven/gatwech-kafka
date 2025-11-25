@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { KafkaClient } from '../../../src/client/core/kafka';
+import { BaseKafkaClient } from '../../../src/client/core/kafka';
 import { createTopicConfig } from '../../../src/config/topics/define-topics';
 import { z } from '@gatwech/utils/zod';
 
@@ -38,7 +38,7 @@ describe('Client Topics Integration', () => {
       },
     });
 
-    const client = new KafkaClient('test-client', ['localhost:9092'], {
+    const client = new BaseKafkaClient('test-client', ['localhost:9092'], {
       topics,
     });
 
@@ -49,7 +49,7 @@ describe('Client Topics Integration', () => {
   });
 
   it('should return undefined when no topics configured', () => {
-    const client = new KafkaClient('test-client', ['localhost:9092']);
+    const client = new BaseKafkaClient('test-client', ['localhost:9092']);
     expect(client.topics).toBeUndefined();
   });
 
@@ -61,7 +61,7 @@ describe('Client Topics Integration', () => {
       },
     });
 
-    const client = new KafkaClient('test-client', ['localhost:9092'], {
+    const client = new BaseKafkaClient('test-client', ['localhost:9092'], {
       topics,
     });
 

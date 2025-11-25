@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { KafkaClient } from '../../../src/client/core/kafka';
+import { BaseKafkaClient } from '../../../src/client/core/kafka';
 import { createTopicConfig } from '../../../src/config/topics/define-topics';
 import { z } from '@gatwech/utils/zod';
 
@@ -61,11 +61,11 @@ describe('KafkaClient Smoke Test', () => {
     },
   });
 
-  let client: KafkaClient;
+  let client: BaseKafkaClient;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    client = new KafkaClient('smoke-test-client', ['localhost:9092'], {
+    client = new BaseKafkaClient('smoke-test-client', ['localhost:9092'], {
       topics,
       defaultMetadata: { service: 'smoke-test', version: '1.0.0' },
       defaultHeaders: { 'x-service': 'smoke-test' },
@@ -82,7 +82,7 @@ describe('KafkaClient Smoke Test', () => {
     });
 
     it('should validate clientId', () => {
-      expect(() => new KafkaClient('', ['localhost:9092'])).toThrow('clientId is required');
+      expect(() => new BaseKafkaClient('', ['localhost:9092'])).toThrow('clientId is required');
     });
   });
 

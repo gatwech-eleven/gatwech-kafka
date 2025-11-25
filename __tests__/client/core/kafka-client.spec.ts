@@ -50,7 +50,7 @@ vi.mock("kafkajs", () => {
 });
 
 import * as kafkajs from "kafkajs";
-import { KafkaClient } from '../../../src/client/core/kafka';
+import { BaseKafkaClient } from '../../../src/client/core/kafka';
 
 describe("KafkaClient.createProducer", () => {
   beforeEach(() => {
@@ -58,7 +58,7 @@ describe("KafkaClient.createProducer", () => {
   });
 
   it("returns the underlying producer and merges overrides", () => {
-    const client = new KafkaClient("test-client", ["broker:9092"]);
+    const client = new BaseKafkaClient("test-client", ["broker:9092"]);
 
     const overrides = { allowAutoTopicCreation: false, customOpt: 42 } as any;
     const produced = client.createProducer(overrides as any);
@@ -81,7 +81,7 @@ describe("KafkaClient.createProducer", () => {
     // Act
     // By default, autoConnectAsync=false
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const _client = new KafkaClient("test-client", ["broker:9092"]);
+    const _client = new BaseKafkaClient("test-client", ["broker:9092"]);
 
     // Assert
     expect(producerMock.connect).not.toHaveBeenCalled();
@@ -94,7 +94,7 @@ describe("KafkaClient.createProducer", () => {
     // Act
     // Construct with autoConnectAsync so constructor calls connectAsync()
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const _client = new KafkaClient("test-client", ["broker:9092"], {
+    const _client = new BaseKafkaClient("test-client", ["broker:9092"], {
       autoConnectAsync: true,
     } as any);
 
@@ -108,7 +108,7 @@ describe("KafkaClient.createProducer", () => {
 
   it("uses idempotent producer by default and sends with acks=all", async () => {
     // Arrange: construct client and validate producer config
-    const client = new KafkaClient("test-client", ["broker:9092"]);
+    const client = new BaseKafkaClient("test-client", ["broker:9092"]);
     const lastOpts = (kafkajs as any).__getLastProducerOpts();
     expect(lastOpts).toBeTruthy();
     expect(lastOpts.idempotent).toBe(true);

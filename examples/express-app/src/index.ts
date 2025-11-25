@@ -189,6 +189,47 @@ app.post('/events/user', async (req: Request, res: Response) => {
   }
 });
 
+app.post('/events/order', async (req: Request, res: Response) => {
+  try {
+    const { orderId, userId, amount, status } = req.body;
+    
+    if (!orderId || !userId || amount === undefined || !status) {
+      return res.status(400).json({
+        error: 'Missing required fields: orderId, userId, amount, status',
+      });
+    }
+    
+    if (!kafka.isReady()) {
+      return res.status(503).json({
+        error: 'Kafka is not connected',
+        message: 'Service temporarily unavailable',
+      });
+    }
+    
+    await kafka.sendMessage(AppTopics.ORDER_EVENTS.name, {
+      key: orderId,
+      value: {
+        orderId,
+        userId,
+        amount,
+        status,
+        timestamp: Date.now(),
+      },
+    });
+    
+    res.status(201).json({
+      success: true,
+      message: 'Order event published successfully',
+    });
+  } catch (error) {
+    customLogger.error('Failed to publish order event', { error });
+    res.status(500).json({
+      error: 'Failed to publish event',
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
 app.get('/metrics', (req: Request, res: Response) => {
   const metrics = kafka.getMetrics();
   
@@ -218,9 +259,20 @@ async function startServer() {
     /** Initialize Kafka in the background
      * This ensures the app remains responsive even if Kafka is down/retrying
      */
-    initKafka().catch((error) => {
-      customLogger.error('Failed to initialize Kafka in background', { error });
-    });
+    initKafka()
+      .then(async (success) => {
+        if (success) {
+          // Import consumers dynamically to avoid circular dependencies
+          const { initializeConsumers } = await import('./consumers');
+          await initializeConsumers();
+          customLogger.info('Consumers initialized successfully');
+        } else {
+          customLogger.warn('Kafka initialization failed, consumers will not start');
+        }
+      })
+      .catch((error) => {
+        customLogger.error('Failed to initialize Kafka or consumers', { error });
+      });
   });
 }
 
@@ -228,6 +280,15 @@ async function gracefulShutdown(signal: string) {
   customLogger.info(`${signal} received, starting graceful shutdown...`);
   
   try {
+    // Shutdown consumers first
+    try {
+      const { shutdownConsumers } = await import('./consumers');
+      await shutdownConsumers();
+    } catch (error) {
+      customLogger.warn('Failed to shutdown consumers (they may not be initialized)', { error });
+    }
+    
+    // Then shutdown Kafka client
     await shutdownKafka();
     process.exit(0);
   } catch (error) {

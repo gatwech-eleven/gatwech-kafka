@@ -6,7 +6,7 @@ import {
   asConsumerGroupId,
 } from "../../types/utility-types";
 import { createDLQPublisher } from "./dlq.factory";
-import type { KafkaClient } from "../core/kafka";
+import type { BaseKafkaClient } from "../core/kafka";
 import type { ZodType, z } from "@gatwech/utils/zod";
 import type { TopicConfig } from "../../config/topics/topic-config-schema";
 
@@ -17,8 +17,8 @@ function sleep(ms: number) {
 /**
  * Type guard to check if a topic has a schema defined.
  */
-function hasSchema(topic: TopicConfig): topic is TopicConfig & { schema: ZodType } {
-  return topic.schema !== undefined && topic.schema !== null;
+function hasSchema(topic: AnyTopic): topic is TopicConfig & { schema: ZodType } {
+  return !!topic.schema;
 }
 
 const MAX_RETRY_DELAY_MS = 30_000;
@@ -126,8 +126,12 @@ async function handleDLQPublish(
   }
 }
 
+import type { AnyTopic, RawTopic, SchemaConsumerPayload, RawConsumerPayload, ConsumerDlqOptions } from "../../types/consumer";
+
+// ... existing imports ...
+
 export interface ConsumeHandlerContext {
-  topic: TopicConfig;
+  topic: AnyTopic;
   groupId: string;
 }
 
@@ -136,25 +140,27 @@ export interface ConsumeHandlerContext {
  */
 // Overload for topics with a Zod schema – payload inferred from schema
 export async function consumeWithRetryAndDLQ<TSchema extends ZodType>(
-  client: KafkaClient,
+  client: BaseKafkaClient,
   groupId: string,
   topic: TopicConfig & { schema: TSchema },
-  handler: (payload: z.infer<TSchema>, ctx: ConsumeHandlerContext) => Promise<void>,
-  opts?: DLQOptions
+  handler: (payload: SchemaConsumerPayload<TSchema>, ctx: ConsumeHandlerContext) => Promise<void>,
+  opts?: ConsumerDlqOptions
 ): Promise<Consumer>;
+
 // Overload for topics without a schema – raw payload is passed
-export async function consumeWithRetryAndDLQ(
-  client: KafkaClient,
+export async function consumeWithRetryAndDLQ<TRawTopic extends RawTopic>(
+  client: BaseKafkaClient,
   groupId: string,
-  topic: TopicConfig,
-  handler: (payload: EachMessagePayload, ctx: ConsumeHandlerContext) => Promise<void>,
-  opts?: DLQOptions
+  topic: TRawTopic,
+  handler: (payload: RawConsumerPayload, ctx: ConsumeHandlerContext) => Promise<void>,
+  opts?: ConsumerDlqOptions
 ): Promise<Consumer>;
+
 // Implementation
 export async function consumeWithRetryAndDLQ(
-  client: KafkaClient,
+  client: BaseKafkaClient,
   groupId: string,
-  topic: TopicConfig,
+  topic: AnyTopic,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   handler: (payload: any, ctx: ConsumeHandlerContext) => Promise<void>,
   /**
@@ -162,7 +168,7 @@ export async function consumeWithRetryAndDLQ(
    * - Typed payload (z.infer<TSchema>) when schema is present
    * - Raw EachMessagePayload when schema is absent
    */
-  opts: DLQOptions = {}
+  opts: ConsumerDlqOptions = {}
 ) {
   const dlqEnabled = opts.dlqEnabled ?? true;
   const maxRetries = Math.max(1, opts.maxRetries ?? 3);

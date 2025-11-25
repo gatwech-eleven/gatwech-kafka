@@ -1,4 +1,4 @@
-import { KafkaClient } from '../../src/client/core/kafka.ts';
+import { BaseKafkaClient } from '../../src/client/core/kafka.ts';
 import { createServicePublisherFactory } from '../../src/client/producers/service-publisher-factory.ts';
 import { initializeKafkaTopics } from "../../src/config/initialize.topics.ts";
 import { UserRegisteredSchema } from "../../src/schemas/user-schemas.ts";
@@ -16,13 +16,13 @@ async function main() {
   console.log(`Integration E2E: bootstrap=${bootstrap}, topic=${topic}`);
 
   // Two logical services using separate clients
-  const authClient = new KafkaClient("auth-client", [bootstrap], {
+  const authClient = new BaseKafkaClient("auth-client", [bootstrap], {
     metricsEnabled: false,
     connectWithRetries: true,
     maxConnectAttemptTimeMs: 180_000,
     connectPollIntervalMs: 1000,
   });
-  const notificationClient = new KafkaClient(
+  const notificationClient = new BaseKafkaClient(
     "notification-client",
     [bootstrap],
     { metricsEnabled: false, connectWithRetries: true }

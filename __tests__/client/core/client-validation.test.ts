@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { KafkaClient } from '../../../src/client/core/kafka';
+import { BaseKafkaClient } from '../../../src/client/core/kafka';
 
 // Mock KafkaJS
 vi.mock('kafkajs', async () => {
@@ -25,7 +25,7 @@ vi.mock('kafkajs', async () => {
 describe('KafkaClient Validation', () => {
   it('should throw an error if clientId is empty', () => {
     expect(() => {
-      new KafkaClient('', ['localhost:9092']);
+      new BaseKafkaClient('', ['localhost:9092']);
     }).toThrow('clientId is required');
   });
 });

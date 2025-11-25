@@ -3,7 +3,7 @@ import { z } from "@gatwech/utils/zod";
 import { consumeWithRetryAndDLQ } from '../../../src/client/consumers/consume-with-dlq';
 import type { TopicConfig } from "../../../src/config/topics/topic-config-schema";
 import { createDLQPublisher } from "../../../src/client/consumers/dlq.factory";
-import type { KafkaClient } from "../../../src/client/core/kafka";
+import type { BaseKafkaClient } from "../../../src/client/core/kafka";
 
 const RETRY_BACKOFF_MS = 1000;
 
@@ -28,7 +28,7 @@ const mockClient = {
     return consumer;
   },
   getProducer: () => ({ send: async () => {} }),
-} as unknown as KafkaClient;
+} as unknown as BaseKafkaClient;
 
 // Define a topic with Zod schema
 const TestSchema = z.object({ id: z.string() });

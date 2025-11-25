@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { partitionAnalysisExtension } from '../../src/extensions/partition-analysis';
-import { KafkaClient } from '../../src/client/core/kafka';
+import { BaseKafkaClient } from '../../src/client/core/kafka';
 
 describe('Partition Analysis Validation', () => {
-    const mockClient = {} as KafkaClient;
+    const mockClient = {} as BaseKafkaClient;
     const extension = partitionAnalysisExtension();
     const { checkPartitionSkew } = extension.setup(mockClient);
 

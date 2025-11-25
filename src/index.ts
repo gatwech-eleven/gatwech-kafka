@@ -2,15 +2,15 @@
 // Core Client Exports
 // ============================================================================
 
-export { KafkaClient } from "./client/core/kafka";
+// KafkaClient type is exported from create-client
 export { createKafkaClient } from "./client/core/create-client";
 export { connectWithRetry } from "./client/core/connect-with-retry";
 export { DEFAULT_OPTIONS } from "./client/core/default-options";
 
 export type {
+  KafkaClient,
   KafkaClientConfig,
   CreateKafkaClientConfig,
-  ModularKafkaClient,
   KafkaExtension,
   GatwechKafkaExtensions,
 } from "./client/core/create-client";
@@ -116,16 +116,11 @@ export type {
 // ============================================================================
 
 export { partitionAnalysisExtension } from "./extensions/partition-analysis";
-export { consumerExtension } from "./extensions/consumer-extension";
 
 export type {
   PartitionSkewResult,
   ThroughputMetrics,
 } from "./extensions/partition-analysis";
-
-export type {
-  ConsumerExtensionAPI,
-} from "./extensions/consumer-extension";
 
 // ============================================================================
 // Type Exports
@@ -149,6 +144,14 @@ export type {
 export {
   JsonSerializer,
 } from "./types/kafka";
+
+export type {
+  SchemaConsumerPayload,
+  RawConsumerPayload,
+  ConsumerDlqOptions,
+  RawTopic,
+  AnyTopic,
+} from "./types/consumer";
 
 export type {
   DeepReadonly,

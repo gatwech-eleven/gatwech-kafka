@@ -1,9 +1,7 @@
 import { nanoid } from "nanoid";
 import { z } from "@gatwech/utils/zod";
-import { createKafkaClient } from '../../src/client/core/create-client';
-import { consumeWithRetryAndDLQ } from '../../src/client/consumers/consume-with-dlq';
+import { createKafkaClient, initializeKafkaTopics } from '../../src/index';
 import type { TopicConfig } from "../../src/config/topics/topic-config-schema";
-import { initializeKafkaTopics } from "../../src/config/initialize.topics";
 
 // Define schema
 const UserCreatedSchema = z.object({
@@ -55,11 +53,10 @@ async function main() {
   const consumedPromise = new Promise<void>((resolve, reject) => {
     const timeout = setTimeout(() => reject(new Error("Timeout waiting for message")), 30000);
 
-    consumeWithRetryAndDLQ(
-      kafka,
+    kafka.consume(
       groupId,
       userCreatedTopic,
-      async (payload) => {
+      async (payload: { userId: string; email: string }) => {
         console.log("📥 Received payload:", payload);
         try {
           if (payload.userId === "user-123" && payload.email === "test@example.com") {
