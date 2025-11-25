@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.0.8-beta.0] - 2025-11-25
+## [0.0.8-beta.1] - 2025-11-25
 
 ### Added
 - **Configuration**: Added direct support for `ssl`, `sasl`, `connectionTimeout`, `authenticationTimeout`, `reauthenticationThreshold`, and `enforceRequestTimeout` in `KafkaClientOptions`.

@@ -1,11 +1,11 @@
 {
   "name": "@gatwech/kafka",
-  "version": "0.0.8-beta.0",
+  "version": "0.0.8-beta.1",
   "description": "Payvo Node.js Kafka Client for Microservices Messaging",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
-  "types": "./dist/index.d.ts",
+  "types": "./dist/index.d.mts",
   "scripts": {
     "build": "tsdown",
     "lint": "biome lint",
@@ -56,22 +56,22 @@
   },
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
+      "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs",
       "require": "./dist/index.cjs"
     },
     "./topics": {
-      "types": "./dist/config/topics/index.d.ts",
+      "types": "./dist/config/topics/index.d.mts",
       "import": "./dist/config/topics/index.mjs",
       "require": "./dist/config/topics/index.cjs"
     },
     "./client": {
-      "types": "./dist/client/index.d.ts",
+      "types": "./dist/client/index.d.mts",
       "import": "./dist/client/index.mjs",
       "require": "./dist/client/index.cjs"
     },
     "./types": {
-      "types": "./dist/types/index.d.ts",
+      "types": "./dist/types/index.d.mts",
       "import": "./dist/types/index.mjs",
       "require": "./dist/types/index.cjs"
     }
@@ -83,16 +83,16 @@
   "typesVersions": {
     "*": {
       "client": [
-        "dist/client/index.d.ts"
+        "dist/client/index.d.mts"
       ],
       "topics": [
-        "dist/config/topics/index.d.ts"
+        "dist/config/topics/index.d.mts"
       ],
       "types": [
-        "dist/types/index.d.ts"
+        "dist/types/index.d.mts"
       ],
       "*": [
-        "dist/index.d.ts"
+        "dist/index.d.mts"
       ]
     }
   },

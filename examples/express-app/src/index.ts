@@ -181,7 +181,7 @@ app.post('/events/user', async (req: Request, res: Response) => {
       message: 'Event published successfully',
     });
   } catch (error) {
-    customLogger.error('Failed to publish user event', error);
+    customLogger.error('Failed to publish user event', { error });
     res.status(500).json({
       error: 'Failed to publish event',
       message: error instanceof Error ? error.message : String(error),
@@ -219,7 +219,7 @@ async function startServer() {
      * This ensures the app remains responsive even if Kafka is down/retrying
      */
     initKafka().catch((error) => {
-      customLogger.error('Failed to initialize Kafka in background', error);
+      customLogger.error('Failed to initialize Kafka in background', { error });
     });
   });
 }
@@ -231,7 +231,7 @@ async function gracefulShutdown(signal: string) {
     await shutdownKafka();
     process.exit(0);
   } catch (error) {
-    customLogger.error('Error during shutdown', error);
+    customLogger.error('Error during shutdown', { error });
     process.exit(1);
   }
 }
@@ -240,6 +240,6 @@ process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 startServer().catch((error) => {
-  customLogger.error('Failed to start server', error);
+  customLogger.error('Failed to start server', { error });
   process.exit(1);
 });
