@@ -25,7 +25,7 @@ export {
 } from "./config/topics/topic-builder";
 export {
   initializeKafkaTopics,
-} from "./config/ensure-topics";
+} from "./config/initialize.topics";
 export type {
   TopicConfig,
   TopicConfigInput,

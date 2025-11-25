@@ -1,6 +1,6 @@
 import type { Admin } from "kafkajs";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { initializeKafkaTopics } from "../../src/config/ensure-topics";
+import { initializeKafkaTopics } from "../../src/config/initialize.topics";
 import { z } from "@gatwech/utils/zod";
 
 describe("initializeKafkaTopics - topics provisioning", () => {

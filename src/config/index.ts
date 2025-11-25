@@ -1,2 +1,2 @@
 export * from "./topics";
-export * from "./ensure-topics";
+export * from "./initialize.topics";

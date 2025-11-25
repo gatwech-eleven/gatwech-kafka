@@ -65,6 +65,8 @@ export const kafka = createKafkaClient({
   },
 } satisfies KafkaClientConfig);
 
+
+
 export async function initKafka() {
   try {
     customLogger.info('Initializing Kafka connection...');
@@ -93,3 +95,5 @@ export async function shutdownKafka() {
     throw error;
   }
 }
+
+export const kafkaClient = kafka;

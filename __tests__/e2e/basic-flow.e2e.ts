@@ -5,7 +5,7 @@ import { z } from "@gatwech/utils/zod";
 import assert from "node:assert";
 import crypto from "node:crypto";
 import clientProm from "prom-client";
-import { initializeKafkaTopics } from "../../src/config/ensure-topics.ts";
+import { initializeKafkaTopics } from "../../src/config/initialize.topics.ts";
 
 const e2eSchema = z.object({
   hello: z.string(),

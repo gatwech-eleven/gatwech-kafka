@@ -10,10 +10,13 @@ import type {
 import type { KafkaClientOptions, KafkaMetrics, TKafkaMessage, ResilienceOptions } from "../../types";
 import { KafkaError } from "./errors";
 import { DEFAULT_OPTIONS } from "./default-options";
+import { connectWithRetry } from "./connect-with-retry";
 import { createCircuitBreaker, type CircuitBreaker } from "./circuit-breaker";
 import { createReconnectionMonitor, type ReconnectionMonitor } from "./reconnection-monitor";
-import { initializeKafkaTopics } from "../../config/ensure-topics";
-import { connectWithRetry } from "./connect-with-retry";
+import { initializeKafkaTopics } from "../../config/initialize.topics";
+import type { TopicConfig, ValidatedTopicConfig } from "../../config/topics/topic-config-schema";
+
+type AnyTopicConfig = TopicConfig | ValidatedTopicConfig;
 
 const MAX_RETRY_DELAY_MS = 30000;
 
@@ -72,6 +75,11 @@ export class KafkaClient {
       authenticationTimeout: this.options.authenticationTimeout,
       reauthenticationThreshold: this.options.reauthenticationThreshold,
       enforceRequestTimeout: this.options.enforceRequestTimeout,
+      retry: {
+        maxRetryTime:
+          this.options.retryDelayMs * this.options.maxConnectionRetries,
+        retries: this.options.maxConnectionRetries,
+      },
     });
 
     this.producer = this.kafka.producer({
@@ -284,7 +292,11 @@ export class KafkaClient {
 
       this.consumers.clear();
 
-      await this.producer.disconnect();
+      // Only disconnect producer if it was actually connected
+      if (this.isConnected) {
+        await this.producer.disconnect();
+      }
+      
       this.isConnected = false;
       this.lastDisconnectedAt = new Date();
 
@@ -466,12 +478,15 @@ export class KafkaClient {
   }
 
   public getHealthStatus() {
+
     const status = this.getConnectionStatus();
+
     const uptime = status.lastConnectedAt
       ? Date.now() - status.lastConnectedAt.getTime()
       : null;
 
     let healthStatus: "healthy" | "degraded" | "unhealthy";
+    
     if (status.connected) {
       healthStatus = "healthy";
     } else if (status.circuitBreakerOpen) {
@@ -517,7 +532,7 @@ export class KafkaClient {
     const admin = this.getAdmin();
 
     await initializeKafkaTopics(admin, {
-      topics: this._topics as Record<string, import("../../config/topics/topic-config-schema").TopicConfig | import("../../config/topics/topic-config-schema").ValidatedTopicConfig>,
+      topics: this._topics as Record<string, AnyTopicConfig>,
       partitions: options.partitions,
       replicationFactor: options.replicationFactor,
       waitForLeadersMs: options.waitForLeadersMs,

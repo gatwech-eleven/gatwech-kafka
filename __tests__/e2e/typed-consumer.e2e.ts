@@ -3,7 +3,7 @@ import { z } from "@gatwech/utils/zod";
 import { createKafkaClient } from '../../src/client/core/create-client';
 import { consumeWithRetryAndDLQ } from '../../src/client/consumers/consume-with-dlq';
 import type { TopicConfig } from "../../src/config/topics/topic-config-schema";
-import { initializeKafkaTopics } from "../../src/config/ensure-topics";
+import { initializeKafkaTopics } from "../../src/config/initialize.topics";
 
 // Define schema
 const UserCreatedSchema = z.object({
