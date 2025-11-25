@@ -1,15 +1,15 @@
 import type { EachMessagePayload, Consumer, IHeaders } from "kafkajs";
 import { logger } from "../../utils/logger";
-import type { DLQOptions, TKafkaMessage } from "../../types";
+import type { DLQOptions } from "../../types";
 import {
-  type DeepReadonly,
   asTopicName,
   asConsumerGroupId,
 } from "../../types/utility-types";
-import type { TopicConfig } from "../../config/topics/topic-config-schema";
 import { createDLQPublisher } from "./dlq.factory";
 import type { KafkaClient } from "../core/kafka";
 import type { ZodType, z } from "@gatwech/utils/zod";
+import type { TopicConfig } from "../../config/topics/topic-config-schema";
+
 function sleep(ms: number) {
   return new Promise((res) => setTimeout(res, ms));
 }
@@ -157,6 +157,11 @@ export async function consumeWithRetryAndDLQ(
   topic: TopicConfig,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   handler: (payload: any, ctx: ConsumeHandlerContext) => Promise<void>,
+  /**
+   * Using 'any' for implementation to support both overload signatures:
+   * - Typed payload (z.infer<TSchema>) when schema is present
+   * - Raw EachMessagePayload when schema is absent
+   */
   opts: DLQOptions = {}
 ) {
   const dlqEnabled = opts.dlqEnabled ?? true;

@@ -89,7 +89,9 @@ export const consumerExtension = (): KafkaExtension<ConsumerExtensionAPI, "consu
       consume: (
         groupId: string,
         topic: TopicConfig,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         handler: any,
+        // Using 'any' to match the overloaded function signatures defined in the interface
         opts?: DLQOptions
       ): Promise<Consumer> => {
         return consumeWithRetryAndDLQ(client, groupId, topic, handler, opts);

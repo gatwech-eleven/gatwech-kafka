@@ -35,10 +35,12 @@ export async function connectWithRetry(
         logger.info("connectWithRetry: connection succeeded", { attempt });
       }
       return;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
-      // Notify caller of retry attempt (for metrics tracking)
-      // Call this for every failed attempt after the first one
-      // attempt=1 is the first try, attempt=2+ are retries
+      /**
+       * Using 'any' here because errors from KafkaJS can be of various types
+       * and we need to safely access err.code and err.message properties
+       */
       if (opts.onRetry && attempt >= 2) {
         opts.onRetry(attempt);
       }
