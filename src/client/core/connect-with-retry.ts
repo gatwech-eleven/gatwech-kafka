@@ -6,6 +6,8 @@ export interface ConnectRetryOptions {
   initialDelayMs?: number;
   maxDelayMs?: number;
   factor?: number;
+  /** Optional callback invoked on each retry attempt (not on first attempt) */
+  onRetry?: (attempt: number) => void;
 }
 
 /**
@@ -34,6 +36,13 @@ export async function connectWithRetry(
       }
       return;
     } catch (err: any) {
+      // Notify caller of retry attempt (for metrics tracking)
+      // Call this for every failed attempt after the first one
+      // attempt=1 is the first try, attempt=2+ are retries
+      if (opts.onRetry && attempt >= 2) {
+        opts.onRetry(attempt);
+      }
+
       const isDnsError =
         err?.code === "EAI_AGAIN" ||
         (typeof err?.message === "string" && err.message.includes("EAI_AGAIN"));

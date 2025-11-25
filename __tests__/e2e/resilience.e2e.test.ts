@@ -198,6 +198,9 @@ describe('Resilience Integration Tests', () => {
 
   describe('Metrics Integration', () => {
     it('should track connection retries in metrics', async () => {
+      // Use fake timers to fast-forward through retry delays
+      vi.useFakeTimers();
+      
       const kafka = createKafkaClient({
         config: {
           clientId: 'test-metrics',
@@ -224,11 +227,25 @@ describe('Resilience Integration Tests', () => {
       const initialRetries = metrics1.connectionRetries;
 
       // Attempt connection (will fail and retry)
-      await expect(kafka.connect()).rejects.toThrow();
+      const connectPromise = kafka.connect().catch(() => {
+        /**
+         * Expected to fail - suppress unhandled rejection warning
+         */
+      });
+      
+      // Fast-forward through all retry delays (100ms + 200ms = 300ms, use 500ms to be safe)
+      await vi.advanceTimersByTimeAsync(500);
+      
+      // Verify the connection failed
+      await connectPromise;
+      expect(kafka.getConnectionStatus().connected).toBe(false);
 
       const metrics2 = kafka.getMetrics();
       // Should have retried at least once (maxAttempts - 1)
       expect(metrics2.connectionRetries).toBeGreaterThanOrEqual(initialRetries + 2);
+      
+      // Restore real timers
+      vi.useRealTimers();
     });
   });
 });

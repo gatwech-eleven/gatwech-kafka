@@ -18,7 +18,7 @@ const TestTopics = createTopicConfig({
 });
 
 async function run() {
-  console.log("🧪 Starting Modular Client E2E Test...");
+  console.log("Starting Modular Client E2E Test...");
 
   // Initialize client with extensions
   const client = createKafkaClient({
@@ -39,18 +39,18 @@ async function run() {
     // 1. Connect
     console.log("Connecting...");
     await client.connect();
-    console.log("✅ Connected");
+    console.log("Connected");
 
     // 2. Health Check
     console.log("Checking health...");
     const isHealthy = await client.healthCheck();
     if (!isHealthy) throw new Error("Health check failed");
-    console.log("✅ Health check passed");
+    console.log("Health check passed");
 
     // 3. Provision Topics
     console.log("Provisioning topics...");
     await client.provisionTopics();
-    console.log("✅ Topics provisioned");
+    console.log("Topics provisioned");
 
     // 4. Produce Message
     const topic = TestTopics.MODULAR_TEST.name;
@@ -61,7 +61,7 @@ async function run() {
       key: message.id,
       value: message,
     });
-    console.log("✅ Message produced");
+    console.log("Message produced");
 
     // 5. Consume Message (using base client consumer)
     console.log("Consuming message...");
@@ -82,7 +82,7 @@ async function run() {
     });
 
     if (received.id === message.id) {
-      console.log("✅ Message consumed and verified");
+      console.log("Message consumed and verified");
     } else {
       throw new Error("Message mismatch");
     }
@@ -90,7 +90,7 @@ async function run() {
     await consumer.disconnect();
 
   } catch (error) {
-    console.error("❌ Test failed:", error);
+    console.error("Test failed:", error);
     process.exit(1);
   } finally {
     await client.disconnect();

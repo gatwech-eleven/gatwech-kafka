@@ -25,7 +25,7 @@ async function main() {
   const topic = process.env.SERVICE_E2E_TOPIC || `service-e2e-${Date.now()}`;
   const serviceSource = process.env.SERVICE_SOURCE || "service-e2e-source";
   console.log(
-    `🧪 Service Publisher E2E: bootstrap=${bootstrap}, topic=${topic}`
+    `Service Publisher E2E: bootstrap=${bootstrap}, topic=${topic}`
   );
 
   // Allow overriding connect timeout via env var for CI workflows.
@@ -61,9 +61,9 @@ async function main() {
         } as any,
       },
     });
-    console.log(`🪶 Topic ensured: ${topic}`);
+    console.log(`Topic ensured: ${topic}`);
   } catch (err: any) {
-    console.warn("⚠️ Topic creation skipped:", err?.message || err);
+    console.warn("Topic creation skipped:", err?.message || err);
   }
 
   // Build service-level publisher factory
@@ -103,7 +103,7 @@ async function main() {
           try {
             const valueStr = message.value?.toString();
             const parsed = JSON.parse(valueStr || "{}");
-            console.log("✅ Consumed:", parsed);
+            console.log("Consumed:", parsed);
 
             // Validate headers
             const headers = message.headers || {};
@@ -159,10 +159,10 @@ async function main() {
   } as any;
 
   await publishUserEvent(toPublish);
-  console.log("🚀 Published:", toPublish);
+  console.log("Published:", toPublish);
 
   const latencyMs = await roundtripPromise;
-  console.log(`🎉 Service Publisher E2E Success: roundtrip ${latencyMs}ms`);
+  console.log(`Service Publisher E2E Success: roundtrip ${latencyMs}ms`);
 
   // Cleanup
   await consumer.disconnect();
@@ -170,6 +170,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error("❌ Service Publisher E2E Failed:", err);
+  console.error("Service Publisher E2E Failed:", err);
   process.exit(1);
 });

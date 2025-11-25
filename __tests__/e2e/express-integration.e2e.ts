@@ -18,7 +18,7 @@ async function main() {
   const topic = process.env.EXPRESS_INTEGRATION_TOPIC || "user.registered";
   const authSource = process.env.AUTH_SOURCE || "auth-express-e2e";
 
-  console.log(`🧪 Express Integration: bootstrap=${bootstrap}, topic=${topic}`);
+  console.log(`Express Integration: bootstrap=${bootstrap}, topic=${topic}`);
 
   // Define topics using createTopicConfig
   const TestTopics = createTopicConfig({
@@ -166,7 +166,7 @@ async function main() {
   const notificationRequest = supertest(notificationApp);
 
   const email = `express-${nanoid().slice(0, 4)}@example.com`;
-  console.log("🚀 POST /signup", { email });
+  console.log("POST /signup", { email });
   const resp = await authRequest
     .post("/signup")
     .send({ email, name: "Express User" });
@@ -179,7 +179,7 @@ async function main() {
   while (Date.now() - start < timeoutMs) {
     const got = await notificationRequest.get("/events/last");
     if (got.body?.lastProcessed?.email === email) {
-      console.log("🎉 Express Integration Success:", got.body.lastProcessed);
+      console.log("Express Integration Success:", got.body.lastProcessed);
       break;
     }
     await sleep(500);
@@ -190,7 +190,7 @@ async function main() {
 
   // Now send a message that should be DLQ'd
   const dlqEmail = `express-dlq-${nanoid().slice(0, 4)}@example.com`;
-  console.log("🚀 POST /signup (DLQ)", { email: dlqEmail });
+  console.log("POST /signup (DLQ)", { email: dlqEmail });
   const resp2 = await authRequest
     .post("/signup")
     .send({ email: dlqEmail, name: "FAIL" });
@@ -217,6 +217,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error("❌ Express Integration Failed:", err);
+  console.error("Express Integration Failed:", err);
   process.exit(1);
 });

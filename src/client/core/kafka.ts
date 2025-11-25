@@ -93,7 +93,10 @@ export class KafkaClient {
       },
     });
 
-    // Initialize resilience components if enabled
+    /**
+     * Initialize resilience components (enabled by default)
+     * Set resilience.enabled = false to disable
+     */
     if (this.resilienceConfig?.enabled !== false) {
       if (this.resilienceConfig?.circuitBreaker?.enabled !== false) {
         this.circuitBreaker = createCircuitBreaker({
@@ -113,7 +116,9 @@ export class KafkaClient {
 
     this.setupEventListeners();
 
-    // Optionally kick off a non-blocking connection on startup
+    /**
+     * Optionally kick off a non-blocking connection on startup
+     */
     if (this.options.autoConnectAsync) {
       this.connectAsync();
     }
@@ -172,19 +177,25 @@ export class KafkaClient {
   public async connect(): Promise<void> {
     if (this.isConnected) return;
 
-    // If resilience is disabled, use original logic
+    /**
+     * If resilience is explicitly disabled, use original logic
+     */
     if (this.resilienceConfig?.enabled === false) {
       return this.connectLegacy();
     }
 
-    // Check circuit breaker
+    /**
+     * Check circuit breaker
+     */
     if (this.circuitBreaker?.isCircuitOpen()) {
       throw new Error(
         "Circuit breaker is open - too many failed connection attempts. Call resetCircuitBreaker() to retry."
       );
     }
 
-    // Use connectWithRetry for retry logic
+    /**
+     * Use connectWithRetry for retry logic
+     */
     try {
       await connectWithRetry(
         async () => {
@@ -201,6 +212,14 @@ export class KafkaClient {
           initialDelayMs: this.resilienceConfig?.retry?.initialDelayMs ?? 1000,
           maxDelayMs: this.resilienceConfig?.retry?.maxDelayMs ?? 30000,
           factor: this.resilienceConfig?.retry?.backoffMultiplier ?? 2,
+          onRetry: (attempt) => {
+            /**
+             * Track retry attempts in metrics
+             */
+            if (this.options.metricsEnabled) {
+              this.metrics.connectionRetries++;
+            }
+          },
         }
       );
 
@@ -216,7 +235,9 @@ export class KafkaClient {
           () => this.isConnected,
           async () => {
             try {
-              // We call the internal connect logic directly to avoid recursion/circuit breaker checks during background reconnect
+              /**
+               * We call the internal connect logic directly to avoid recursion/circuit breaker checks during background reconnect
+               */
               await this.producer.connect();
               this.isConnected = true;
               this.lastConnectedAt = new Date();

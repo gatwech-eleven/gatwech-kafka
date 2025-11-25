@@ -39,10 +39,14 @@ async function waitForBroker(client: KafkaClient, timeoutMs = 30000) {
 async function main() {
   const bootstrap = process.env.KAFKA_BOOTSTRAP || "localhost:9092";
   const topic = process.env.E2E_TOPIC || `e2e-test-${Date.now()}`;
-  console.log(`🧪 E2E Kafka test: bootstrap=${bootstrap}, topic=${topic}`);
+  console.log(`E2E Kafka test: bootstrap=${bootstrap}, topic=${topic}`);
 
   const client = new KafkaClient("e2e-client", [bootstrap], {
     metricsEnabled: false,
+    maxConnectionRetries: 1, // Fail fast for E2E
+    resilience: {
+      enabled: false, /* Disable for E2E - fail fast if Kafka unavailable */
+    },
   });
   await client.connect();
   await waitForBroker(client, 30000);
@@ -64,9 +68,9 @@ async function main() {
         } as any,
       },
     });
-    console.log(`🪶 Topic ensured: ${topic}`);
+    console.log(`Topic ensured: ${topic}`);
   } catch (err: any) {
-    console.warn("⚠️ Topic creation skipped:", err?.message || err);
+    console.warn("Topic creation skipped:", err?.message || err);
   }
 
   // create publisher using producer instance
@@ -90,7 +94,7 @@ async function main() {
 
   // Start consumer
   const groupId = `e2e-consumer-${nanoid().slice(0, 8)}`;
-  const consumer = await client.createConsumer({ groupId });
+  const consumer = client.createConsumer({ groupId });
   await consumer.connect();
   await consumer.subscribe({ topic, fromBeginning: true });
 
@@ -113,7 +117,7 @@ async function main() {
           try {
             const value = message.value?.toString();
             const parsed = JSON.parse(value || "{}");
-            console.log("✅ Consumed:", parsed);
+            console.log("Consumed:", parsed);
 
             // validate schema hash and metadata
             const headers = message.headers || {};
@@ -151,11 +155,11 @@ async function main() {
   } as any;
 
   await publisher(payloadWithMeta as any);
-  console.log("🚀 Produced:", payloadWithMeta);
+  console.log("Produced:", payloadWithMeta);
 
   const latency = await messagePromise;
   hist.observe(latency);
-  console.log(`🎉 E2E Success: roundtrip in ${latency}ms`);
+  console.log(`E2E Success: roundtrip in ${latency}ms`);
 
   // print prometheus metrics for quick inspection
   const metrics = await register.metrics();
@@ -167,6 +171,6 @@ async function main() {
 }
 
 main().catch((e) => {
-  console.error("❌ E2E Failed:", e);
+  console.error("E2E Failed:", e);
   process.exit(1);
 });

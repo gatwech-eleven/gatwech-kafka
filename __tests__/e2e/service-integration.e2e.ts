@@ -13,7 +13,7 @@ async function main() {
     process.env.NOTIFICATION_GROUP ||
     `notification-svc-${nanoid().slice(0, 6)}`;
 
-  console.log(`🧪 Integration E2E: bootstrap=${bootstrap}, topic=${topic}`);
+  console.log(`Integration E2E: bootstrap=${bootstrap}, topic=${topic}`);
 
   // Two logical services using separate clients
   const authClient = new KafkaClient("auth-client", [bootstrap], {
@@ -46,9 +46,9 @@ async function main() {
         } as any,
       },
     });
-    console.log(`🪶 Topic ensured: ${topic}`);
+    console.log(`Topic ensured: ${topic}`);
   } catch (err: any) {
-    console.warn("⚠️ Topic ensure skipped:", err?.message || err);
+    console.warn("Topic ensure skipped:", err?.message || err);
   }
 
   // Notification service subscribes and processes events
@@ -100,11 +100,11 @@ async function main() {
     name: "Test User",
   } as any; // service publisher factory will enrich timestamp/metadata
 
-  console.log("🚀 Publishing user.registered:", { email: event.email });
+  console.log("Publishing user.registered:", { email: event.email });
   await publishUserRegistered(event);
 
   await received;
-  console.log("🎉 Integration Success: notification processed", processed[0]);
+  console.log("Integration Success: notification processed", processed[0]);
 
   await consumer.disconnect();
   await authClient.disconnect();
@@ -112,6 +112,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error("❌ Integration E2E Failed:", err);
+  console.error("Integration E2E Failed:", err);
   process.exit(1);
 });

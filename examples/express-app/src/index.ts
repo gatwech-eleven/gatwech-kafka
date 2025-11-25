@@ -205,14 +205,22 @@ app.get('/metrics', (req: Request, res: Response) => {
 const PORT = process.env.PORT || 3000;
 
 async function startServer() {
-  await initKafka();
-  
+  /** Start HTTP server immediately to ensure responsiveness
+   * This ensures the app remains responsive even if Kafka is down/retrying
+   */
   app.listen(PORT, () => {
     customLogger.info(`Express server running on port ${PORT}`);
     customLogger.info(`Health check: http://localhost:${PORT}/health?detailed=true`);
     customLogger.info(`Metrics: http://localhost:${PORT}/metrics`);
     customLogger.info(`Kafka status: http://localhost:${PORT}/kafka/status`);
     customLogger.info(`Resilience demo: http://localhost:${PORT}/kafka/resilience`);
+    
+    /** Initialize Kafka in the background
+     * This ensures the app remains responsive even if Kafka is down/retrying
+     */
+    initKafka().catch((error) => {
+      customLogger.error('Failed to initialize Kafka in background', error);
+    });
   });
 }
 

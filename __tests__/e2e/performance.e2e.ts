@@ -34,10 +34,10 @@ async function ensureTopic(client: KafkaClient, topic: string, partitions = 3) {
     });
     await admin.disconnect();
     // eslint-disable-next-line no-console
-    console.log(`🪶 Topic ensured: ${topic}`);
+    console.log(`Topic ensured: ${topic}`);
   } catch (e: any) {
     // eslint-disable-next-line no-console
-    console.warn(`⚠️ Topic creation skipped: ${e?.message || e}`);
+    console.warn(`Topic creation skipped: ${e?.message || e}`);
   }
 }
 
@@ -132,6 +132,6 @@ async function runBenchmark() {
 }
 
 runBenchmark().catch((e) => {
-  console.error("❌ Benchmark failed", e);
+  console.error("Benchmark failed", e);
   process.exit(1);
 });

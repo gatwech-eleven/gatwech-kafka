@@ -23,7 +23,7 @@ async function main() {
   const bootstrap = process.env.KAFKA_BOOTSTRAP || "localhost:9092";
   const groupId = `e2e-group-${nanoid().slice(0, 6)}`;
 
-  console.log(`🚀 Starting Typed Consumer E2E Test`);
+  console.log(`Starting Typed Consumer E2E Test`);
   console.log(`   Topic: ${userCreatedTopic.name}`);
   console.log(`   Group: ${groupId}`);
 
@@ -38,7 +38,7 @@ async function main() {
   });
 
   await kafka.connect();
-  console.log("✅ Kafka connected");
+  console.log("Kafka connected");
 
   // Ensure topic exists
   const admin = kafka.getAdmin();
@@ -49,7 +49,7 @@ async function main() {
       userCreated: userCreatedTopic,
     },
   });
-  console.log("✅ Topic ensured");
+  console.log("Topic ensured");
 
   // Setup consumer promise
   const consumedPromise = new Promise<void>((resolve, reject) => {
@@ -63,11 +63,11 @@ async function main() {
         console.log("📥 Received payload:", payload);
         try {
           if (payload.userId === "user-123" && payload.email === "test@example.com") {
-            console.log("✅ Payload verified");
+            console.log("Payload verified");
             clearTimeout(timeout);
             resolve();
           } else {
-            console.warn("⚠️ Unexpected payload content");
+            console.warn("Unexpected payload content");
           }
         } catch (err) {
           reject(err);
@@ -103,6 +103,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error("❌ E2E Test Failed:", err);
+  console.error("E2E Test Failed:", err);
   process.exit(1);
 });
