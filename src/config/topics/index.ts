@@ -3,9 +3,7 @@
  * Provides utilities for defining, creating, and managing Kafka topics
  */
 
-// ============================================================================
 // Topic Definition API
-// ============================================================================
 
 export {
   createTopicConfig,
@@ -18,9 +16,7 @@ export {
   topicBuilder,
 } from "./topic-builder";
 
-// ============================================================================
 // Topic Management
-// ============================================================================
 
 export {
   createMissingTopics,
@@ -44,9 +40,7 @@ export {
   CONFIG_RESOURCE_TYPE_TOPIC,
 } from "./utils";
 
-// ============================================================================
 // Type Exports
-// ============================================================================
 
 export type {
   TopicConfig,

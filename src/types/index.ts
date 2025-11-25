@@ -3,9 +3,7 @@
  * Exports all TypeScript types and interfaces for the Kafka client
  */
 
-// ============================================================================
 // Core Kafka Types
-// ============================================================================
 
 export type {
   KafkaClientOptions,
@@ -27,9 +25,7 @@ export {
   JsonSerializer,
 } from "./kafka";
 
-// ============================================================================
 // Utility Types
-// ============================================================================
 
 export type {
   DeepReadonly,
@@ -45,8 +41,6 @@ export type {
   ConsumerGroupId,
 } from "./utility-types";
 
-// ============================================================================
 // KafkaJS Type Re-exports
-// ============================================================================
 
 export type { Producer, Consumer, ConsumerConfig } from "kafkajs";

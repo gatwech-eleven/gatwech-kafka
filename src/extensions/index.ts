@@ -3,9 +3,7 @@
  * Provides optional extensions for the Kafka client
  */
 
-// ============================================================================
 // Partition Analysis Extension
-// ============================================================================
 
 export { partitionAnalysisExtension, calculateOptimalPartitions } from "./partition-analysis";
 

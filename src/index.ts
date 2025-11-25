@@ -1,8 +1,5 @@
-// ============================================================================
 // Core Client Exports
-// ============================================================================
 
-// KafkaClient type is exported from create-client
 export { createKafkaClient } from "./client/core/create-client";
 export { connectWithRetry } from "./client/core/connect-with-retry";
 export { DEFAULT_OPTIONS } from "./client/core/default-options";
@@ -19,9 +16,7 @@ export type {
   ConnectRetryOptions,
 } from "./client/core/connect-with-retry";
 
-// ============================================================================
 // Producer Exports
-// ============================================================================
 
 export { createEventPublisher, createPublisher } from "./client/producers/event.factory";
 export { createServicePublisherFactory } from "./client/producers/service-publisher-factory";
@@ -42,9 +37,7 @@ export type {
   ReadyToPublishMessage,
 } from "./client/producers/generic-producer";
 
-// ============================================================================
 // Consumer Exports
-// ============================================================================
 
 export { consumeWithRetryAndDLQ } from "./client/consumers/consume-with-dlq";
 export { createDLQPublisher } from "./client/consumers/dlq.factory";
@@ -59,9 +52,7 @@ export type {
   CreateDLQPublisherOptions,
 } from "./client/consumers/dlq.factory";
 
-// ============================================================================
 // Topic Configuration Exports
-// ============================================================================
 
 export {
   createTopicConfig,
@@ -111,9 +102,7 @@ export type {
   TopicMap,
 } from "./config/topics/utils";
 
-// ============================================================================
 // Extension Exports
-// ============================================================================
 
 export { partitionAnalysisExtension } from "./extensions/partition-analysis";
 
@@ -122,9 +111,7 @@ export type {
   ThroughputMetrics,
 } from "./extensions/partition-analysis";
 
-// ============================================================================
 // Type Exports
-// ============================================================================
 
 export type {
   KafkaClientOptions,
@@ -167,17 +154,13 @@ export type {
   ConsumerGroupId,
 } from "./types/utility-types";
 
-// ============================================================================
 // Utility Exports
-// ============================================================================
 
 export { resolveBrokersFromEnv } from "./utils/brokers";
 export { withRetry } from "./config/topics/utils";
 export { calculateOptimalPartitions } from "./extensions/partition-analysis";
 
-// ============================================================================
 // KafkaJS Re-exports (for convenience)
 // Note: Consider importing directly from 'kafkajs' for better version control
-// ============================================================================
 
 export type { Producer, Consumer, ConsumerConfig } from "kafkajs";
