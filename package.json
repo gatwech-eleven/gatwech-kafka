@@ -11,13 +11,13 @@
     "lint": "biome lint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:e2e": "tsx ./e2e/run-e2e.ts",
-    "test:e2e:service": "tsx ./e2e/run-service-e2e.ts",
-    "test:e2e:integration": "tsx ./e2e/run-integration-e2e.ts",
-    "test:e2e:smoke": "tsx ./e2e/smoke.ts",
-    "test:e2e:express": "tsx ./e2e/express-integration.ts",
-    "test:e2e:modular": "tsx ./e2e/modular-client.ts",
-    "bench:kafka-batch": "tsx ./e2e/benchmark.ts",
+    "test:e2e": "tsx ./__tests__/e2e/basic-flow.e2e.ts",
+    "test:e2e:service": "tsx ./__tests__/e2e/service-publisher.e2e.ts",
+    "test:e2e:integration": "tsx ./__tests__/e2e/service-integration.e2e.ts",
+    "test:e2e:express": "tsx ./__tests__/e2e/express-integration.e2e.ts",
+    "test:e2e:modular": "tsx ./__tests__/e2e/modular-client.e2e.ts",
+    "test:e2e:resilience": "tsx ./__tests__/e2e/app-resilience.e2e.ts",
+    "bench:kafka-batch": "tsx ./__tests__/e2e/performance.e2e.ts",
     "generate:kafka-config": "tsx ./scripts/generate-kafka-config.ts",
     "init:kafka-topics": "bash scripts/kafka-init.sh",
     "setup:kafka": "pnpm run generate:kafka-config && pnpm run init:kafka-topics"
@@ -74,12 +74,8 @@
       "types": "./dist/types/index.d.ts",
       "import": "./dist/types/index.mjs",
       "require": "./dist/types/index.cjs"
-    },
-    "./ensure-topics": {
-      "types": "./dist/config/ensure-topics.d.ts",
-      "import": "./dist/config/ensure-topics.mjs",
-      "require": "./dist/config/ensure-topics.cjs"
     }
+     
   },
   "files": [
     "dist"
@@ -94,9 +90,6 @@
       ],
       "types": [
         "dist/types/index.d.ts"
-      ],
-      "ensure-topics": [
-        "dist/config/ensure-topics.d.ts"
       ],
       "*": [
         "dist/index.d.ts"

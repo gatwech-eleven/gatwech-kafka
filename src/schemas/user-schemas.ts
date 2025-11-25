@@ -1,41 +1,17 @@
 import { z } from "@gatwech/utils/zod";
 import { BaseProducerSchema } from "./base.schema";
 
+// User registration event schema
 export const UserRegisteredSchema = BaseProducerSchema.extend({
   id: z.string(),
-  email: z.email(),
-  name: z.string().optional(),
-  otp: z.string().optional(),
+  email: z.string().email(),
+  name: z.string(),
 });
 
+// Test placeholder schema
 export const ResetPasswordRequestEmailSchema = BaseProducerSchema.extend({
   userId: z.uuid().optional(),
   identifier: z.literal("email"),
-  email: z.email(),
+  email: z.string().email(),
   token: z.string(),
 });
-
-export const ResetPasswordRequestPhoneSchema = BaseProducerSchema.extend({
-  userId: z.uuid().optional(),
-  identifier: z.literal("phone"),
-  phoneNumber: z.string(),
-  otp: z.string().optional(),
-  token: z.string().optional(),
-});
-
-export const ResetPasswordRequestUnionSchema = z.union([
-  ResetPasswordRequestEmailSchema,
-  ResetPasswordRequestPhoneSchema,
-]);
-
-export type TUserRegistered = z.infer<typeof UserRegisteredSchema>;
-export type TResetPasswordRequest = z.infer<
-  typeof ResetPasswordRequestUnionSchema
->;
-
-export default {
-  UserRegisteredSchema,
-  ResetPasswordRequestEmailSchema,
-  ResetPasswordRequestPhoneSchema,
-  ResetPasswordRequestUnionSchema,
-};

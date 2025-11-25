@@ -1,0 +1,245 @@
+import express, { Request, Response } from 'express';
+import { kafka, initKafka, shutdownKafka, customLogger } from './client';
+import { AppTopics } from './topics';
+
+const app = express();
+app.use(express.json());
+
+app.get('/health', (req: Request, res: Response) => {
+  const detailed = req.query.detailed === 'true';
+  
+  if (!detailed) {
+    return res.status(200).json({
+      status: 'UP',
+      timestamp: new Date().toISOString(),
+    });
+  }
+  
+  const kafkaHealth = kafka.getHealthStatus();
+  const kafkaConnection = kafka.getConnectionStatus();
+  const overallStatus = kafkaHealth.status === 'healthy' ? 'UP' : 'DEGRADED';
+  
+  return res.status(200).json({
+    status: overallStatus,
+    timestamp: new Date().toISOString(),
+    services: {
+      kafka: {
+        status: kafkaHealth.status,
+        connected: kafkaHealth.connected,
+        connectionAttempts: kafkaHealth.details.connectionAttempts,
+        lastError: kafkaHealth.details.lastError,
+        uptime: kafkaHealth.details.uptime,
+        circuitBreakerOpen: kafkaConnection.circuitBreakerOpen,
+        lastConnectedAt: kafkaConnection.lastConnectedAt,
+        lastDisconnectedAt: kafkaConnection.lastDisconnectedAt,
+      },
+    },
+  });
+});
+
+app.get('/kafka/status', (req: Request, res: Response) => {
+  const status = kafka.getConnectionStatus();
+  
+  res.json({
+    connected: status.connected,
+    connectionAttempts: status.connectionAttempts,
+    lastError: status.lastError,
+    lastConnectedAt: status.lastConnectedAt,
+    lastDisconnectedAt: status.lastDisconnectedAt,
+    circuitBreakerOpen: status.circuitBreakerOpen,
+  });
+});
+
+app.post('/kafka/reconnect', async (req: Request, res: Response) => {
+  try {
+    customLogger.info('Manual reconnection triggered via API');
+    const success = await kafka.reconnect();
+    
+    if (success) {
+      res.json({
+        success: true,
+        message: 'Reconnected successfully',
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        message: 'Reconnection failed',
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Reconnection error',
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+app.post('/kafka/circuit-breaker/reset', (req: Request, res: Response) => {
+  try {
+    kafka.resetCircuitBreaker();
+    customLogger.info('Circuit breaker reset via API');
+    
+    res.json({
+      success: true,
+      message: 'Circuit breaker reset successfully',
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to reset circuit breaker',
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * Resilience Features Demo Endpoint
+ * 
+ * Shows the current state of:
+ * - Circuit Breaker (Closed/Open/Half-Open)
+ * - Reconnection Monitor status
+ * - Connection health
+ */
+app.get('/kafka/resilience', (req: Request, res: Response) => {
+  const connectionStatus = kafka.getConnectionStatus();
+  const healthStatus = kafka.getHealthStatus();
+  
+  res.json({
+    resilience: {
+      circuitBreaker: {
+        state: connectionStatus.circuitBreakerOpen ? 'OPEN' : 'CLOSED',
+        description: connectionStatus.circuitBreakerOpen
+          ? 'Circuit is OPEN - blocking requests (will test after timeout)'
+          : 'Circuit is CLOSED - allowing requests',
+        failureThreshold: 5,
+        resetTimeoutMs: 30000,
+        note: 'After 5 failures, circuit opens. After 30s, enters Half-Open state to test recovery.',
+      },
+      reconnectionMonitor: {
+        active: true,
+        intervalMs: 60000,
+        description: 'Background monitor checks connection every 60s',
+        concurrencySafe: true,
+        note: 'Prevents overlapping reconnection attempts - if one is running, next check is skipped.',
+      },
+      connection: {
+        status: healthStatus.status,
+        connected: connectionStatus.connected,
+        attempts: connectionStatus.connectionAttempts,
+        lastError: connectionStatus.lastError,
+        lastConnectedAt: connectionStatus.lastConnectedAt,
+        lastDisconnectedAt: connectionStatus.lastDisconnectedAt,
+        uptime: healthStatus.details.uptime,
+      },
+    },
+    demo: {
+      endpoints: {
+        resetCircuitBreaker: 'POST /kafka/circuit-breaker/reset',
+        manualReconnect: 'POST /kafka/reconnect',
+        publishEvent: 'POST /events/user',
+      },
+      howToTest: [
+        '1. Stop Kafka broker to trigger failures',
+        '2. Try publishing events - circuit will open after 5 failures',
+        '3. Start Kafka broker again',
+        '4. Wait 30s for Half-Open state, or manually reset circuit',
+        '5. Background monitor will auto-reconnect within 60s',
+      ],
+    },
+  });
+});
+
+app.post('/events/user', async (req: Request, res: Response) => {
+  try {
+    const { userId, event } = req.body;
+    
+    if (!userId || !event) {
+      return res.status(400).json({
+        error: 'Missing required fields: userId, event',
+      });
+    }
+    
+    if (!kafka.isReady()) {
+      return res.status(503).json({
+        error: 'Kafka is not connected',
+        message: 'Service temporarily unavailable',
+      });
+    }
+    
+    await kafka.sendMessage(AppTopics.USER_EVENTS.name, {
+      key: userId,
+      value: {
+        userId,
+        event,
+        timestamp: Date.now(),
+      },
+    });
+    
+    res.status(201).json({
+      success: true,
+      message: 'Event published successfully',
+    });
+  } catch (error) {
+    customLogger.error('Failed to publish user event', error);
+    res.status(500).json({
+      error: 'Failed to publish event',
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+app.get('/metrics', (req: Request, res: Response) => {
+  const metrics = kafka.getMetrics();
+  
+  res.json({
+    kafka: {
+      publishSuccess: metrics.publishSuccess,
+      publishFailures: metrics.publishFailures,
+      connectionRetries: metrics.connectionRetries,
+      consumerConnections: metrics.consumerConnections,
+    },
+  });
+});
+
+const PORT = process.env.PORT || 3000;
+
+async function startServer() {
+  /** Start HTTP server immediately to ensure responsiveness
+   * This ensures the app remains responsive even if Kafka is down/retrying
+   */
+  app.listen(PORT, () => {
+    customLogger.info(`Express server running on port ${PORT}`);
+    customLogger.info(`Health check: http://localhost:${PORT}/health?detailed=true`);
+    customLogger.info(`Metrics: http://localhost:${PORT}/metrics`);
+    customLogger.info(`Kafka status: http://localhost:${PORT}/kafka/status`);
+    customLogger.info(`Resilience demo: http://localhost:${PORT}/kafka/resilience`);
+    
+    /** Initialize Kafka in the background
+     * This ensures the app remains responsive even if Kafka is down/retrying
+     */
+    initKafka().catch((error) => {
+      customLogger.error('Failed to initialize Kafka in background', error);
+    });
+  });
+}
+
+async function gracefulShutdown(signal: string) {
+  customLogger.info(`${signal} received, starting graceful shutdown...`);
+  
+  try {
+    await shutdownKafka();
+    process.exit(0);
+  } catch (error) {
+    customLogger.error('Error during shutdown', error);
+    process.exit(1);
+  }
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+startServer().catch((error) => {
+  customLogger.error('Failed to start server', error);
+  process.exit(1);
+});

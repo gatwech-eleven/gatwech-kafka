@@ -110,20 +110,3 @@ export function topicsToArray<T extends Record<string, ValidatedTopicConfig>>(
   return Object.values(topics);
 }
 
-/**
- * @deprecated Use `createTopicConfig` instead.
- */
-export function defineTopics<T extends Record<string, TopicConfigInput>>(
-  topics: T
-): { readonly [K in keyof T]: ValidatedTopicConfig } {
-  return createTopicConfig(topics);
-}
-
-/**
- * @deprecated Use `createSingleTopicConfig` instead.
- */
-export function defineTopic(
-  config: TopicConfigInput
-): DeepReadonly<ValidatedTopicConfig> {
-  return createSingleTopicConfig(config);
-}
