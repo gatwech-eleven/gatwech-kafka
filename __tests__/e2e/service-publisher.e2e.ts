@@ -1,6 +1,6 @@
 import { nanoid } from "nanoid";
-import { KafkaClient } from '../../src/client/core/kafka.ts';
-import { createServicePublisherFactory } from '../../src/client/producers/service-publisher-factory.ts';
+import { KafkaClient } from "../../src/client/core/kafka.ts";
+import { createServicePublisherFactory } from "../../src/client/producers/service-publisher-factory.ts";
 import { z } from "@gatwech/utils/zod";
 import crypto from "node:crypto";
 import assert from "node:assert";
@@ -24,9 +24,7 @@ async function main() {
   const bootstrap = process.env.KAFKA_BOOTSTRAP || "localhost:9092";
   const topic = process.env.SERVICE_E2E_TOPIC || `service-e2e-${Date.now()}`;
   const serviceSource = process.env.SERVICE_SOURCE || "service-e2e-source";
-  console.log(
-    `Service Publisher E2E: bootstrap=${bootstrap}, topic=${topic}`
-  );
+  console.log(`Service Publisher E2E: bootstrap=${bootstrap}, topic=${topic}`);
 
   // Allow overriding connect timeout via env var for CI workflows.
   // On GitHub Actions default to a shorter timeout to avoid long blocked jobs.
@@ -43,7 +41,7 @@ async function main() {
   });
   await client.connect();
 
-  // Ensure topic exists using library ensure-topics (with dynamic topic injection)
+  // Ensure topic exists using library initializeKafkaTopics (with dynamic topic injection)
   try {
     const admin = client.getAdmin();
     await initializeKafkaTopics(admin, {

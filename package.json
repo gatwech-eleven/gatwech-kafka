@@ -74,12 +74,8 @@
       "types": "./dist/types/index.d.ts",
       "import": "./dist/types/index.mjs",
       "require": "./dist/types/index.cjs"
-    },
-    "./ensure-topics": {
-      "types": "./dist/config/ensure-topics.d.ts",
-      "import": "./dist/config/ensure-topics.mjs",
-      "require": "./dist/config/ensure-topics.cjs"
     }
+     
   },
   "files": [
     "dist"
@@ -94,9 +90,6 @@
       ],
       "types": [
         "dist/types/index.d.ts"
-      ],
-      "ensure-topics": [
-        "dist/config/ensure-topics.d.ts"
       ],
       "*": [
         "dist/index.d.ts"

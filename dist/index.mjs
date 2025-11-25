@@ -1,8 +1,7 @@
-import { n as logger, t as initializeKafkaTopics } from "./ensure-topics-Mazqk00P.mjs";
-import { t as JsonSerializer } from "./types-Ca2NNx9a.mjs";
-import { a as createPublisher, c as KafkaClient, d as BaseProducer, i as createEventPublisher, l as connectWithRetry, n as createDLQPublisher, o as GenericKafkaProducer, r as createServicePublisherFactory, s as createKafkaClient, t as consumeWithRetryAndDLQ, u as DEFAULT_OPTIONS } from "./client-BbgyiANQ.mjs";
-import "./utility-types-jjjEc54g.mjs";
-import { a as topicsToArray, i as createTopicConfig, n as topicBuilder, o as TopicConfigSchema, r as createSingleTopicConfig, t as TopicConfigBuilder } from "./topics-BMuCBlzd.mjs";
+import { a as createMissingTopics, c as safeDescribeConfigs, d as waitForLeaders, f as withRetry, i as updateTopicConfigs, l as toConfigEntries, o as CONFIG_RESOURCE_TYPE_TOPIC, p as logger, r as updatePartitionCounts, s as asTopicDefs, u as validateTopics } from "./utility-types-BY8JcN-_.mjs";
+import { t as JsonSerializer } from "./types-DmQx1dyB.mjs";
+import { a as createPublisher, c as KafkaClient, d as DEFAULT_OPTIONS, f as BaseProducer, i as createEventPublisher, l as initializeKafkaTopics, n as createDLQPublisher, o as GenericKafkaProducer, r as createServicePublisherFactory, s as createKafkaClient, t as consumeWithRetryAndDLQ, u as connectWithRetry } from "./client-DPnwer90.mjs";
+import { a as topicsToArray, i as createTopicConfig, n as topicBuilder, o as TopicConfigSchema, r as createSingleTopicConfig, t as TopicConfigBuilder } from "./topics-B-hUHUnM.mjs";
 
 //#region src/extensions/partition-analysis.ts
 const DEFAULT_SKEW_THRESHOLD = 1.5;
@@ -108,4 +107,4 @@ function resolveBrokersFromEnv() {
 }
 
 //#endregion
-export { BaseProducer, DEFAULT_OPTIONS, GenericKafkaProducer, JsonSerializer, KafkaClient, TopicConfigBuilder, TopicConfigSchema, calculateOptimalPartitions, connectWithRetry, consumeWithRetryAndDLQ, consumerExtension, createDLQPublisher, createEventPublisher, createKafkaClient, createPublisher, createServicePublisherFactory, createSingleTopicConfig, createTopicConfig, initializeKafkaTopics, partitionAnalysisExtension, resolveBrokersFromEnv, topicBuilder, topicsToArray };
+export { BaseProducer, CONFIG_RESOURCE_TYPE_TOPIC, DEFAULT_OPTIONS, GenericKafkaProducer, JsonSerializer, KafkaClient, TopicConfigBuilder, TopicConfigSchema, asTopicDefs, calculateOptimalPartitions, connectWithRetry, consumeWithRetryAndDLQ, consumerExtension, createDLQPublisher, createEventPublisher, createKafkaClient, createMissingTopics, createPublisher, createServicePublisherFactory, createSingleTopicConfig, createTopicConfig, initializeKafkaTopics, partitionAnalysisExtension, resolveBrokersFromEnv, safeDescribeConfigs, toConfigEntries, topicBuilder, topicsToArray, updatePartitionCounts, updateTopicConfigs, validateTopics, waitForLeaders, withRetry };

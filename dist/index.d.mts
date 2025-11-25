@@ -1,13 +1,75 @@
-import "./utility-types-CCAClNOD.mjs";
-import { a as JsonSerializer, c as Logger, d as TKafkaMessage, f as TopicProvisioningOptions, i as ISerializer, n as ConsumerConfig, o as KafkaClientOptions, p as WithMetadata, r as DLQOptions, s as KafkaMetrics, t as Consumer, u as ResilienceOptions } from "./index-BHn74P_a.mjs";
-import { C as ModularKafkaClient, E as BaseProducer, S as KafkaExtension, T as KafkaClient, _ as ConnectRetryOptions, a as ConsumeHandlerContext, b as GatwechKafkaExtensions, c as createServicePublisherFactory, d as createPublisher, f as GenericKafkaProducer, g as DEFAULT_OPTIONS, h as ReadyToPublishMessage, i as createDLQPublisher, l as CreatePublisherOptions, m as PartitionKeyFn, n as DLQContext, o as consumeWithRetryAndDLQ, p as KeyDeriver, r as DLQMessageParts, s as EventPublisher, t as CreateDLQPublisherOptions, u as createEventPublisher, v as connectWithRetry, w as createKafkaClient, x as KafkaClientConfig, y as CreateKafkaClientConfig } from "./index-C0rhzP5x.mjs";
-import { i as ValidatedTopicConfig, n as TopicConfigInput, r as TopicConfigSchema, t as TopicConfig } from "./topic-config-schema-Q63DD7qq.mjs";
-import { n as initializeKafkaTopics, t as TopicMap } from "./ensure-topics-l1WZ1Zh0.mjs";
-import { a as topicsToArray, i as createTopicConfig, n as topicBuilder, r as createSingleTopicConfig, t as TopicConfigBuilder } from "./index-CVBEaQD9.mjs";
+import "./utility-types-CU44GOxi.mjs";
+import { a as ISerializer, c as KafkaMetrics, d as ReconnectionOptions, f as ResilienceOptions, g as WithMetadata, h as TopicProvisioningOptions, i as DLQOptions, l as Logger, m as TKafkaMessage, n as Consumer, o as JsonSerializer, p as RetryOptions, r as ConsumerConfig, s as KafkaClientOptions, t as CircuitBreakerOptions } from "./index-BQ9YApEL.mjs";
+import { C as ModularKafkaClient, E as BaseProducer, S as KafkaExtension, T as KafkaClient, _ as ConnectRetryOptions, a as ConsumeHandlerContext, b as GatwechKafkaExtensions, c as createServicePublisherFactory, d as createPublisher, f as GenericKafkaProducer, g as DEFAULT_OPTIONS, h as ReadyToPublishMessage, i as createDLQPublisher, l as CreatePublisherOptions, m as PartitionKeyFn, n as DLQContext, o as consumeWithRetryAndDLQ, p as KeyDeriver, r as DLQMessageParts, s as EventPublisher, t as CreateDLQPublisherOptions, u as createEventPublisher, v as connectWithRetry, w as createKafkaClient, x as KafkaClientConfig, y as CreateKafkaClientConfig } from "./index-CrZx_sul.mjs";
+import { i as ValidatedTopicConfig, n as TopicConfigInput, r as TopicConfigSchema, t as TopicConfig } from "./topic-config-schema-DPJTY7x_.mjs";
+import { _ as waitForLeaders, a as createSingleTopicConfig, c as createMissingTopics, d as TopicDef, f as TopicMap, g as validateTopics, h as toConfigEntries, i as topicBuilder, l as CONFIG_RESOURCE_TYPE_TOPIC, m as safeDescribeConfigs, n as updateTopicConfigs, o as createTopicConfig, p as asTopicDefs, r as TopicConfigBuilder, s as topicsToArray, t as updatePartitionCounts, u as TopicConfigShape, v as withRetry } from "./index-CgHlSNmS.mjs";
 import * as kafkajs0 from "kafkajs";
-import { Consumer as Consumer$1, Producer } from "kafkajs";
+import { Admin, Consumer as Consumer$1, Producer } from "kafkajs";
 import { ZodType, z } from "@gatwech/utils/zod";
 
+//#region src/config/initialize.topics.d.ts
+/**
+ * Options for topic provisioning defaults.
+ */
+type EnsureOpts = {
+  /**
+   * Application-defined topics (from `createTopicConfig()`).
+   * This is the recommended way to provide topics.
+   */
+  topics?: Record<string, ValidatedTopicConfig | TopicConfig>;
+  /** Default number of partitions for new topics (overridden by per-topic config if provided). */
+  partitions?: number;
+  /** Default replication factor for new topics (overridden by per-topic config if provided). */
+  replicationFactor?: number;
+  /** Max time to wait for leaders after create/partition increase, in milliseconds. */
+  waitForLeadersMs?: number;
+};
+/**
+ * Initialize Kafka topics with application-level configurations.
+ *
+ * **What this does:**
+ * 1. **Create** any missing topics with initial `numPartitions`, `replicationFactor`, and `configEntries`.
+ * 2. **Increase** partitions when current count is lower than desired (Kafka only allows increasing).
+ * 3. **Apply/patch** topic configs (e.g., `retention.ms`, `cleanup.policy`) on both existing and newly created topics.
+ *
+ * **Notes & caveats:**
+ * - To combine compaction **and** time-based deletion, set `cleanup.policy` to `"compact,delete"`.
+ * - `alterConfigs` and `describeConfigs` may require admin ACLs; failures are logged as warnings and do not stop startup.
+ * - By default this function manages the Admin connection; pass `manageConnection=false` if the caller handles connect/disconnect.
+ *
+ * @example Application-level topics
+ * ```ts
+ * import { kafkaClient } from '@/config/kafka';
+ * import { initializeKafkaTopics, createTopicConfig } from '@gatwech/kafka';
+ *
+ * const myTopics = createTopicConfig({
+ *   USER_REGISTERED: {
+ *     name: 'user.registered',
+ *     schema: UserRegisteredSchema,
+ *     retentionMs: 7 * 24 * 60 * 60 * 1000,
+ *   },
+ * });
+ *
+ * const admin = kafkaClient.getAdmin();
+ * await initializeKafkaTopics(admin, {
+ *   topics: myTopics,
+ *   partitions: 3,
+ *   replicationFactor: 1,
+ * });
+ * ```
+ *
+ * @param admin - KafkaJS Admin client.
+ * @param opts - Initialization options.
+ * @param opts.topics - Application-defined topics (from `createTopicConfig()`).
+ * @param opts.partitions - Default partitions for new topics (default: 3).
+ * @param opts.replicationFactor - Default replication factor for new topics (default: 1).
+ * @param opts.waitForLeadersMs - Max time to wait for leader election after changes (default: 15000ms).
+ * @param manageConnection - If `true`, this function connects/disconnects the Admin (default: `true`).
+ * @returns Promise that resolves when topics are initialized.
+ * @throws Propagates unexpected admin errors (topic creation races are handled gracefully).
+ */
+declare function initializeKafkaTopics(admin: Admin, opts?: EnsureOpts, manageConnection?: boolean): Promise<void>;
+//#endregion
 //#region src/extensions/partition-analysis.d.ts
 /** Defines the throughput metrics needed for the 4-Pillar calculation. */
 interface ThroughputMetrics {
@@ -106,4 +168,4 @@ declare const consumerExtension: () => KafkaExtension<ConsumerExtensionAPI, "con
 //#region src/utils/brokers.d.ts
 declare function resolveBrokersFromEnv(): string[];
 //#endregion
-export { BaseProducer, ConnectRetryOptions, ConsumeHandlerContext, Consumer, ConsumerConfig, ConsumerExtensionAPI, CreateDLQPublisherOptions, CreateKafkaClientConfig, CreatePublisherOptions, DEFAULT_OPTIONS, DLQContext, DLQMessageParts, DLQOptions, EventPublisher, GatwechKafkaExtensions, GenericKafkaProducer, ISerializer, JsonSerializer, KafkaClient, type KafkaClientConfig, KafkaClientOptions, KafkaExtension, KafkaMetrics, KeyDeriver, Logger, ModularKafkaClient, type PartitionKeyFn, PartitionSkewResult, type Producer, ReadyToPublishMessage, ResilienceOptions, TKafkaMessage, ThroughputMetrics, type TopicConfig, TopicConfigBuilder, type TopicConfigInput, TopicConfigSchema, TopicMap, TopicProvisioningOptions, type ValidatedTopicConfig, WithMetadata, calculateOptimalPartitions, connectWithRetry, consumeWithRetryAndDLQ, consumerExtension, createDLQPublisher, createEventPublisher, createKafkaClient, createPublisher, createServicePublisherFactory, createSingleTopicConfig, createTopicConfig, initializeKafkaTopics, partitionAnalysisExtension, resolveBrokersFromEnv, topicBuilder, topicsToArray };
+export { BaseProducer, CONFIG_RESOURCE_TYPE_TOPIC, CircuitBreakerOptions, ConnectRetryOptions, ConsumeHandlerContext, Consumer, ConsumerConfig, ConsumerExtensionAPI, CreateDLQPublisherOptions, CreateKafkaClientConfig, CreatePublisherOptions, DEFAULT_OPTIONS, DLQContext, DLQMessageParts, DLQOptions, EventPublisher, GatwechKafkaExtensions, GenericKafkaProducer, ISerializer, JsonSerializer, KafkaClient, type KafkaClientConfig, KafkaClientOptions, KafkaExtension, KafkaMetrics, KeyDeriver, Logger, ModularKafkaClient, type PartitionKeyFn, PartitionSkewResult, type Producer, ReadyToPublishMessage, ReconnectionOptions, ResilienceOptions, RetryOptions, TKafkaMessage, ThroughputMetrics, type TopicConfig, TopicConfigBuilder, type TopicConfigInput, TopicConfigSchema, TopicConfigShape, TopicDef, TopicMap, TopicProvisioningOptions, type ValidatedTopicConfig, WithMetadata, asTopicDefs, calculateOptimalPartitions, connectWithRetry, consumeWithRetryAndDLQ, consumerExtension, createDLQPublisher, createEventPublisher, createKafkaClient, createMissingTopics, createPublisher, createServicePublisherFactory, createSingleTopicConfig, createTopicConfig, initializeKafkaTopics, partitionAnalysisExtension, resolveBrokersFromEnv, safeDescribeConfigs, toConfigEntries, topicBuilder, topicsToArray, updatePartitionCounts, updateTopicConfigs, validateTopics, waitForLeaders, withRetry };
