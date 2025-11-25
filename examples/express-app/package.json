@@ -14,7 +14,7 @@
   "author": "Gatwech Tap Nguth",
   "license": "ISC",
   "dependencies": {
-    "@gatwech/kafka": "workspace:*",
+    "@gatwech/kafka": "0.0.8-beta.2",
     "@gatwech/utils": "^0.5.3",
     "express": "^4.21.2"
   },

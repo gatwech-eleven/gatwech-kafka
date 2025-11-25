@@ -8,6 +8,8 @@ export default defineConfig({
     "./src/client/index.ts",
     "./src/types/index.ts",
     "./src/config/topics/index.ts",
+    "./src/config/index.ts",
+    "./src/extensions/index.ts",
   ],
   external: [
     "kafkajs",

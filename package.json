@@ -1,6 +1,6 @@
 {
   "name": "@gatwech/kafka",
-  "version": "0.0.8-beta.1",
+  "version": "0.0.9-beta.1",
   "description": "Payvo Node.js Kafka Client for Microservices Messaging",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -74,8 +74,17 @@
       "types": "./dist/types/index.d.mts",
       "import": "./dist/types/index.mjs",
       "require": "./dist/types/index.cjs"
+    },
+    "./config": {
+      "types": "./dist/config/index.d.mts",
+      "import": "./dist/config/index.mjs",
+      "require": "./dist/config/index.cjs"
+    },
+    "./extensions": {
+      "types": "./dist/extensions/index.d.mts",
+      "import": "./dist/extensions/index.mjs",
+      "require": "./dist/extensions/index.cjs"
     }
-     
   },
   "files": [
     "dist"
@@ -90,6 +99,12 @@
       ],
       "types": [
         "dist/types/index.d.mts"
+      ],
+      "config": [
+        "dist/config/index.d.mts"
+      ],
+      "extensions": [
+        "dist/extensions/index.d.mts"
       ],
       "*": [
         "dist/index.d.mts"

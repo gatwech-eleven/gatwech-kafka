@@ -1,5 +1,5 @@
-import { createTopicConfig } from '@gatwech/kafka';
 import { z } from '@gatwech/utils/zod';
+import { createTopicConfig } from '@gatwech/kafka';
 
 export const AppTopics = createTopicConfig({
   USER_EVENTS: {
