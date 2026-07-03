@@ -1,0 +1,349 @@
+name: E2E
+on:
+  push:
+    branches: [main, canary]
+  merge_group:
+  pull_request:
+
+jobs:
+  smoke:
+    name: Smoke test
+    timeout-minutes: 5
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
+        with:
+          version: 10.20.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22.x
+          registry-url: "https://registry.npmjs.org"
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Start Docker Containers
+        run: |
+          docker compose up -d
+          echo "Waiting for Kafka to be ready..."
+          # Wait for Kafka container to be healthy
+          timeout 120 bash -c 'until docker compose ps kafka | grep -q "healthy"; do echo "Waiting for Kafka..."; sleep 2; done' || {
+            echo "Kafka failed to become healthy"
+            docker compose logs kafka
+            exit 1
+          }
+          echo "Kafka is ready!"
+
+      - name: Verify Kafka connectivity
+        run: |
+          # Test that we can connect to Kafka from the host
+          for i in {1..30}; do
+            if nc -z localhost 9092; then
+              echo "✅ Kafka is accessible on localhost:9092"
+              break
+            fi
+            echo "Waiting for Kafka port 9092... (attempt $i/30)"
+            sleep 2
+          done
+          nc -z localhost 9092 || (echo "❌ Cannot connect to Kafka" && exit 1)
+
+      - name: Smoke
+        env:
+          KAFKA_BOOTSTRAP: localhost:9092
+        run: pnpm test:e2e
+
+      - name: Stop Docker Containers
+        if: always()
+        run: docker compose down
+
+      - name: Upload Docker logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-docker-logs
+          path: |
+            docker-compose.yaml
+          retention-days: 5
+
+  integration:
+    name: Integration test
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
+        with:
+          version: 10.20.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22.x
+          registry-url: "https://registry.npmjs.org"
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Start Docker Containers
+        run: |
+          docker compose up -d
+          echo "Waiting for Kafka to be ready..."
+          # Wait for Kafka container to be healthy
+          timeout 120 bash -c 'until docker compose ps kafka | grep -q "healthy"; do echo "Waiting for Kafka..."; sleep 2; done' || {
+            echo "Kafka failed to become healthy"
+            docker compose logs kafka
+            exit 1
+          }
+          echo "Kafka is ready!"
+
+      - name: Verify Kafka connectivity
+        run: |
+          # Test that we can connect to Kafka from the host
+          for i in {1..30}; do
+            if nc -z localhost 9092; then
+              echo "✅ Kafka is accessible on localhost:9092"
+              break
+            fi
+            echo "Waiting for Kafka port 9092... (attempt $i/30)"
+            sleep 2
+          done
+          nc -z localhost 9092 || (echo "❌ Cannot connect to Kafka" && exit 1)
+
+      - name: Integration
+        env:
+          KAFKA_BOOTSTRAP: localhost:9092
+        run: pnpm test:e2e:integration
+
+      - name: Stop Docker Containers
+        if: always()
+        run: docker compose down
+
+      - name: Upload Docker logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-docker-logs
+          path: |
+            docker-compose.yaml
+          retention-days: 5
+
+  benchmark:
+    name: Benchmark test
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
+        with:
+          version: 10.20.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22.x
+          registry-url: "https://registry.npmjs.org"
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Start Docker Containers
+        run: |
+          docker compose up -d
+          echo "Waiting for Kafka to be ready..."
+          # Wait for Kafka container to be healthy
+          timeout 120 bash -c 'until docker compose ps kafka | grep -q "healthy"; do echo "Waiting for Kafka..."; sleep 2; done' || {
+            echo "Kafka failed to become healthy"
+            docker compose logs kafka
+            exit 1
+          }
+          echo "Kafka is ready!"
+
+      - name: Verify Kafka connectivity
+        run: |
+          # Test that we can connect to Kafka from the host
+          for i in {1..30}; do
+            if nc -z localhost 9092; then
+              echo "✅ Kafka is accessible on localhost:9092"
+              break
+            fi
+            echo "Waiting for Kafka port 9092... (attempt $i/30)"
+            sleep 2
+          done
+          nc -z localhost 9092 || (echo "❌ Cannot connect to Kafka" && exit 1)
+
+      - name: Run Benchmark
+        env:
+          KAFKA_BOOTSTRAP: localhost:9092
+          BENCH_MESSAGES: 5000
+          BENCH_BATCH_SIZE: 100
+        run: pnpm bench:kafka-batch
+
+      - name: Stop Docker Containers
+        if: always()
+        run: docker compose down
+
+      - name: Upload Docker logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-docker-logs
+          path: |
+            docker-compose.yaml
+          retention-days: 5
+
+  express-integration:
+    name: Express integration test
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
+        with:
+          version: 10.20.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22.x
+          registry-url: "https://registry.npmjs.org"
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Start Docker Containers
+        run: |
+          docker compose up -d
+          echo "Waiting for Kafka to be ready..."
+          # Wait for Kafka container to be healthy
+          timeout 120 bash -c 'until docker compose ps kafka | grep -q "healthy"; do echo "Waiting for Kafka..."; sleep 2; done' || {
+            echo "Kafka failed to become healthy"
+            docker compose logs kafka
+            exit 1
+          }
+          echo "Kafka is ready!"
+
+      - name: Verify Kafka connectivity
+        run: |
+          # Test that we can connect to Kafka from the host
+          for i in {1..30}; do
+            if nc -z localhost 9092; then
+              echo "✅ Kafka is accessible on localhost:9092"
+              break
+            fi
+            echo "Waiting for Kafka port 9092... (attempt $i/30)"
+            sleep 2
+          done
+          nc -z localhost 9092 || (echo "❌ Cannot connect to Kafka" && exit 1)
+
+      - name: Express Integration
+        env:
+          KAFKA_BOOTSTRAP: localhost:9092
+        run: pnpm test:e2e:express
+
+      - name: Stop Docker Containers
+        if: always()
+        run: docker compose down
+
+      - name: Upload Docker logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: express-integration-docker-logs
+          path: |
+            docker-compose.yaml
+          retention-days: 5
+
+  service-e2e:
+    name: Service E2E test
+    timeout-minutes: 5
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
+        with:
+          version: 10.20.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22.x
+          registry-url: "https://registry.npmjs.org"
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Start Docker Containers
+        run: |
+          docker compose up -d
+          echo "Waiting for Kafka to be ready..."
+          # Wait for Kafka container to be healthy
+          timeout 120 bash -c 'until docker compose ps kafka | grep -q "healthy"; do echo "Waiting for Kafka..."; sleep 2; done' || {
+            echo "Kafka failed to become healthy"
+            docker compose logs kafka
+            exit 1
+          }
+          echo "Kafka is ready!"
+
+      - name: Verify Kafka connectivity
+        run: |
+          # Test that we can connect to Kafka from the host
+          for i in {1..30}; do
+            if nc -z localhost 9092; then
+              echo "✅ Kafka is accessible on localhost:9092"
+              break
+            fi
+            echo "Waiting for Kafka port 9092... (attempt $i/30)"
+            sleep 2
+          done
+          nc -z localhost 9092 || (echo "❌ Cannot connect to Kafka" && exit 1)
+
+      - name: Service E2E
+        env:
+          KAFKA_BOOTSTRAP: localhost:9092
+        run: pnpm test:e2e:service
+
+      - name: Stop Docker Containers
+        if: always()
+        run: docker compose down
+
+      - name: Upload Docker logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: service-e2e-docker-logs
+          path: |
+            docker-compose.yaml
+          retention-days: 5

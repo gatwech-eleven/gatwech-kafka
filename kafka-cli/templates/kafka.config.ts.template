@@ -1,0 +1,34 @@
+import { createKafkaClient } from '@gatwech/kafka';
+
+export const kafka = createKafkaClient({
+  config: {
+    clientId: '{{PROJECT_NAME}}',
+    brokers: process.env.KAFKA_BROKERS?.split(',') || ['{{BROKERS}}'],
+    resilience: {
+      enabled: true,
+      circuitBreaker: {
+        enabled: true,
+        failureThreshold: 5,
+        resetTimeoutMs: 30000,
+      },
+      reconnection: {
+        enabled: true,
+        intervalMs: 60000,
+        onReconnect: async () => {
+          // Re-provision topics on reconnect
+          await kafka.provisionTopics();
+        },
+      },
+    },
+    autoConnectAsync: true,
+  },
+});
+
+export async function initKafka() {
+  // Kafka connects in background
+  return true;
+}
+
+export async function shutdownKafka() {
+  await kafka.disconnect();
+}

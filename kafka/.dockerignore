@@ -1,0 +1,15 @@
+node_modules
+dist
+build
+*.log
+.env
+
+# Security & Sensitive Data
+certs/
+*.pem
+*.key
+*.crt
+secrets.local.yaml
+-e 
+# Temporary Test Artifacts
+**/.tmp/

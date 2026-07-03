@@ -1,0 +1,10 @@
+{
+  "name": "gatwech-kafka",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "dev": "pnpm -r dev"
+  }
+}

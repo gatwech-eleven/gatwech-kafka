@@ -1,0 +1,30 @@
+import { defineTopics } from '@gatwech/kafka/topics';
+import { z } from 'zod';
+
+// Define your schemas
+const UserRegisteredSchema = z.object({
+  userId: z.string(),
+  email: z.string().email(),
+  timestamp: z.number(),
+});
+
+const OrderPlacedSchema = z.object({
+  orderId: z.string(),
+  userId: z.string(),
+  amount: z.number().positive(),
+  timestamp: z.number(),
+});
+
+// Define your topics
+export const topics = defineTopics({
+  'user.registered': {
+    schema: UserRegisteredSchema,
+    partitions: 3,
+    replicationFactor: 2,
+  },
+  'order.placed': {
+    schema: OrderPlacedSchema,
+    partitions: 6,
+    replicationFactor: 2,
+  },
+});

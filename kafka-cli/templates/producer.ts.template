@@ -1,0 +1,21 @@
+import { kafka } from './kafka.config';
+import { z } from '@gatwech/utils';
+import { GenericKafkaProducer } from '@gatwech/kafka';
+
+const {{NAME}}Schema = z.object({
+  id: z.string(),
+  // Add your schema fields here
+});
+
+export type {{NAME}}Event = z.infer<typeof {{NAME}}Schema>;
+
+const producer = new GenericKafkaProducer({
+  kafka,
+  topic: '{{TOPIC}}',
+  schema: {{NAME}}Schema,
+  partitionKey: (payload) => payload.id, // Define your partition key derivation logic
+});
+
+export async function send{{NAME}}Event(event: {{NAME}}Event) {
+  await producer.send(event);
+}

@@ -1,0 +1,30 @@
+import { kafka } from './kafka.config';
+import { z } from '@gatwech/utils';
+import { consumeWithRetryAndDLQ } from '@gatwech/kafka';
+
+const {{NAME}}Schema = z.object({
+  id: z.string(),
+  // Add your schema fields here
+});
+
+export type {{NAME}}Event = z.infer<typeof {{NAME}}Schema>;
+
+export async function start{{NAME}}Consumer() {
+  await consumeWithRetryAndDLQ({
+    kafka,
+    topic: '{{TOPIC}}',
+    groupId: '{{GROUP_ID}}',
+    schema: {{NAME}}Schema,
+    handler: async (payload, context) => {
+      const { message, partition } = context;
+      console.log(`Received message from partition ${partition}:`, payload);
+      
+      // Implement your logic here
+    },
+    // Optional configuration
+    resilience: {
+      maxRetries: 3,
+      retryDelayMs: 1000,
+    }
+  });
+}
