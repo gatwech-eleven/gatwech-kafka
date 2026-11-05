@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Consumer**: `consumeWithRetryAndDLQ` no longer loses a message when the DLQ publish fails. It rethrows, so `eachMessage` rejects, the offset isn't committed and the message is redelivered. This applies to messages that fail schema validation and to messages whose handler failed every retry.
+
 ## [0.0.8-beta.1] - 2025-11-25
 
 ### Added
