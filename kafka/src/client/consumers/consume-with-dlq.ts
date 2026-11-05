@@ -90,6 +90,8 @@ async function executeWithRetry<T>(
 
 /**
  * Publishes failed message to DLQ.
+ *
+ * @throws When the DLQ publish fails, so the caller doesn't commit the offset.
  */
 async function handleDLQPublish(
   publishToDLQ: ReturnType<typeof createDLQPublisher>,
@@ -123,6 +125,9 @@ async function handleDLQPublish(
       ...context,
       error: err,
     });
+    // The message would be in neither the topic nor the DLQ. Rethrow so
+    // `eachMessage` rejects, the offset isn't committed and it is redelivered.
+    throw err;
   }
 }
 
