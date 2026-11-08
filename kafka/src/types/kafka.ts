@@ -190,4 +190,11 @@ export interface DLQOptions {
 	retryBackoffMs?: number;
 	/** Suffix appended to original topic for DLQ topic name. Default ".dlq" */
 	dlqSuffix?: string;
+	/**
+	 * How many times a failed DLQ publish is tried before the consumer pauses
+	 * the partition. The offset is never committed, so the message is kept
+	 *
+	 * @default 3
+	 */
+	dlqPublishAttempts?: number | undefined;
 }
