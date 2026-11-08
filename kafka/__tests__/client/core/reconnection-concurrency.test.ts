@@ -1,145 +1,146 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { createReconnectionMonitor } from '../../../src/client/core/reconnection-monitor';
-import type { Logger } from '../../../src/types';
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { createReconnectionMonitor } from "../../../src/client/core/reconnection-monitor";
+import type { Logger } from "../../../src/types";
 
-describe('ReconnectionMonitor Concurrency', () => {
-  const mockLogger = {
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  } as unknown as Logger;
+describe("ReconnectionMonitor Concurrency", () => {
+	const mockLogger = {
+		info: vi.fn(),
+		warn: vi.fn(),
+		error: vi.fn(),
+		debug: vi.fn(),
+	} as unknown as Logger;
 
-  beforeEach(() => {
-    vi.useFakeTimers();
-    vi.clearAllMocks();
-  });
+	beforeEach(() => {
+		vi.useFakeTimers();
+		vi.clearAllMocks();
+	});
 
-  afterEach(() => {
-    vi.useRealTimers();
-  });
+	afterEach(() => {
+		vi.useRealTimers();
+	});
 
-  it('should prevent overlapping reconnection attempts', async () => {
-    const intervalMs = 100;
-    const reconnectionDurationMs = 500;
-    
-    // Mock reconnect function that takes time to complete
-    const reconnectFn = vi.fn().mockImplementation(async () => {
-      await new Promise(resolve => setTimeout(resolve, reconnectionDurationMs));
-      return true;
-    });
+	it("should prevent overlapping reconnection attempts", async () => {
+		const intervalMs = 100;
+		const reconnectionDurationMs = 500;
 
-    // Mock isConnected to always return false (disconnected)
-    const isConnectedFn = vi.fn().mockReturnValue(false);
+		// Mock reconnect function that takes time to complete
+		const reconnectFn = vi.fn().mockImplementation(async () => {
+			await new Promise((resolve) => setTimeout(resolve, reconnectionDurationMs));
+			return true;
+		});
 
-    const monitor = createReconnectionMonitor({
-      intervalMs,
-      logger: mockLogger,
-    });
+		// Mock isConnected to always return false (disconnected)
+		const isConnectedFn = vi.fn().mockReturnValue(false);
 
-    // Start the monitor
-    monitor.start(isConnectedFn, reconnectFn);
+		const monitor = createReconnectionMonitor({
+			intervalMs,
+			logger: mockLogger,
+		});
 
-    // Advance time by enough to trigger multiple intervals if not locked
-    // We expect:
-    // T=0: Interval starts (wait 100ms)
-    // T=100: Tick 1 -> Start Reconnect 1 (takes 500ms)
-    // T=200: Tick 2 -> Skipped (Reconnect 1 pending)
-    // T=300: Tick 3 -> Skipped
-    // T=400: Tick 4 -> Skipped
-    // T=500: Tick 5 -> Skipped
-    // T=600: Reconnect 1 finishes.
-    // T=600: Tick 6 -> Start Reconnect 2
-    
-    // So in 450ms (ticks at 100, 200, 300, 400), we should only have 1 call.
-    await vi.advanceTimersByTimeAsync(450);
-    expect(reconnectFn).toHaveBeenCalledTimes(1);
+		// Start the monitor
+		monitor.start(isConnectedFn, reconnectFn);
 
-    // Advance to completion of first attempt + next interval
-    // T=600 (Reconnect 1 finishes) + 100 (next tick) = 700 total
-    await vi.advanceTimersByTimeAsync(300); // 450 + 300 = 750
-    expect(reconnectFn).toHaveBeenCalledTimes(2);
+		// Advance time by enough to trigger multiple intervals if not locked
+		// We expect:
+		// T=0: Interval starts (wait 100ms)
+		// T=100: Tick 1 -> Start Reconnect 1 (takes 500ms)
+		// T=200: Tick 2 -> Skipped (Reconnect 1 pending)
+		// T=300: Tick 3 -> Skipped
+		// T=400: Tick 4 -> Skipped
+		// T=500: Tick 5 -> Skipped
+		// T=600: Reconnect 1 finishes.
+		// T=600: Tick 6 -> Start Reconnect 2
 
-    monitor.stop();
-  });
+		// So in 450ms (ticks at 100, 200, 300, 400), we should only have 1 call.
+		await vi.advanceTimersByTimeAsync(450);
+		expect(reconnectFn).toHaveBeenCalledTimes(1);
 
-  it('should resume reconnection attempts after failure', async () => {
-    const intervalMs = 100;
-    
-    // First attempt fails, second succeeds
-    const reconnectFn = vi.fn()
-      .mockRejectedValueOnce(new Error('Connection failed'))
-      .mockResolvedValue(true);
+		// Advance to completion of first attempt + next interval
+		// T=600 (Reconnect 1 finishes) + 100 (next tick) = 700 total
+		await vi.advanceTimersByTimeAsync(300); // 450 + 300 = 750
+		expect(reconnectFn).toHaveBeenCalledTimes(2);
 
-    const isConnectedFn = vi.fn().mockReturnValue(false);
+		monitor.stop();
+	});
 
-    const monitor = createReconnectionMonitor({
-      intervalMs,
-      logger: mockLogger,
-    });
+	it("should resume reconnection attempts after failure", async () => {
+		const intervalMs = 100;
 
-    monitor.start(isConnectedFn, reconnectFn);
+		// First attempt fails, second succeeds
+		const reconnectFn = vi
+			.fn()
+			.mockRejectedValueOnce(new Error("Connection failed"))
+			.mockResolvedValue(true);
 
-    // Trigger first attempt (fails)
-    await vi.advanceTimersByTimeAsync(150);
-    expect(reconnectFn).toHaveBeenCalledTimes(1);
-    expect(mockLogger.error).toHaveBeenCalledWith(
-      expect.stringContaining('Background reconnection attempt failed'),
-      expect.any(Object)
-    );
+		const isConnectedFn = vi.fn().mockReturnValue(false);
 
-    // Trigger second attempt (succeeds)
-    await vi.advanceTimersByTimeAsync(100);
-    expect(reconnectFn).toHaveBeenCalledTimes(2);
+		const monitor = createReconnectionMonitor({
+			intervalMs,
+			logger: mockLogger,
+		});
 
-    monitor.stop();
-  });
+		monitor.start(isConnectedFn, reconnectFn);
 
-  it('should not reconnect if already connected', async () => {
-    const intervalMs = 100;
-    const reconnectFn = vi.fn().mockResolvedValue(true);
-    const isConnectedFn = vi.fn().mockReturnValue(true); // Connected
+		// Trigger first attempt (fails)
+		await vi.advanceTimersByTimeAsync(150);
+		expect(reconnectFn).toHaveBeenCalledTimes(1);
+		expect(mockLogger.error).toHaveBeenCalledWith(
+			expect.stringContaining("Background reconnection attempt failed"),
+			expect.any(Object),
+		);
 
-    const monitor = createReconnectionMonitor({
-      intervalMs,
-      logger: mockLogger,
-    });
+		// Trigger second attempt (succeeds)
+		await vi.advanceTimersByTimeAsync(100);
+		expect(reconnectFn).toHaveBeenCalledTimes(2);
 
-    monitor.start(isConnectedFn, reconnectFn);
+		monitor.stop();
+	});
 
-    await vi.advanceTimersByTimeAsync(500);
-    expect(reconnectFn).not.toHaveBeenCalled();
+	it("should not reconnect if already connected", async () => {
+		const intervalMs = 100;
+		const reconnectFn = vi.fn().mockResolvedValue(true);
+		const isConnectedFn = vi.fn().mockReturnValue(true); // Connected
 
-    monitor.stop();
-  });
+		const monitor = createReconnectionMonitor({
+			intervalMs,
+			logger: mockLogger,
+		});
 
-  it('should handle stop() call during reconnection', async () => {
-    const intervalMs = 100;
-    const reconnectFn = vi.fn().mockImplementation(async () => {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      return true;
-    });
-    const onReconnect = vi.fn();
+		monitor.start(isConnectedFn, reconnectFn);
 
-    const monitor = createReconnectionMonitor({
-      intervalMs,
-      logger: mockLogger,
-      onReconnect,
-    });
+		await vi.advanceTimersByTimeAsync(500);
+		expect(reconnectFn).not.toHaveBeenCalled();
 
-    monitor.start(() => false, reconnectFn);
+		monitor.stop();
+	});
 
-    // Start reconnection
-    await vi.advanceTimersByTimeAsync(150);
-    expect(reconnectFn).toHaveBeenCalledTimes(1);
+	it("should handle stop() call during reconnection", async () => {
+		const intervalMs = 100;
+		const reconnectFn = vi.fn().mockImplementation(async () => {
+			await new Promise((resolve) => setTimeout(resolve, 500));
+			return true;
+		});
+		const onReconnect = vi.fn();
 
-    // Stop while pending
-    monitor.stop();
+		const monitor = createReconnectionMonitor({
+			intervalMs,
+			logger: mockLogger,
+			onReconnect,
+		});
 
-    // Finish reconnection
-    await vi.advanceTimersByTimeAsync(500);
+		monitor.start(() => false, reconnectFn);
 
-    // Should NOT call onReconnect because it was stopped
-    expect(onReconnect).not.toHaveBeenCalled();
-  });
+		// Start reconnection
+		await vi.advanceTimersByTimeAsync(150);
+		expect(reconnectFn).toHaveBeenCalledTimes(1);
+
+		// Stop while pending
+		monitor.stop();
+
+		// Finish reconnection
+		await vi.advanceTimersByTimeAsync(500);
+
+		// Should NOT call onReconnect because it was stopped
+		expect(onReconnect).not.toHaveBeenCalled();
+	});
 });

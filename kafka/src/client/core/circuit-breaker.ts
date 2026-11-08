@@ -1,39 +1,39 @@
 export interface CircuitBreaker {
-  recordFailure: () => void;
-  recordSuccess: () => void;
-  isOpen: () => boolean;
-  isCircuitOpen: () => boolean;
-  reset: () => void;
-  getFailureCount: () => number;
+	recordFailure: () => void;
+	recordSuccess: () => void;
+	isOpen: () => boolean;
+	isCircuitOpen: () => boolean;
+	reset: () => void;
+	getFailureCount: () => number;
 }
 
 export interface CircuitBreakerOptions {
-  threshold: number;
-  resetTimeoutMs?: number;
+	threshold: number;
+	resetTimeoutMs?: number;
 }
 
 /**
  * Creates a circuit breaker with "Half-Open" recovery logic.
- * 
+ *
  * Prevents cascading failures by opening the circuit after a threshold
  * of consecutive failures. After a configurable timeout, the circuit
  * enters a "Half-Open" state, allowing a test request to determine
  * if the service has recovered.
- * 
+ *
  * **States:**
  * - **Closed**: Normal operation, requests allowed
  * - **Open**: Too many failures, requests blocked
  * - **Half-Open**: Timeout passed, allowing one test request
- * 
+ *
  * @example
  * ```typescript
  * // Trips after 5 failures, waits 10 seconds before allowing a retry
  * const breaker = createCircuitBreaker({ threshold: 5, resetTimeoutMs: 10000 });
- * 
+ *
  * if (breaker.isOpen()) {
  *   throw new Error('Circuit open - Kafka unavailable');
  * }
- * 
+ *
  * try {
  *   await connect();
  *   breaker.recordSuccess();
@@ -44,63 +44,63 @@ export interface CircuitBreakerOptions {
  * ```
  */
 export function createCircuitBreaker(
-  options: CircuitBreakerOptions
+	options: CircuitBreakerOptions,
 ): CircuitBreaker {
-  const { threshold, resetTimeoutMs = 30000 } = options;
-  
-  let failureCount = 0;
-  let circuitOpen = false;
-  let lastFailureTime = 0;
+	const { threshold, resetTimeoutMs = 30000 } = options;
 
-  const recordFailure = (): void => {
-    failureCount++;
-    lastFailureTime = Date.now();
+	let failureCount = 0;
+	let circuitOpen = false;
+	let lastFailureTime = 0;
 
-    if (failureCount >= threshold) {
-      circuitOpen = true;
-    }
-  };
+	const recordFailure = (): void => {
+		failureCount++;
+		lastFailureTime = Date.now();
 
-  const recordSuccess = (): void => {
-    failureCount = 0;
-    circuitOpen = false;
-    lastFailureTime = 0;
-  };
+		if (failureCount >= threshold) {
+			circuitOpen = true;
+		}
+	};
 
-  const isOpen = (): boolean => {
-    if (circuitOpen) {
-      const now = Date.now();
-      const timeSinceFailure = now - lastFailureTime;
+	const recordSuccess = (): void => {
+		failureCount = 0;
+		circuitOpen = false;
+		lastFailureTime = 0;
+	};
 
-      // If timeout passed, we allow this request (Half-Open state)
-      if (timeSinceFailure > resetTimeoutMs) {
-        return false; 
-      }
-      
-      return true; // Still in cooldown
-    }
-    
-    return false; // Normal operation (Closed)
-  };
+	const isOpen = (): boolean => {
+		if (circuitOpen) {
+			const now = Date.now();
+			const timeSinceFailure = now - lastFailureTime;
 
-  const isCircuitOpen = (): boolean => {
-    return isOpen();
-  };
+			// If timeout passed, we allow this request (Half-Open state)
+			if (timeSinceFailure > resetTimeoutMs) {
+				return false;
+			}
 
-  const reset = (): void => {
-    recordSuccess();
-  };
+			return true; // Still in cooldown
+		}
 
-  const getFailureCount = (): number => {
-    return failureCount;
-  };
+		return false; // Normal operation (Closed)
+	};
 
-  return {
-    recordFailure,
-    recordSuccess,
-    isOpen,
-    isCircuitOpen,
-    reset,
-    getFailureCount,
-  };
+	const isCircuitOpen = (): boolean => {
+		return isOpen();
+	};
+
+	const reset = (): void => {
+		recordSuccess();
+	};
+
+	const getFailureCount = (): number => {
+		return failureCount;
+	};
+
+	return {
+		recordFailure,
+		recordSuccess,
+		isOpen,
+		isCircuitOpen,
+		reset,
+		getFailureCount,
+	};
 }

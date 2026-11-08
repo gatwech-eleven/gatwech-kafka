@@ -2,10 +2,10 @@ import { z } from "@gatwech/utils/zod";
 import type { DeepReadonly, TopicName } from "../../types/utility-types";
 import { asTopicName } from "../../types/utility-types";
 import {
-  TopicConfigSchema,
-  type TopicConfig,
-  type TopicConfigInput,
-  type ValidatedTopicConfig,
+	TopicConfigSchema,
+	type TopicConfig,
+	type TopicConfigInput,
+	type ValidatedTopicConfig,
 } from "./topic-config-schema";
 
 /**
@@ -45,27 +45,27 @@ import {
  * @throws {z.ZodError} If any topic configuration is invalid
  */
 export function createTopicConfig<T extends Record<string, TopicConfigInput>>(
-  topics: T
+	topics: T,
 ): {
-  readonly [K in keyof T]: T[K] extends {schema: infer TSchema} 
-    ? ValidatedTopicConfig & {schema: TSchema}
-    : ValidatedTopicConfig
+	readonly [K in keyof T]: T[K] extends { schema: infer TSchema }
+		? ValidatedTopicConfig & { schema: TSchema }
+		: ValidatedTopicConfig;
 } {
-  const validated: Record<string, ValidatedTopicConfig> = {};
+	const validated: Record<string, ValidatedTopicConfig> = {};
 
-  for (const [key, config] of Object.entries(topics)) {
-    // Validate using Zod schema
-    const parsed = TopicConfigSchema.parse(config);
+	for (const [key, config] of Object.entries(topics)) {
+		// Validate using Zod schema
+		const parsed = TopicConfigSchema.parse(config);
 
-    // Brand the topic name for type safety
-    validated[key] = {
-      ...parsed,
-      name: asTopicName(parsed.name),
-    } as ValidatedTopicConfig;
-  }
+		// Brand the topic name for type safety
+		validated[key] = {
+			...parsed,
+			name: asTopicName(parsed.name),
+		} as ValidatedTopicConfig;
+	}
 
-  // Return as readonly while preserving specific schema types
-  return Object.freeze(validated) as any;
+	// Return as readonly while preserving specific schema types
+	return Object.freeze(validated) as any;
 }
 
 /**
@@ -86,13 +86,13 @@ export function createTopicConfig<T extends Record<string, TopicConfigInput>>(
  * @throws {z.ZodError} If configuration is invalid
  */
 export function createSingleTopicConfig(
-  config: TopicConfigInput
+	config: TopicConfigInput,
 ): DeepReadonly<ValidatedTopicConfig> {
-  const parsed = TopicConfigSchema.parse(config);
-  return {
-    ...parsed,
-    name: asTopicName(parsed.name),
-  } as DeepReadonly<ValidatedTopicConfig>;
+	const parsed = TopicConfigSchema.parse(config);
+	return {
+		...parsed,
+		name: asTopicName(parsed.name),
+	} as DeepReadonly<ValidatedTopicConfig>;
 }
 
 /**
@@ -107,8 +107,7 @@ export function createSingleTopicConfig(
  * ```
  */
 export function topicsToArray<T extends Record<string, ValidatedTopicConfig>>(
-  topics: T
+	topics: T,
 ): ReadonlyArray<ValidatedTopicConfig> {
-  return Object.values(topics);
+	return Object.values(topics);
 }
-

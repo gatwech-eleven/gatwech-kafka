@@ -8,7 +8,6 @@
   "types": "./dist/index.d.mts",
   "scripts": {
     "build": "tsdown --tsconfig tsconfig.build.json",
-    "lint": "biome lint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "tsx ./__tests__/e2e/basic-flow.e2e.ts",
@@ -32,7 +31,7 @@
   "author": "Gatwech Tap Nguth",
   "license": "ISC",
   "dependencies": {
-    "@gatwech/utils": "workspace:*",
+    "@gatwech/utils": "^0.5.3",
     "buffer": "^6.0.3",
     "kafkajs": "^2.2.4",
     "nanoid": "^5.1.6",
@@ -44,7 +43,6 @@
     "@types/express": "^4.17.21",
     "@types/node": "^24.10.1",
     "@types/supertest": "^6.0.3",
-    "biome": "^0.3.3",
     "express": "^4.21.2",
     "nodemon": "^3.1.10",
     "supertest": "^7.1.4",

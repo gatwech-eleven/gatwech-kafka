@@ -1,6 +1,14 @@
-import { describe, expect, it, vi, beforeEach, afterEach, type Mock } from "vitest";
+import {
+	describe,
+	expect,
+	it,
+	vi,
+	beforeEach,
+	afterEach,
+	type Mock,
+} from "vitest";
 import { z } from "@gatwech/utils/zod";
-import { consumeWithRetryAndDLQ } from '../../../src/client/consumers/consume-with-dlq';
+import { consumeWithRetryAndDLQ } from "../../../src/client/consumers/consume-with-dlq";
 import type { TopicConfig } from "../../../src/config/topics/topic-config-schema";
 import { createDLQPublisher } from "../../../src/client/consumers/dlq.factory";
 import type { BaseKafkaClient } from "../../../src/client/core/kafka";
@@ -9,185 +17,191 @@ const RETRY_BACKOFF_MS = 1000;
 
 // Mock DLQ factory
 vi.mock("../../../src/client/consumers/dlq.factory", () => ({
-  createDLQPublisher: vi.fn(),
+	createDLQPublisher: vi.fn(),
 }));
 
 const mockPublishToDLQ = vi.fn();
 vi.mocked(createDLQPublisher).mockReturnValue(mockPublishToDLQ);
 
 const mockClient = {
-  createConsumer: (config: any) => {
-    const consumer = {
-      on: vi.fn(),
-      connect: vi.fn().mockResolvedValue(undefined),
-      subscribe: vi.fn().mockResolvedValue(undefined),
-      run: vi.fn().mockImplementation(async ({ eachMessage }: any) => {
-        (mockClient as any).lastEachMessage = eachMessage;
-      }),
-    };
-    return consumer;
-  },
-  getProducer: () => ({ send: async () => {} }),
+	createConsumer: (config: any) => {
+		const consumer = {
+			on: vi.fn(),
+			connect: vi.fn().mockResolvedValue(undefined),
+			subscribe: vi.fn().mockResolvedValue(undefined),
+			run: vi.fn().mockImplementation(async ({ eachMessage }: any) => {
+				(mockClient as any).lastEachMessage = eachMessage;
+			}),
+		};
+		return consumer;
+	},
+	getProducer: () => ({ send: async () => {} }),
 } as unknown as BaseKafkaClient;
 
 // Define a topic with Zod schema
 const TestSchema = z.object({ id: z.string() });
 const testTopic: TopicConfig & { schema: typeof TestSchema } = {
-  name: "test.topic",
-  schema: TestSchema,
-  // other optional fields can be omitted for this test
+	name: "test.topic",
+	schema: TestSchema,
+	// other optional fields can be omitted for this test
 } as any;
 
 describe("consumeWithRetryAndDLQ generic inference", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    vi.useFakeTimers();
-    vi.mocked(createDLQPublisher).mockReturnValue(mockPublishToDLQ);
-  });
+	beforeEach(() => {
+		vi.clearAllMocks();
+		vi.useFakeTimers();
+		vi.mocked(createDLQPublisher).mockReturnValue(mockPublishToDLQ);
+	});
 
-  afterEach(() => {
-    vi.useRealTimers();
-  });
+	afterEach(() => {
+		vi.useRealTimers();
+	});
 
-  it("handler receives correctly typed payload", async () => {
-    const handler = async (payload: { id: string }, _ctx: any) => {
-      expect(typeof payload.id).toBe("string");
-    };
-    
-    await consumeWithRetryAndDLQ(mockClient, "group1", testTopic, handler);
-    
-    await (mockClient as any).lastEachMessage({
-      topic: "test.topic",
-      partition: 0,
-      message: {
-        value: Buffer.from(JSON.stringify({ id: "abc-123" })),
-        offset: "0",
-        key: null,
-        headers: {},
-      },
-    });
-  });
+	it("handler receives correctly typed payload", async () => {
+		const handler = async (payload: { id: string }, _ctx: any) => {
+			expect(typeof payload.id).toBe("string");
+		};
 
-  it("should publish to DLQ when schema validation fails", async () => {
-    const handler = vi.fn();
-    
-    await consumeWithRetryAndDLQ(mockClient, "group1", testTopic, handler);
-    
-    await (mockClient as any).lastEachMessage({
-      topic: "test.topic",
-      partition: 0,
-      message: {
-        value: Buffer.from(JSON.stringify({ id: 123 })), // Invalid type
-        offset: "0",
-        key: null,
-        headers: {},
-      },
-    });
+		await consumeWithRetryAndDLQ(mockClient, "group1", testTopic, handler);
 
-    expect(handler).not.toHaveBeenCalled();
-    expect(mockPublishToDLQ).toHaveBeenCalled();
-    // Check if called with an Error object
-    const errorArg = mockPublishToDLQ.mock.calls[0][1];
-    expect(errorArg).toBeInstanceOf(Error);
-    // Zod error message might vary, just check it's an error
-  });
+		await (mockClient as any).lastEachMessage({
+			topic: "test.topic",
+			partition: 0,
+			message: {
+				value: Buffer.from(JSON.stringify({ id: "abc-123" })),
+				offset: "0",
+				key: null,
+				headers: {},
+			},
+		});
+	});
 
-  it("should reject when the DLQ publish fails for an invalid message, so the offset isn't committed", async () => {
-    mockPublishToDLQ.mockRejectedValueOnce(new Error("DLQ unavailable"));
-    const handler = vi.fn();
+	it("should publish to DLQ when schema validation fails", async () => {
+		const handler = vi.fn();
 
-    await consumeWithRetryAndDLQ(mockClient, "group1", testTopic, handler);
+		await consumeWithRetryAndDLQ(mockClient, "group1", testTopic, handler);
 
-    await expect(
-      (mockClient as any).lastEachMessage({
-        topic: "test.topic",
-        partition: 0,
-        message: {
-          value: Buffer.from(JSON.stringify({ id: 123 })),
-          offset: "0",
-          key: null,
-          headers: {},
-        },
-      }),
-    ).rejects.toThrow("DLQ unavailable");
-    expect(handler).not.toHaveBeenCalled();
-  });
+		await (mockClient as any).lastEachMessage({
+			topic: "test.topic",
+			partition: 0,
+			message: {
+				value: Buffer.from(JSON.stringify({ id: 123 })), // Invalid type
+				offset: "0",
+				key: null,
+				headers: {},
+			},
+		});
 
-  it("should reject when the DLQ publish fails after the handler's retries", async () => {
-    mockPublishToDLQ.mockRejectedValueOnce(new Error("DLQ unavailable"));
-    const handler = vi.fn().mockRejectedValue(new Error("Processing failed"));
+		expect(handler).not.toHaveBeenCalled();
+		expect(mockPublishToDLQ).toHaveBeenCalled();
+		// Check if called with an Error object
+		const errorArg = mockPublishToDLQ.mock.calls[0][1];
+		expect(errorArg).toBeInstanceOf(Error);
+		// Zod error message might vary, just check it's an error
+	});
 
-    await consumeWithRetryAndDLQ(mockClient, "group1", testTopic, handler, {
-      maxRetries: 2,
-      retryBackoffMs: RETRY_BACKOFF_MS,
-    });
+	it("should reject when the DLQ publish fails for an invalid message, so the offset isn't committed", async () => {
+		mockPublishToDLQ.mockRejectedValueOnce(new Error("DLQ unavailable"));
+		const handler = vi.fn();
 
-    const eachMessage = (mockClient as any).lastEachMessage({
-      topic: "test.topic",
-      partition: 0,
-      message: {
-        value: Buffer.from(JSON.stringify({ id: "abc-123" })),
-        offset: "0",
-        key: null,
-        headers: {},
-      },
-    });
-    const rejection = expect(eachMessage).rejects.toThrow("DLQ unavailable");
-    await vi.runAllTimersAsync();
-    await rejection;
+		await consumeWithRetryAndDLQ(mockClient, "group1", testTopic, handler);
 
-    expect(handler).toHaveBeenCalledTimes(2);
-  });
+		await expect(
+			(mockClient as any).lastEachMessage({
+				topic: "test.topic",
+				partition: 0,
+				message: {
+					value: Buffer.from(JSON.stringify({ id: 123 })),
+					offset: "0",
+					key: null,
+					headers: {},
+				},
+			}),
+		).rejects.toThrow("DLQ unavailable");
+		expect(handler).not.toHaveBeenCalled();
+	});
 
-  it("should not reject when the message reaches the DLQ", async () => {
-    const handler = vi.fn();
+	it("should reject when the DLQ publish fails after the handler's retries", async () => {
+		mockPublishToDLQ.mockRejectedValueOnce(new Error("DLQ unavailable"));
+		const handler = vi.fn().mockRejectedValue(new Error("Processing failed"));
 
-    await consumeWithRetryAndDLQ(mockClient, "group1", testTopic, handler);
+		await consumeWithRetryAndDLQ(mockClient, "group1", testTopic, handler, {
+			maxRetries: 2,
+			retryBackoffMs: RETRY_BACKOFF_MS,
+		});
 
-    await expect(
-      (mockClient as any).lastEachMessage({
-        topic: "test.topic",
-        partition: 0,
-        message: {
-          value: Buffer.from(JSON.stringify({ id: 123 })),
-          offset: "0",
-          key: null,
-          headers: {},
-        },
-      }),
-    ).resolves.toBeUndefined();
-    expect(mockPublishToDLQ).toHaveBeenCalledTimes(1);
-  });
+		const eachMessage = (mockClient as any).lastEachMessage({
+			topic: "test.topic",
+			partition: 0,
+			message: {
+				value: Buffer.from(JSON.stringify({ id: "abc-123" })),
+				offset: "0",
+				key: null,
+				headers: {},
+			},
+		});
+		const rejection = expect(eachMessage).rejects.toThrow("DLQ unavailable");
+		await vi.runAllTimersAsync();
+		await rejection;
 
-  it("should retry then publish to DLQ when handler fails", async () => {
-    const handler = vi.fn().mockRejectedValue(new Error("Processing failed"));
-    
-    const consumerPromise = consumeWithRetryAndDLQ(mockClient, "group1", testTopic, handler, {
-      maxRetries: 2,
-      retryBackoffMs: RETRY_BACKOFF_MS,
-    });
-    
-    await consumerPromise;
+		expect(handler).toHaveBeenCalledTimes(2);
+	});
 
-    const eachMessagePromise = (mockClient as any).lastEachMessage({
-      topic: "test.topic",
-      partition: 0,
-      message: {
-        value: Buffer.from(JSON.stringify({ id: "abc-123" })),
-        offset: "0",
-        key: null,
-        headers: {},
-      },
-    });
+	it("should not reject when the message reaches the DLQ", async () => {
+		const handler = vi.fn();
 
-    // Fast-forward time for retries
-    await vi.runAllTimersAsync();
-    await eachMessagePromise;
+		await consumeWithRetryAndDLQ(mockClient, "group1", testTopic, handler);
 
-    expect(handler).toHaveBeenCalledTimes(2); 
-    
-    expect(mockPublishToDLQ).toHaveBeenCalled();
-    const errorArg = mockPublishToDLQ.mock.calls[0][1];
-    expect(errorArg.message).toContain("Message processing failed after retries");
-  });
+		await expect(
+			(mockClient as any).lastEachMessage({
+				topic: "test.topic",
+				partition: 0,
+				message: {
+					value: Buffer.from(JSON.stringify({ id: 123 })),
+					offset: "0",
+					key: null,
+					headers: {},
+				},
+			}),
+		).resolves.toBeUndefined();
+		expect(mockPublishToDLQ).toHaveBeenCalledTimes(1);
+	});
+
+	it("should retry then publish to DLQ when handler fails", async () => {
+		const handler = vi.fn().mockRejectedValue(new Error("Processing failed"));
+
+		const consumerPromise = consumeWithRetryAndDLQ(
+			mockClient,
+			"group1",
+			testTopic,
+			handler,
+			{
+				maxRetries: 2,
+				retryBackoffMs: RETRY_BACKOFF_MS,
+			},
+		);
+
+		await consumerPromise;
+
+		const eachMessagePromise = (mockClient as any).lastEachMessage({
+			topic: "test.topic",
+			partition: 0,
+			message: {
+				value: Buffer.from(JSON.stringify({ id: "abc-123" })),
+				offset: "0",
+				key: null,
+				headers: {},
+			},
+		});
+
+		// Fast-forward time for retries
+		await vi.runAllTimersAsync();
+		await eachMessagePromise;
+
+		expect(handler).toHaveBeenCalledTimes(2);
+
+		expect(mockPublishToDLQ).toHaveBeenCalled();
+		const errorArg = mockPublishToDLQ.mock.calls[0][1];
+		expect(errorArg.message).toContain("Message processing failed after retries");
+	});
 });

@@ -24,8 +24,9 @@
     "build": "tsdown",
     "dev": "tsx src/index.ts",
     "kafka": "node ./dist/index.mjs",
-    "test": "vitest",
-    "typecheck": "tsc --noEmit"
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@gatwech/kafka": "workspace:*",

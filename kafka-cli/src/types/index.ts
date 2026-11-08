@@ -1,29 +1,29 @@
 export interface InitOptions {
-  name?: string;
-  brokers?: string;
-  docker?: boolean;
+	name?: string;
+	brokers?: string;
+	docker?: boolean;
 }
 
 export interface CreateTopicsOptions {
-  config?: string;
-  dryRun?: boolean;
+	config?: string;
+	dryRun?: boolean;
 }
 
 export interface ListTopicsOptions {
-  filter?: string;
-  json?: boolean;
+	filter?: string;
+	json?: boolean;
 }
 
 export interface LagOptions {
-  topic?: string;
-  watch?: boolean;
+	topic?: string;
+	watch?: boolean;
 }
 
 export interface HealthOptions {
-  json?: boolean;
+	json?: boolean;
 }
 
 export interface GenerateTypesOptions {
-  config?: string;
-  output?: string;
+	config?: string;
+	output?: string;
 }
