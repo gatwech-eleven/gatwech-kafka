@@ -1,16 +1,12 @@
 import type { Admin } from "kafkajs";
 import type {
-  TopicConfig,
-  ValidatedTopicConfig,
+	TopicConfig,
+	ValidatedTopicConfig,
 } from "./topics/topic-config-schema";
 import { createMissingTopics } from "./topics/create-topics";
 import { updateTopicConfigs } from "./topics/update-configs";
 import { updatePartitionCounts } from "./topics/update-partitions";
-import {
-  asTopicDefs,
-  withRetry,
-  validateTopics,
-} from "./topics/utils";
+import { asTopicDefs, withRetry, validateTopics } from "./topics/utils";
 import type { TopicMap } from "./topics/utils";
 
 const WAIT_FOR_LEADERS_DEFAULT_MS = 15_000;
@@ -19,17 +15,17 @@ const WAIT_FOR_LEADERS_DEFAULT_MS = 15_000;
  * Options for topic provisioning defaults.
  */
 type EnsureOpts = {
-  /**
-   * Application-defined topics (from `createTopicConfig()`).
-   * This is the recommended way to provide topics.
-   */
-  topics?: Record<string, ValidatedTopicConfig | TopicConfig>;
-  /** Default number of partitions for new topics (overridden by per-topic config if provided). */
-  partitions?: number;
-  /** Default replication factor for new topics (overridden by per-topic config if provided). */
-  replicationFactor?: number;
-  /** Max time to wait for leaders after create/partition increase, in milliseconds. */
-  waitForLeadersMs?: number;
+	/**
+	 * Application-defined topics (from `createTopicConfig()`).
+	 * This is the recommended way to provide topics.
+	 */
+	topics?: Record<string, ValidatedTopicConfig | TopicConfig>;
+	/** Default number of partitions for new topics (overridden by per-topic config if provided). */
+	partitions?: number;
+	/** Default replication factor for new topics (overridden by per-topic config if provided). */
+	replicationFactor?: number;
+	/** Max time to wait for leaders after create/partition increase, in milliseconds. */
+	waitForLeadersMs?: number;
 };
 
 /**
@@ -77,54 +73,54 @@ type EnsureOpts = {
  * @throws Propagates unexpected admin errors (topic creation races are handled gracefully).
  */
 export async function initializeKafkaTopics(
-  admin: Admin,
-  opts: EnsureOpts = {},
-  manageConnection = true
+	admin: Admin,
+	opts: EnsureOpts = {},
+	manageConnection = true,
 ) {
-  const partitionsDefault = opts.partitions ?? 3;
-  const rfDefault = opts.replicationFactor ?? 1;
-  const waitForLeadersMs = opts.waitForLeadersMs ?? WAIT_FOR_LEADERS_DEFAULT_MS;
+	const partitionsDefault = opts.partitions ?? 3;
+	const rfDefault = opts.replicationFactor ?? 1;
+	const waitForLeadersMs = opts.waitForLeadersMs ?? WAIT_FOR_LEADERS_DEFAULT_MS;
 
-  // Convert provided topics to TopicMap format
-  const flatTopics: TopicMap = {};
-  if (opts.topics) {
-    for (const [key, value] of Object.entries(opts.topics)) {
-      flatTopics[key] = { name: value.name, config: value };
-    }
-  }
+	// Convert provided topics to TopicMap format
+	const flatTopics: TopicMap = {};
+	if (opts.topics) {
+		for (const [key, value] of Object.entries(opts.topics)) {
+			flatTopics[key] = { name: value.name, config: value };
+		}
+	}
 
-  const defs = asTopicDefs(flatTopics);
-  validateTopics(defs);
+	const defs = asTopicDefs(flatTopics);
+	validateTopics(defs);
 
-  if (manageConnection) await admin.connect();
-  try {
-    const md = await withRetry(() => admin.fetchTopicMetadata());
-    const existing = new Set(md.topics.map((t) => t.name));
+	if (manageConnection) await admin.connect();
+	try {
+		const md = await withRetry(() => admin.fetchTopicMetadata());
+		const existing = new Set(md.topics.map((t) => t.name));
 
-    // Step 1: Create missing topics
-    await createMissingTopics(
-      admin,
-      defs,
-      existing,
-      partitionsDefault,
-      rfDefault,
-      waitForLeadersMs
-    );
+		// Step 1: Create missing topics
+		await createMissingTopics(
+			admin,
+			defs,
+			existing,
+			partitionsDefault,
+			rfDefault,
+			waitForLeadersMs,
+		);
 
-    // Step 2: Update partition counts
-    const md2 = await withRetry(() => admin.fetchTopicMetadata());
-    const current = new Map(md2.topics.map((t) => [t.name, t]));
-    await updatePartitionCounts(
-      admin,
-      defs,
-      current,
-      partitionsDefault,
-      waitForLeadersMs
-    );
+		// Step 2: Update partition counts
+		const md2 = await withRetry(() => admin.fetchTopicMetadata());
+		const current = new Map(md2.topics.map((t) => [t.name, t]));
+		await updatePartitionCounts(
+			admin,
+			defs,
+			current,
+			partitionsDefault,
+			waitForLeadersMs,
+		);
 
-    // Step 3: Update topic configs
-    await updateTopicConfigs(admin, defs);
-  } finally {
-    if (manageConnection) await admin.disconnect();
-  }
+		// Step 3: Update topic configs
+		await updateTopicConfigs(admin, defs);
+	} finally {
+		if (manageConnection) await admin.disconnect();
+	}
 }

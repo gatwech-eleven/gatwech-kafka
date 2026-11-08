@@ -10,7 +10,12 @@
     "start": "node --loader tsx src/index.ts",
     "typecheck": "tsc --noEmit"
   },
-  "keywords": ["kafka", "resilience", "express", "demo"],
+  "keywords": [
+    "kafka",
+    "resilience",
+    "express",
+    "demo"
+  ],
   "author": "Gatwech Tap Nguth",
   "license": "ISC",
   "dependencies": {

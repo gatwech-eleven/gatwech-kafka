@@ -5,9 +5,12 @@
 
 // Partition Analysis Extension
 
-export { partitionAnalysisExtension, calculateOptimalPartitions } from "./partition-analysis";
+export {
+	partitionAnalysisExtension,
+	calculateOptimalPartitions,
+} from "./partition-analysis";
 
 export type {
-  PartitionSkewResult,
-  ThroughputMetrics,
+	PartitionSkewResult,
+	ThroughputMetrics,
 } from "./partition-analysis";

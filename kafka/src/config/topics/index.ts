@@ -6,49 +6,42 @@
 // Topic Definition API
 
 export {
-  createTopicConfig,
-  createSingleTopicConfig,
-  topicsToArray,
+	createTopicConfig,
+	createSingleTopicConfig,
+	topicsToArray,
 } from "./define-topics";
 
 export {
-  TopicConfigBuilder,
-  topicBuilder,
+	TopicConfigBuilder,
+	topicBuilder,
 } from "./topic-builder";
 
+export { createMissingTopics } from "./create-topics";
+
+export { updatePartitionCounts } from "./update-partitions";
+
+export { updateTopicConfigs } from "./update-configs";
 
 export {
-  createMissingTopics,
-} from "./create-topics";
-
-export {
-  updatePartitionCounts,
-} from "./update-partitions";
-
-export {
-  updateTopicConfigs,
-} from "./update-configs";
-
-export {
-  asTopicDefs,
-  validateTopics,
-  toConfigEntries,
-  safeDescribeConfigs,
-  waitForLeaders,
-  withRetry,
-  CONFIG_RESOURCE_TYPE_TOPIC,
+	asTopicDefs,
+	validateTopics,
+	toConfigEntries,
+	safeDescribeConfigs,
+	waitForLeaders,
+	withRetry,
+	CONFIG_RESOURCE_TYPE_TOPIC,
 } from "./utils";
 
 // Type Exports
 
 export type {
-  TopicConfig,
-  TopicConfigInput,
-  ValidatedTopicConfig,
+	TopicConfig,
+	TopicConfigInput,
+	ValidatedTopicConfig,
 } from "./topic-config-schema";
 
 export type {
-  TopicConfigShape,
-  TopicDef,
-  TopicMap,
+	TopicConfigShape,
+	TopicDef,
+	TopicMap,
 } from "./utils";

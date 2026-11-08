@@ -23,8 +23,8 @@ export type ConsumerDlqOptions = DLQOptions;
  * Used for raw consumption.
  */
 export interface RawTopic {
-  name: string;
-  schema?: undefined | null;
+	name: string;
+	schema?: undefined | null;
 }
 
 /**

@@ -3,25 +3,25 @@ import path from "path";
 import { topics } from "../src/config/topics";
 
 type TopicConfigRaw = {
-  name: string;
-  retentionMs?: number;
-  cleanupPolicy?: string;
+	name: string;
+	retentionMs?: number;
+	cleanupPolicy?: string;
 };
 
 const out: Record<string, TopicConfigRaw> = {};
 
 for (const groupKey of Object.keys(topics)) {
-  const group = (topics as any)[groupKey] as Record<string, TopicConfigRaw>;
-  for (const k of Object.keys(group)) {
-    const cfg = group[k];
-    if (cfg && cfg.name) {
-      out[cfg.name] = {
-        name: cfg.name,
-        retentionMs: cfg.retentionMs ?? 604_800_000,
-        cleanupPolicy: cfg.cleanupPolicy ?? "compact",
-      };
-    }
-  }
+	const group = (topics as any)[groupKey] as Record<string, TopicConfigRaw>;
+	for (const k of Object.keys(group)) {
+		const cfg = group[k];
+		if (cfg && cfg.name) {
+			out[cfg.name] = {
+				name: cfg.name,
+				retentionMs: cfg.retentionMs ?? 604_800_000,
+				cleanupPolicy: cfg.cleanupPolicy ?? "compact",
+			};
+		}
+	}
 }
 
 const __filename = new URL(import.meta.url).pathname;
