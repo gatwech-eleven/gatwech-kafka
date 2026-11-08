@@ -98,4 +98,4 @@ async function run() {
   }
 }
 
-run();
+void run();

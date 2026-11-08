@@ -1,9 +1,0 @@
-../../apps/frontend/docs                 |  WARN  The field "pnpm.overrides" was found in /home/jeremy/Projects/payvo-canary/apps/frontend/docs/package.json. This will not take effect. You should configure "pnpm.overrides" at the root of the workspace instead.
-../../apps/frontend/web                  |  WARN  The field "pnpm.overrides" was found in /home/jeremy/Projects/payvo-canary/apps/frontend/web/package.json. This will not take effect. You should configure "pnpm.overrides" at the root of the workspace instead.
-../../mobile/payvo-native                |  WARN  The field "pnpm.overrides" was found in /home/jeremy/Projects/payvo-canary/mobile/payvo-native/package.json. This will not take effect. You should configure "pnpm.overrides" at the root of the workspace instead.
-../../mobile/payvo-native                |  WARN  The field "pnpm.ignoredBuiltDependencies" was found in /home/jeremy/Projects/payvo-canary/mobile/payvo-native/package.json. This will not take effect. You should configure "pnpm.ignoredBuiltDependencies" at the root of the workspace instead.
-../auth                                  |  WARN  The field "resolutions" was found in /home/jeremy/Projects/payvo-canary/packages/auth/package.json. This will not take effect. You should configure "resolutions" at the root of the workspace instead.
-
-> @gatwech/kafka-cli@0.1.0 typecheck /home/jeremy/Projects/payvo-canary/packages/kafka-cli
-> tsc --noEmit
-
