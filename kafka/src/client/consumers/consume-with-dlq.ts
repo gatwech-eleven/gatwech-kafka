@@ -90,9 +90,11 @@ async function executeWithRetry<T>(
 }
 
 /**
- * Publishes failed message to DLQ.
+ * Publishes a failed message to the DLQ, trying `attempts` times
  *
- * @throws When the DLQ publish fails, so the caller doesn't commit the offset.
+ * When every attempt fails it pauses the partition and throws, so the offset
+ * isn't committed and the message is neither lost nor handled again until the
+ * partition is resumed
  */
 async function handleDLQPublish(
 	publishToDLQ: ReturnType<typeof createDLQPublisher>,
@@ -103,32 +105,54 @@ async function handleDLQPublish(
 		offset: string;
 		groupId: string;
 	},
+	options: {
+		attempts: number;
+		backoffBase: number;
+		pausePartition: () => void;
+	},
 ): Promise<void> {
-	try {
-		logger.debug("Publishing to DLQ", context);
-		await publishToDLQ(
-			{
-				value: message.value ?? null,
-				key: message.key ?? null,
-				headers: message.headers,
-			},
-			new Error("Message processing failed after retries"),
-			{
-				topic: asTopicName(context.topic),
-				partition: context.partition,
-				offset: context.offset,
-				groupId: asConsumerGroupId(context.groupId),
-			},
-		);
-		logger.debug("Published to DLQ", context);
-	} catch (err) {
-		logger.error("Failed to publish to DLQ", {
-			...context,
-			error: err,
-		});
-		// The message would be in neither the topic nor the DLQ. Rethrow so
-		// `eachMessage` rejects, the offset isn't committed and it is redelivered.
-		throw err;
+	for (let attempt = 1; ; attempt++) {
+		try {
+			logger.debug("Publishing to DLQ", { ...context, attempt });
+			await publishToDLQ(
+				{
+					value: message.value ?? null,
+					key: message.key ?? null,
+					headers: message.headers,
+				},
+				new Error("Message processing failed after retries"),
+				{
+					topic: asTopicName(context.topic),
+					partition: context.partition,
+					offset: context.offset,
+					groupId: asConsumerGroupId(context.groupId),
+				},
+			);
+			logger.debug("Published to DLQ", context);
+			return;
+		} catch (err) {
+			if (attempt < options.attempts) {
+				const delay = Math.min(
+					options.backoffBase * 2 ** (attempt - 1),
+					MAX_RETRY_DELAY_MS,
+				);
+				logger.warn("Failed to publish to DLQ; trying again", {
+					...context,
+					attempt,
+					delay,
+					error: err,
+				});
+				await sleep(delay);
+				continue;
+			}
+			logger.error("Failed to publish to DLQ; pausing the partition", {
+				...context,
+				attempts: options.attempts,
+				error: err,
+			});
+			options.pausePartition();
+			throw err;
+		}
 	}
 }
 
@@ -192,6 +216,7 @@ export async function consumeWithRetryAndDLQ(
 	const maxRetries = Math.max(1, opts.maxRetries ?? 3);
 	const backoffBase = Math.max(1, opts.retryBackoffMs ?? 500);
 	const dlqSuffix = opts.dlqSuffix ?? ".dlq";
+	const dlqPublishAttempts = Math.max(1, opts.dlqPublishAttempts ?? 3);
 
 	// Create consumer with proper configuration
 	const consumer = client.createConsumer({
@@ -256,7 +281,12 @@ export async function consumeWithRetryAndDLQ(
 
 			if (validationFailed) {
 				if (dlqEnabled) {
-					await handleDLQPublish(publishToDLQ, message, context);
+					await handleDLQPublish(publishToDLQ, message, context, {
+						attempts: dlqPublishAttempts,
+						backoffBase,
+						pausePartition: () =>
+							consumer.pause([{ topic: topicName, partitions: [partition] }]),
+					});
 				} else {
 					logger.error(
 						"Schema validation failed and DLQ disabled; giving up on message",
@@ -275,7 +305,12 @@ export async function consumeWithRetryAndDLQ(
 
 			if (!success) {
 				if (dlqEnabled) {
-					await handleDLQPublish(publishToDLQ, message, context);
+					await handleDLQPublish(publishToDLQ, message, context, {
+						attempts: dlqPublishAttempts,
+						backoffBase,
+						pausePartition: () =>
+							consumer.pause([{ topic: topicName, partitions: [partition] }]),
+					});
 				} else {
 					logger.error("DLQ disabled; giving up on message", context);
 				}

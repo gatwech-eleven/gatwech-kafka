@@ -15,6 +15,7 @@ export default defineConfig({
 			"__test__/**/*.test.ts",
 			"src/**/__tests__/**/*.test.ts",
 			"src/**/__tests__/**/*.spec.ts",
+			"src/**/*.test.ts",
 		],
 		setupFiles: [path.resolve(__dirname, "__tests__/setup.ts")],
 		coverage: {
