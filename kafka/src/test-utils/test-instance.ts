@@ -48,7 +48,7 @@ export const getTestInstance = async <
 		clientId: `payvo-test-${id}`,
 		brokers,
 		namespace,
-		connect: { maxAttempts: 2, retryDelayMs: 50 },
+		connect: { attempts: 2, retryDelayMs: 50 },
 		logger: {
 			level: "debug",
 			log: (level, message) => {
