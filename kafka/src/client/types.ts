@@ -98,19 +98,27 @@ export interface KafkaOptions {
 		| undefined;
 	/**
 	 * What `provision()` uses for a topic that sets neither
+	 * @description A topic's DLQ gets one partition, the topic's replication
+	 * factor and retention, and the `"delete"` cleanup policy
 	 */
 	provisioning?:
 		| {
 				/**
-				 * @default 1
+				 * How many partitions a new topic has
+				 *
+				 * @default 3
 				 */
 				partitions?: number | undefined;
 				/**
+				 * How many brokers keep a copy of each partition
+				 *
 				 * @default 1
 				 */
 				replicationFactor?: number | undefined;
 				/**
 				 * How long to wait for each partition's leader, in milliseconds
+				 *
+				 * @default 15_000
 				 */
 				waitForLeadersMs?: number | undefined;
 		  }
@@ -163,7 +171,7 @@ export interface KafkaOptions {
 /**
  * The topics of a client, by key
  */
-export type TopicsOf<Options extends KafkaOptions> = Options extends {
+export type InferTopics<Options extends KafkaOptions> = Options extends {
 	topics: infer T extends AnyTopics;
 }
 	? T
@@ -172,20 +180,25 @@ export type TopicsOf<Options extends KafkaOptions> = Options extends {
 /**
  * One of the topics of a client, by key
  */
-export type TopicOf<
+export type InferTopic<
 	Options extends KafkaOptions,
-	Name extends keyof TopicsOf<Options>,
-> = TopicsOf<Options>[Name] extends infer T extends Topic<any> ? T : never;
+	Name extends keyof InferTopics<Options>,
+> = InferTopics<Options>[Name] extends infer T extends Topic<any> ? T : never;
 
 export interface KafkaHealth {
 	/**
-	 * Whether a broker answered. Checking never connects the client
+	 * Whether a broker answered. Checking never connects the client, and a
+	 * client that is not `enabled` is never healthy
 	 */
 	healthy: boolean;
 	/**
 	 * Whether `connect()` has succeeded and `disconnect()` has not been called
 	 */
 	connected: boolean;
+	/**
+	 * Whether publishes are going through: `"open"` refuses them, and
+	 * `"half-open"` lets one through to find out
+	 */
 	circuit: "closed" | "open" | "half-open";
 }
 
@@ -217,14 +230,14 @@ export type Kafka<Options extends KafkaOptions = KafkaOptions> = {
 	 * 	event: { userId, email },
 	 * });
 	 */
-	publish: <Name extends keyof TopicsOf<Options> & string>(
-		options: PublishOptions<Name, TopicOf<Options, Name>>,
+	publish: <Name extends keyof InferTopics<Options> & string>(
+		options: PublishOptions<Name, InferTopic<Options, Name>>,
 	) => Promise<void>;
 	/**
 	 * Publishes several events to one of the topics in one request
 	 */
-	publishBatch: <Name extends keyof TopicsOf<Options> & string>(
-		options: PublishBatchOptions<Name, TopicOf<Options, Name>>,
+	publishBatch: <Name extends keyof InferTopics<Options> & string>(
+		options: PublishBatchOptions<Name, InferTopic<Options, Name>>,
 	) => Promise<void>;
 	/**
 	 * Reads one of the topics, with retries and a DLQ
@@ -238,28 +251,13 @@ export type Kafka<Options extends KafkaOptions = KafkaOptions> = {
 	 * 	},
 	 * });
 	 */
-	consume: <Name extends keyof TopicsOf<Options> & string>(
-		options: ConsumeOptions<TopicOf<Options, Name>, Name>,
+	consume: <Name extends keyof InferTopics<Options> & string>(
+		options: ConsumeOptions<InferTopic<Options, Name>, Name>,
 	) => Promise<KafkaConsumer>;
 	/**
 	 * The topics as the broker knows them: with the `namespace` in their names
 	 */
-	topics: TopicsOf<Options>;
+	topics: InferTopics<Options>;
 	options: Options;
 	$ERROR_CODES: typeof KAFKA_ERROR_CODES;
 };
-
-/**
- * Creates the Kafka client of a service. One per service
- *
- * @example
- * export const kafka = createKafka({
- * 	clientId: "payvo-auth-service",
- * 	brokers: ["localhost:9092"],
- * 	topics,
- * 	namespace: env.KAFKA_NAMESPACE,
- * });
- */
-export declare function createKafka<Options extends KafkaOptions>(
-	options: Options & Record<never, never>,
-): Kafka<Options>;
