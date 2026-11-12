@@ -3,7 +3,7 @@ import type { Logger } from "@gatwech/core/env";
 import type { SASLOptions } from "kafkajs";
 import type { KAFKA_ERROR_CODES } from "../error-codes";
 import type { ConsumeOptions, KafkaConsumer } from "../consumer/types";
-import type { Publisher, PublisherOptions } from "../publisher/types";
+import type { PublishBatchOptions, PublishOptions } from "../publisher/types";
 import type { AnyTopics, Topic } from "../topics/types";
 
 export interface KafkaOptions {
@@ -22,17 +22,28 @@ export interface KafkaOptions {
 	/**
 	 * The topics this service publishes and consumes
 	 * @description Declared once with `defineTopics`, the way a plugin carries
-	 * its schema. `publisher` and `consume` name them by key, `provision`
+	 * its schema. `publish` and `consume` name them by key, `provision`
 	 * creates them, and `kafka.topics` holds them as the broker knows them
 	 *
 	 * @default {}
 	 */
 	topics?: AnyTopics | undefined;
 	/**
+	 * Turns the client on or off
+	 * @description Off, `connect`, `provision`, `disconnect` and `consume` do
+	 * nothing, and `publish` logs at `warn` and sends nothing. It replaces
+	 * wiring a service's `KAFKA_ENABLED` into four options and an `if` in each
+	 * of its start and stop functions
+	 *
+	 * @default true
+	 */
+	enabled?: boolean | undefined;
+	/**
 	 * Prefixes the name of every topic, and of its DLQ
 	 * @description Keeps environments that share a broker apart, without the
 	 * topic declarations reading the environment. It replaces the `topic()`
-	 * helper each service writes for itself
+	 * helper each service writes for itself. A topic opts out with
+	 * `namespaced: false`
 	 *
 	 * @example "prod" makes `user.registered` `prod.user.registered`
 	 * @default undefined, topics keep their declared names
@@ -132,6 +143,9 @@ export interface KafkaOptions {
 		| {
 				/**
 				 * Reconnects when the connection drops
+				 * @description It also starts when the first `connect()` fails, so a
+				 * service can carry on without Kafka and be connected later. After
+				 * each reconnection the topics are provisioned again
 				 *
 				 * @default true
 				 */
@@ -142,10 +156,6 @@ export interface KafkaOptions {
 				 * @default 60_000
 				 */
 				intervalMs?: number | undefined;
-				/**
-				 * Called after each reconnection, e.g. to start the consumers again
-				 */
-				onReconnect?: (() => Promise<void>) | undefined;
 		  }
 		| undefined;
 }
@@ -181,32 +191,41 @@ export interface KafkaHealth {
 
 export type Kafka<Options extends KafkaOptions = KafkaOptions> = {
 	/**
-	 * Connects the producer. Throws `BROKER_UNREACHABLE` once
-	 * `connect.maxAttempts` is spent
+	 * Connects the producer, then provisions the topics. Throws
+	 * `BROKER_UNREACHABLE` once `connect.maxAttempts` is spent
 	 */
 	connect: () => Promise<void>;
 	/**
 	 * Disconnects the producer and every consumer this client created
+	 * @description It never throws: a consumer that fails to leave its group is
+	 * logged, and the rest are still disconnected, so a shutdown carries on
 	 */
 	disconnect: () => Promise<void>;
 	healthCheck: () => Promise<KafkaHealth>;
 	/**
 	 * Creates the topics that are missing, and a DLQ for each, so nothing has to
 	 * be created on first use
+	 * @description `connect()` already calls it
 	 */
 	provision: () => Promise<void>;
 	/**
-	 * A publisher for one of the topics
+	 * Publishes one event to one of the topics
 	 *
 	 * @example
-	 * const userRegistered = kafka.publisher({
+	 * await kafka.publish({
 	 * 	topic: "userRegistered",
-	 * 	source: "payvo-auth-service",
+	 * 	event: { userId, email },
 	 * });
 	 */
-	publisher: <Name extends keyof TopicsOf<Options> & string>(
-		options: PublisherOptions<Name>,
-	) => Publisher<TopicOf<Options, Name>>;
+	publish: <Name extends keyof TopicsOf<Options> & string>(
+		options: PublishOptions<Name, TopicOf<Options, Name>>,
+	) => Promise<void>;
+	/**
+	 * Publishes several events to one of the topics in one request
+	 */
+	publishBatch: <Name extends keyof TopicsOf<Options> & string>(
+		options: PublishBatchOptions<Name, TopicOf<Options, Name>>,
+	) => Promise<void>;
 	/**
 	 * Reads one of the topics, with retries and a DLQ
 	 *
