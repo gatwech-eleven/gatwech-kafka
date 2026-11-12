@@ -166,7 +166,7 @@ describe("client - public types", () => {
 				topic: "userRegistered",
 				groupId: "payvo-auth-service.legacy-group",
 				retry: { attempts: 5 },
-				dlq: { publishAttempts: 2 },
+				dlq: { attempts: 2 },
 				session: { timeoutMs: 45_000 },
 				handler: async () => {},
 			});
@@ -665,10 +665,10 @@ describe("client - connect", () => {
 		expect(countLogs("Could not connect to Kafka")).toBe(0);
 	});
 
-	it("should throw BROKER_UNREACHABLE after exactly connect.maxAttempts tries", async () => {
+	it("should throw BROKER_UNREACHABLE after exactly connect.attempts tries", async () => {
 		const { kafka, countLogs, close } = await getTestInstance({
 			brokers: ["localhost:1"],
-			connect: { maxAttempts: 3, retryDelayMs: 10 },
+			connect: { attempts: 3, retryDelayMs: 10 },
 		});
 		onTestFinished(close);
 
@@ -686,7 +686,7 @@ describe("client - connect", () => {
 	it("should give up on a host that can't be found like on any other failure", async () => {
 		const { kafka, countLogs, close } = await getTestInstance({
 			brokers: ["nonexistent.invalid:9092"],
-			connect: { maxAttempts: 2, retryDelayMs: 10 },
+			connect: { attempts: 2, retryDelayMs: 10 },
 		});
 		onTestFinished(close);
 
@@ -699,7 +699,7 @@ describe("client - connect", () => {
 	it("should stop trying when disconnect is called while it connects", async () => {
 		const { kafka, countLogs, close } = await getTestInstance({
 			brokers: ["localhost:1"],
-			connect: { maxAttempts: 50, retryDelayMs: 100 },
+			connect: { attempts: 50, retryDelayMs: 100 },
 			reconnection: { enabled: false },
 		});
 		onTestFinished(close);
@@ -720,7 +720,7 @@ describe("client - reconnection", () => {
 	it("should keep trying in the background after the first connect fails", async () => {
 		const { kafka, countLogs, close } = await getTestInstance({
 			brokers: ["localhost:1"],
-			connect: { maxAttempts: 1, retryDelayMs: 10 },
+			connect: { attempts: 1, retryDelayMs: 10 },
 			reconnection: { intervalMs: 100 },
 		});
 		onTestFinished(close);
@@ -737,7 +737,7 @@ describe("client - reconnection", () => {
 	it("should stop trying once disconnected", async () => {
 		const { kafka, countLogs, close } = await getTestInstance({
 			brokers: ["localhost:1"],
-			connect: { maxAttempts: 1, retryDelayMs: 10 },
+			connect: { attempts: 1, retryDelayMs: 10 },
 			reconnection: { intervalMs: 100 },
 		});
 		onTestFinished(close);
@@ -759,7 +759,7 @@ describe("client - reconnection", () => {
 		});
 		const { kafka, close } = await getTestInstance({
 			brokers: ["localhost:1"],
-			connect: { maxAttempts: 1, retryDelayMs: 10 },
+			connect: { attempts: 1, retryDelayMs: 10 },
 			reconnection: { intervalMs: 123 },
 		});
 		onTestFinished(close);
@@ -778,7 +778,7 @@ describe("client - reconnection", () => {
 	it("should not reconnect when reconnection is off", async () => {
 		const { kafka, countLogs, close } = await getTestInstance({
 			brokers: ["localhost:1"],
-			connect: { maxAttempts: 1, retryDelayMs: 10 },
+			connect: { attempts: 1, retryDelayMs: 10 },
 			reconnection: { enabled: false, intervalMs: 100 },
 		});
 		onTestFinished(close);

@@ -53,7 +53,7 @@ export function createKafka<Options extends KafkaOptions>(
 	const logger = createLogger(options.logger);
 	const isEnabled = options.enabled ?? true;
 	const topics = resolveTopics(options.topics ?? {}, options.namespace);
-	const maxAttempts = Math.max(1, options.connect?.maxAttempts ?? 5);
+	const attempts = Math.max(1, options.connect?.attempts ?? 5);
 	const retryDelayMs = options.connect?.retryDelayMs ?? 2_000;
 
 	const brokerOptions = {
@@ -63,7 +63,7 @@ export function createKafka<Options extends KafkaOptions>(
 		sasl: options.sasl,
 	};
 	// kafkajs retries a connection by itself, which would multiply
-	// `connect.maxAttempts`. The attempts are made on a client that doesn't
+	// `connect.attempts`. The attempts are made on a client that doesn't
 	const connectionClient = new KafkaJS({
 		...brokerOptions,
 		logLevel: logLevel.NOTHING,
@@ -134,7 +134,7 @@ export function createKafka<Options extends KafkaOptions>(
 
 	const connectWithAttempts = async () => {
 		let lastError: unknown;
-		for (let attempt = 1; attempt <= maxAttempts && !isClosed; attempt++) {
+		for (let attempt = 1; attempt <= attempts && !isClosed; attempt++) {
 			try {
 				await admin.connect();
 				await producer.connect();
@@ -146,10 +146,10 @@ export function createKafka<Options extends KafkaOptions>(
 				await closeClients();
 				logger.warn("Could not connect to Kafka", {
 					attempt,
-					maxAttempts,
+					attempts,
 					error: messageOf(error),
 				});
-				if (attempt < maxAttempts) {
+				if (attempt < attempts) {
 					await sleep(retryDelayMs);
 				}
 			}

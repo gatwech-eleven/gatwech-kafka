@@ -86,7 +86,7 @@ export interface KafkaOptions {
 				 *
 				 * @default 5
 				 */
-				maxAttempts?: number | undefined;
+				attempts?: number | undefined;
 				/**
 				 * How long to wait between tries, in milliseconds
 				 *
@@ -187,7 +187,7 @@ export type InferTopic<
 export type Kafka<Options extends KafkaOptions = KafkaOptions> = {
 	/**
 	 * Connects the producer, then provisions the topics. Throws
-	 * `BROKER_UNREACHABLE` once `connect.maxAttempts` is spent
+	 * `BROKER_UNREACHABLE` once `connect.attempts` is spent
 	 */
 	connect: () => Promise<void>;
 	/**
@@ -387,7 +387,7 @@ export type Kafka<Options extends KafkaOptions = KafkaOptions> = {
 					 *
 					 * @default 3
 					 */
-					publishAttempts?: number | undefined;
+					attempts?: number | undefined;
 			  }
 			| undefined;
 		session?:
