@@ -17,7 +17,7 @@ import type { KafkaOptions } from "../client/types";
 export const getTestInstance = async <
 	Options extends Partial<KafkaOptions> = Partial<KafkaOptions>,
 >(
-	options?: Options,
+	options: Options = {} as Options,
 ) => {
 	const brokers = (process.env.KAFKA_BROKERS ?? "localhost:9092").split(",");
 	const id = randomUUID().slice(0, 8);
@@ -154,6 +154,50 @@ export const getTestInstance = async <
 			await new Promise((resolve) => setTimeout(resolve, options.within));
 			await reader.disconnect();
 			return values;
+		},
+		/**
+		 * Every message on the topic with its key, its headers and its value,
+		 * read from the start by a group of its own
+		 */
+		readMessages: async (topic: string, options: { within: number }) => {
+			const reader = kafkajs.consumer({ groupId: `reader.${randomUUID()}` });
+			readers.push(reader);
+			const messages: {
+				key: string | undefined;
+				headers: Record<string, string>;
+				value: string;
+			}[] = [];
+			await reader.connect();
+			await reader.subscribe({ topic, fromBeginning: true });
+			await reader.run({
+				eachMessage: async ({ message }) => {
+					messages.push({
+						key: message.key?.toString(),
+						headers: Object.fromEntries(
+							Object.entries(message.headers ?? {}).map(([name, value]) => [
+								name,
+								String(value),
+							]),
+						),
+						value: message.value?.toString() ?? "",
+					});
+				},
+			});
+			await new Promise((resolve) => setTimeout(resolve, options.within));
+			await reader.disconnect();
+			return messages;
+		},
+		/** Removes a topic and waits until the broker no longer lists it */
+		deleteTopic: async (name: string) => {
+			await admin.deleteTopics({ topics: [name] });
+			const deadline = Date.now() + 15_000;
+			while (Date.now() < deadline) {
+				if (!(await admin.listTopics()).includes(name)) {
+					return;
+				}
+				await new Promise((resolve) => setTimeout(resolve, 200));
+			}
+			throw new Error(`The topic ${name} was not deleted`);
 		},
 		close: async () => {
 			await client.disconnect();

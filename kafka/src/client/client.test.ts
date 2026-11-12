@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { z } from "@gatwech/utils/zod";
 import { describe, expect, expectTypeOf, it, onTestFinished, vi } from "vitest";
 import { KAFKA_ERROR_CODES, KafkaError } from "../error-codes";
@@ -1045,6 +1046,454 @@ describe("client - enabled", () => {
 		expect(countLogs("Could not connect to Kafka")).toBe(0);
 		expect(await listTopics(`${namespace}.`)).toEqual([]);
 	}, 30_000);
+});
+
+/**
+ * @see https://github.com/gatwech-eleven/gatwech-kafka/issues/32
+ */
+describe("client - publish", () => {
+	it("should publish an event to its topic", async () => {
+		const { kafka, namespace, readMessages, close } = await getTestInstance({
+			topics: defineTopics({
+				userRegistered: {
+					name: "user.registered",
+					schema: z.object({ userId: z.string(), email: z.string() }),
+					key: (event) => event.userId,
+				},
+			}),
+		});
+		onTestFinished(close);
+		await kafka.connect();
+
+		await kafka.publish({
+			topic: "userRegistered",
+			event: { userId: "u1", email: "a@b.c" },
+		});
+
+		const messages = await readMessages(`${namespace}.user.registered`, {
+			within: 1_500,
+		});
+		expect(messages).toHaveLength(1);
+		expect(JSON.parse(messages[0]?.value ?? "")).toMatchObject({
+			userId: "u1",
+			email: "a@b.c",
+			metadata: { source: kafka.options.clientId },
+		});
+	}, 30_000);
+
+	it("should key the message by the topic's key", async () => {
+		const { kafka, namespace, readMessages, close } = await getTestInstance({
+			topics: defineTopics({
+				userRegistered: {
+					name: "user.registered",
+					schema: z.object({ userId: z.string(), email: z.string() }),
+					key: (event) => event.userId,
+				},
+			}),
+		});
+		onTestFinished(close);
+		await kafka.connect();
+
+		await kafka.publish({
+			topic: "userRegistered",
+			event: { userId: "u1", email: "a@b.c" },
+		});
+
+		const messages = await readMessages(`${namespace}.user.registered`, {
+			within: 1_500,
+		});
+		expect(messages[0]?.key).toBe("u1");
+	}, 30_000);
+
+	it("should write the headers that consumers read today", async () => {
+		const { kafka, namespace, readMessages, close } = await getTestInstance({
+			topics: defineTopics({
+				userRegistered: {
+					name: "user.registered",
+					schema: z.object({ userId: z.string() }),
+					key: (event) => event.userId,
+				},
+			}),
+		});
+		onTestFinished(close);
+		await kafka.connect();
+
+		await kafka.publish({ topic: "userRegistered", event: { userId: "u1" } });
+
+		const [message] = await readMessages(`${namespace}.user.registered`, {
+			within: 1_500,
+		});
+		const body = JSON.parse(message?.value ?? "");
+		expect(message?.headers["event-version"]).toBe("1.0");
+		expect(message?.headers["event-type"]).toBe(`${namespace}.user.registered`);
+		expect(message?.headers.source).toBe(kafka.options.clientId);
+		expect(message?.headers["correlation-id"]).toBe(body.metadata.correlationId);
+		expect(body.metadata.correlationId).toMatch(/^evt_/);
+		expect(new Date(message?.headers.timestamp ?? "").getTime()).not.toBeNaN();
+	}, 30_000);
+
+	it("should use the correlation id it is given", async () => {
+		const { kafka, namespace, readMessages, close } = await getTestInstance({
+			topics: defineTopics({
+				userRegistered: {
+					name: "user.registered",
+					schema: z.object({ userId: z.string() }),
+					key: (event) => event.userId,
+				},
+			}),
+		});
+		onTestFinished(close);
+		await kafka.connect();
+
+		await kafka.publish({
+			topic: "userRegistered",
+			event: { userId: "u1" },
+			correlationId: "request-42",
+		});
+
+		const [message] = await readMessages(`${namespace}.user.registered`, {
+			within: 1_500,
+		});
+		expect(message?.headers["correlation-id"]).toBe("request-42");
+		expect(JSON.parse(message?.value ?? "").metadata.correlationId).toBe(
+			"request-42",
+		);
+	}, 30_000);
+
+	it("should add the headers it is given", async () => {
+		const { kafka, namespace, readMessages, close } = await getTestInstance({
+			topics: defineTopics({
+				userRegistered: {
+					name: "user.registered",
+					schema: z.object({ userId: z.string() }),
+					key: (event) => event.userId,
+				},
+			}),
+		});
+		onTestFinished(close);
+		await kafka.connect();
+
+		await kafka.publish({
+			topic: "userRegistered",
+			event: { userId: "u1" },
+			headers: { "x-request-id": "r1" },
+		});
+
+		const [message] = await readMessages(`${namespace}.user.registered`, {
+			within: 1_500,
+		});
+		expect(message?.headers["x-request-id"]).toBe("r1");
+		expect(message?.headers["event-version"]).toBe("1.0");
+	}, 30_000);
+
+	it("should send what the schema outputs", async () => {
+		const { kafka, namespace, readMessages, close } = await getTestInstance({
+			topics: defineTopics({
+				userRegistered: {
+					name: "user.registered",
+					schema: z.object({ userId: z.string(), age: z.coerce.number() }),
+					key: (event) => event.userId,
+				},
+			}),
+		});
+		onTestFinished(close);
+		await kafka.connect();
+
+		await kafka.publish({
+			topic: "userRegistered",
+			event: { userId: "u1", age: "42" },
+		});
+
+		const [message] = await readMessages(`${namespace}.user.registered`, {
+			within: 1_500,
+		});
+		expect(JSON.parse(message?.value ?? "").age).toBe(42);
+	}, 30_000);
+
+	it("should keep the metadata an event carries", async () => {
+		const { kafka, namespace, readMessages, close } = await getTestInstance({
+			topics: defineTopics({
+				userRegistered: {
+					name: "user.registered",
+					schema: z.object({
+						userId: z.string(),
+						metadata: z.object({ schemaHash: z.string() }).optional(),
+					}),
+					key: (event) => event.userId,
+				},
+			}),
+		});
+		onTestFinished(close);
+		await kafka.connect();
+
+		await kafka.publish({
+			topic: "userRegistered",
+			event: { userId: "u1", metadata: { schemaHash: "abc" } },
+		});
+
+		const [message] = await readMessages(`${namespace}.user.registered`, {
+			within: 1_500,
+		});
+		expect(message?.headers["schema-hash"]).toBe("abc");
+		expect(JSON.parse(message?.value ?? "").metadata).toMatchObject({
+			schemaHash: "abc",
+			source: kafka.options.clientId,
+		});
+	}, 30_000);
+
+	it("should date the message by the timestamp of the event", async () => {
+		const { kafka, namespace, readMessages, close } = await getTestInstance({
+			topics: defineTopics({
+				userRegistered: {
+					name: "user.registered",
+					schema: z.object({ userId: z.string(), timestamp: z.number() }),
+					key: (event) => event.userId,
+				},
+			}),
+		});
+		onTestFinished(close);
+		await kafka.connect();
+
+		await kafka.publish({
+			topic: "userRegistered",
+			event: { userId: "u1", timestamp: 1_700_000_000_000 },
+		});
+
+		const [message] = await readMessages(`${namespace}.user.registered`, {
+			within: 1_500,
+		});
+		expect(message?.headers.timestamp).toBe("2023-11-14T22:13:20.000Z");
+	}, 30_000);
+
+	it("should refuse an event the schema rejects, and send nothing", async () => {
+		const { kafka, namespace, readMessages, close } = await getTestInstance({
+			topics: defineTopics({
+				userRegistered: {
+					name: "user.registered",
+					schema: z.object({ userId: z.string() }),
+					key: (event) => event.userId,
+				},
+			}),
+		});
+		onTestFinished(close);
+		await kafka.connect();
+
+		const error = await kafka
+			.publish({ topic: "userRegistered", event: { userId: 1 as any } })
+			.catch((reason) => reason);
+
+		expect(error).toBeInstanceOf(KafkaError);
+		expect(error.message).toBe(KAFKA_ERROR_CODES.EVENT_REJECTED_BY_SCHEMA);
+		expect(error.cause).toBeInstanceOf(z.ZodError);
+		expect(
+			await readMessages(`${namespace}.user.registered`, { within: 1_000 }),
+		).toEqual([]);
+	}, 30_000);
+
+	it("should refuse a topic the client doesn't have", async () => {
+		const { kafka, close } = await getTestInstance();
+		onTestFinished(close);
+		await kafka.connect();
+
+		const error = await (kafka as any)
+			.publish({ topic: "userRegistered", event: {} })
+			.catch((reason: unknown) => reason);
+
+		expect(error.message).toBe(KAFKA_ERROR_CODES.TOPIC_NOT_DECLARED);
+		expect(error.cause).toBe("userRegistered");
+	});
+
+	it("should refuse to publish before it is connected", async () => {
+		const { kafka, close } = await getTestInstance({
+			topics: defineTopics({
+				userRegistered: {
+					name: "user.registered",
+					schema: z.object({ userId: z.string() }),
+					key: (event) => event.userId,
+				},
+			}),
+		});
+		onTestFinished(close);
+
+		await expect(
+			kafka.publish({ topic: "userRegistered", event: { userId: "u1" } }),
+		).rejects.toThrow(KAFKA_ERROR_CODES.NOT_CONNECTED);
+	});
+
+	it("should send a batch in one request, tied by one correlation id", async () => {
+		const { kafka, namespace, readMessages, close } = await getTestInstance({
+			topics: defineTopics({
+				userRegistered: {
+					name: "user.registered",
+					schema: z.object({ userId: z.string() }),
+					key: (event) => event.userId,
+				},
+			}),
+		});
+		onTestFinished(close);
+		await kafka.connect();
+
+		await kafka.publishBatch({
+			topic: "userRegistered",
+			events: [{ userId: "u1" }, { userId: "u2" }, { userId: "u3" }],
+		});
+
+		const messages = await readMessages(`${namespace}.user.registered`, {
+			within: 1_500,
+		});
+		expect(messages.map((message) => message.key).sort()).toEqual([
+			"u1",
+			"u2",
+			"u3",
+		]);
+		const correlationIds = new Set(
+			messages.map((message) => message.headers["correlation-id"]),
+		);
+		expect(correlationIds.size).toBe(1);
+	}, 30_000);
+
+	it("should send none of a batch when one event is rejected", async () => {
+		const { kafka, namespace, readMessages, close } = await getTestInstance({
+			topics: defineTopics({
+				userRegistered: {
+					name: "user.registered",
+					schema: z.object({ userId: z.string() }),
+					key: (event) => event.userId,
+				},
+			}),
+		});
+		onTestFinished(close);
+		await kafka.connect();
+
+		await expect(
+			kafka.publishBatch({
+				topic: "userRegistered",
+				events: [{ userId: "u1" }, { userId: 2 as any }],
+			}),
+		).rejects.toThrow(KAFKA_ERROR_CODES.EVENT_REJECTED_BY_SCHEMA);
+
+		expect(
+			await readMessages(`${namespace}.user.registered`, { within: 1_000 }),
+		).toEqual([]);
+	}, 30_000);
+
+	it("should send nothing for an empty batch", async () => {
+		const { kafka, close } = await getTestInstance({
+			topics: defineTopics({
+				userRegistered: {
+					name: "user.registered",
+					schema: z.object({ userId: z.string() }),
+					key: (event) => event.userId,
+				},
+			}),
+		});
+		onTestFinished(close);
+		await kafka.connect();
+
+		await expect(
+			kafka.publishBatch({ topic: "userRegistered", events: [] }),
+		).resolves.toBeUndefined();
+	}, 30_000);
+
+	it("should not create a topic that's gone, and say so", async () => {
+		const { kafka, namespace, describeTopic, deleteTopic, close } =
+			await getTestInstance({
+				topics: defineTopics({
+					userRegistered: {
+						name: "user.registered",
+						schema: z.object({ userId: z.string() }),
+						key: (event) => event.userId,
+					},
+				}),
+			});
+		onTestFinished(close);
+		await kafka.connect();
+		await deleteTopic(`${namespace}.user.registered`);
+
+		const error = await kafka
+			.publish({ topic: "userRegistered", event: { userId: "u1" } })
+			.catch((reason) => reason);
+
+		expect(error.message).toBe(KAFKA_ERROR_CODES.TOPIC_NOT_PROVISIONED);
+		expect(await describeTopic(`${namespace}.user.registered`)).toBeUndefined();
+	}, 60_000);
+
+	it("should not count a topic that's gone against the circuit", async () => {
+		const { kafka, namespace, deleteTopic, close } = await getTestInstance({
+			circuitBreaker: { failureThreshold: 1 },
+			topics: defineTopics({
+				userRegistered: {
+					name: "user.registered",
+					schema: z.object({ userId: z.string() }),
+					key: (event) => event.userId,
+				},
+			}),
+		});
+		onTestFinished(close);
+		await kafka.connect();
+		await deleteTopic(`${namespace}.user.registered`);
+
+		await kafka
+			.publish({ topic: "userRegistered", event: { userId: "u1" } })
+			.catch(() => undefined);
+
+		expect(await kafka.healthCheck()).toMatchObject({ circuit: "closed" });
+	}, 60_000);
+
+	it("should open the circuit when the broker refuses messages", async () => {
+		const { kafka, close } = await getTestInstance({
+			compression: "none",
+			circuitBreaker: { failureThreshold: 1 },
+			topics: defineTopics({
+				userRegistered: {
+					name: "user.registered",
+					schema: z.object({ userId: z.string(), body: z.string() }),
+					key: (event) => event.userId,
+				},
+			}),
+		});
+		onTestFinished(close);
+		await kafka.connect();
+
+		const failed = await kafka
+			.publish({
+				topic: "userRegistered",
+				// The broker takes a message of 1 MB at most
+				event: { userId: "u1", body: randomBytes(1_500_000).toString("base64") },
+			})
+			.catch((reason) => reason);
+
+		expect(failed.message).toBe(KAFKA_ERROR_CODES.PUBLISH_FAILED);
+		expect(failed.cause).toBeDefined();
+		expect(await kafka.healthCheck()).toMatchObject({ circuit: "open" });
+		await expect(
+			kafka.publish({
+				topic: "userRegistered",
+				event: { userId: "u2", body: "small" },
+			}),
+		).rejects.toThrow(KAFKA_ERROR_CODES.CIRCUIT_OPEN);
+	}, 60_000);
+
+	it("should log and send nothing when the client is not enabled", async () => {
+		const { kafka, countLogs, close } = await getTestInstance({
+			enabled: false,
+			topics: defineTopics({
+				userRegistered: {
+					name: "user.registered",
+					schema: z.object({ userId: z.string() }),
+					key: (event) => event.userId,
+				},
+			}),
+		});
+		onTestFinished(close);
+		await kafka.connect();
+
+		await expect(
+			kafka.publish({ topic: "userRegistered", event: { userId: "u1" } }),
+		).resolves.toBeUndefined();
+
+		expect(countLogs("Kafka is disabled; not publishing")).toBe(1);
+	});
 });
 
 describe("client - options", () => {
