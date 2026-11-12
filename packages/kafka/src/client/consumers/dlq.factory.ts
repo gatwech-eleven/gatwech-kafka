@@ -15,6 +15,10 @@ export type DLQContext = {
 	partition: number;
 	offset: string;
 	groupId: ConsumerGroupId;
+	/**
+	 * Where the entry goes, when that is not the topic with the suffix added
+	 */
+	dlqTopic?: string | undefined;
 };
 
 export type DLQMessageParts = {
@@ -98,7 +102,7 @@ export function createDLQPublisher(
 		failure: DLQFailure,
 		ctx: DLQContext,
 	): Promise<void> {
-		const dlqTopic = `${ctx.topic}${dlqSuffix}`;
+		const dlqTopic = ctx.dlqTopic ?? `${ctx.topic}${dlqSuffix}`;
 
 		const originalValue = message.value
 			? (() => {
