@@ -7,7 +7,7 @@ import { KAFKA_ERROR_CODES, KafkaError } from "../error-codes";
 import { defaultDlqTopicName, resolveTopics } from "../topics";
 import { createCircuitBreaker } from "./circuit-breaker";
 import { createReconnectionMonitor } from "./reconnection";
-import type { Kafka, KafkaHealth, KafkaOptions } from "./types";
+import type { Kafka, KafkaOptions } from "./types";
 
 export type * from "./types";
 
@@ -53,7 +53,7 @@ export function createKafka<Options extends KafkaOptions>(
 	const logger = createLogger(options.logger);
 	const isEnabled = options.enabled ?? true;
 	const topics = resolveTopics(options.topics ?? {}, options.namespace);
-	const maxAttempts = Math.max(1, options.connect?.maxAttempts ?? 5);
+	const attempts = Math.max(1, options.connect?.attempts ?? 5);
 	const retryDelayMs = options.connect?.retryDelayMs ?? 2_000;
 
 	const brokerOptions = {
@@ -63,7 +63,7 @@ export function createKafka<Options extends KafkaOptions>(
 		sasl: options.sasl,
 	};
 	// kafkajs retries a connection by itself, which would multiply
-	// `connect.maxAttempts`. The attempts are made on a client that doesn't
+	// `connect.attempts`. The attempts are made on a client that doesn't
 	const connectionClient = new KafkaJS({
 		...brokerOptions,
 		logLevel: logLevel.NOTHING,
@@ -74,8 +74,8 @@ export function createKafka<Options extends KafkaOptions>(
 		logLevel: logLevel.WARN,
 		logCreator: createLogCreator(logger),
 	});
-	const admin = connectionClient.admin();
-	const producer = client.producer();
+	let admin = connectionClient.admin();
+	let producer = client.producer();
 
 	const breaker = createCircuitBreaker({
 		enabled: options.circuitBreaker?.enabled ?? true,
@@ -101,25 +101,40 @@ export function createKafka<Options extends KafkaOptions>(
 	let isClosed = false;
 	let connecting: Promise<void> | undefined;
 
-	producer.on(producer.events.DISCONNECT, () => {
-		isConnected = false;
-	});
-	admin.on(admin.events.DISCONNECT, () => {
-		isConnected = false;
-	});
+	// A kafkajs client can't be used again once it has disconnected: its next
+	// request fails with "write after end". A late event from a client that was
+	// replaced says nothing about the one in use
+	const watchClients = () => {
+		const watchedProducer = producer;
+		const watchedAdmin = admin;
+		watchedProducer.on(watchedProducer.events.DISCONNECT, () => {
+			if (producer === watchedProducer) {
+				isConnected = false;
+			}
+		});
+		watchedAdmin.on(watchedAdmin.events.DISCONNECT, () => {
+			if (admin === watchedAdmin) {
+				isConnected = false;
+			}
+		});
+	};
+	watchClients();
 
 	const closeClients = async () => {
-		const results = await Promise.allSettled([
+		const disconnections = await Promise.allSettled([
 			producer.disconnect(),
 			admin.disconnect(),
 		]);
 		isConnected = false;
-		return results;
+		admin = connectionClient.admin();
+		producer = client.producer();
+		watchClients();
+		return disconnections;
 	};
 
 	const connectWithAttempts = async () => {
 		let lastError: unknown;
-		for (let attempt = 1; attempt <= maxAttempts && !isClosed; attempt++) {
+		for (let attempt = 1; attempt <= attempts && !isClosed; attempt++) {
 			try {
 				await admin.connect();
 				await producer.connect();
@@ -131,10 +146,10 @@ export function createKafka<Options extends KafkaOptions>(
 				await closeClients();
 				logger.warn("Could not connect to Kafka", {
 					attempt,
-					maxAttempts,
+					attempts,
 					error: messageOf(error),
 				});
-				if (attempt < maxAttempts) {
+				if (attempt < attempts) {
 					await sleep(retryDelayMs);
 				}
 			}
@@ -144,7 +159,7 @@ export function createKafka<Options extends KafkaOptions>(
 		}
 	};
 
-	const provision = async () => {
+	const provision: Kafka<Options>["provision"] = async () => {
 		if (!isEnabled || Object.keys(provisioned).length === 0) {
 			return;
 		}
@@ -216,7 +231,7 @@ export function createKafka<Options extends KafkaOptions>(
 		return connecting;
 	};
 
-	const connect = async () => {
+	const connect: Kafka<Options>["connect"] = async () => {
 		if (!isEnabled) {
 			logger.info("Kafka is disabled; not connecting");
 			return;
@@ -227,23 +242,23 @@ export function createKafka<Options extends KafkaOptions>(
 		}
 	};
 
-	const disconnect = async () => {
+	const disconnect: Kafka<Options>["disconnect"] = async () => {
 		isClosed = true;
 		monitor.stop();
 		if (!isEnabled) {
 			return;
 		}
-		const results = await closeClients();
-		for (const result of results) {
-			if (result.status === "rejected") {
+		const disconnections = await closeClients();
+		for (const disconnection of disconnections) {
+			if (disconnection.status === "rejected") {
 				logger.error("Could not disconnect from Kafka", {
-					error: messageOf(result.reason),
+					error: messageOf(disconnection.reason),
 				});
 			}
 		}
 	};
 
-	const healthCheck = async (): Promise<KafkaHealth> => {
+	const healthCheck: Kafka<Options>["healthCheck"] = async () => {
 		const circuit = breaker.state();
 		if (!isEnabled || !isConnected) {
 			return { healthy: false, connected: false, circuit };
@@ -252,7 +267,8 @@ export function createKafka<Options extends KafkaOptions>(
 			const { controller } = await admin.describeCluster();
 			// A controller's node id can be 0
 			return { healthy: controller !== null, connected: isConnected, circuit };
-		} catch {
+		} catch (error) {
+			logger.debug("Kafka health check failed", { error: messageOf(error) });
 			return { healthy: false, connected: isConnected, circuit };
 		}
 	};

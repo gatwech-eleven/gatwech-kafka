@@ -1,4 +1,9 @@
-export interface ReconnectionMonitorOptions {
+/**
+ * Checks the connection every `intervalMs` and reconnects when it is down
+ * @description A check or a reconnection that is still running when the next
+ * tick comes is not started again. The timer doesn't keep the process alive
+ */
+export function createReconnectionMonitor(options: {
 	/**
 	 * How often to check the connection, in milliseconds
 	 */
@@ -12,22 +17,7 @@ export interface ReconnectionMonitorOptions {
 	 * Called with what a check or a reconnection threw. The monitor goes on
 	 */
 	onError: (error: unknown) => void;
-}
-
-export interface ReconnectionMonitor {
-	start: () => void;
-	stop: () => void;
-	isRunning: () => boolean;
-}
-
-/**
- * Checks the connection every `intervalMs` and reconnects when it is down
- * @description A check or a reconnection that is still running when the next
- * tick comes is not started again. The timer doesn't keep the process alive
- */
-export function createReconnectionMonitor(
-	options: ReconnectionMonitorOptions,
-): ReconnectionMonitor {
+}) {
 	let timer: NodeJS.Timeout | undefined;
 	let isTickRunning = false;
 

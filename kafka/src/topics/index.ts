@@ -26,8 +26,8 @@ export function defineTopics<Schemas extends Record<string, ZodType>>(
 		[Name in keyof Schemas]: TopicOptions<Schemas[Name]>;
 	},
 ): Topics<Schemas> {
-	const result: Record<string, Topic> = {};
-	const identities = new Set<string>();
+	const defined: Record<string, Topic> = {};
+	const names = new Set<string>();
 
 	for (const [key, options] of Object.entries<TopicOptions>(topics)) {
 		if (typeof options.name !== "string" || options.name.length === 0) {
@@ -56,12 +56,12 @@ export function defineTopics<Schemas extends Record<string, ZodType>>(
 		const namespaced = options.namespaced ?? true;
 		// A namespaced and a bare topic of one name are different on the broker
 		const identity = `${namespaced}:${options.name}`;
-		if (identities.has(identity)) {
+		if (names.has(identity)) {
 			throw new KafkaError(KAFKA_ERROR_CODES.TOPIC_NAME_DUPLICATED, key);
 		}
-		identities.add(identity);
+		names.add(identity);
 
-		result[key] = Object.freeze({
+		defined[key] = Object.freeze({
 			name: options.name,
 			namespaced,
 			schema: options.schema,
@@ -73,7 +73,7 @@ export function defineTopics<Schemas extends Record<string, ZodType>>(
 		});
 	}
 
-	return Object.freeze(result) as Topics<Schemas>;
+	return Object.freeze(defined) as Topics<Schemas>;
 }
 
 /**
