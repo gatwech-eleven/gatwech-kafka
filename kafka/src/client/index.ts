@@ -42,6 +42,7 @@ export type { ConsumeHandlerContext } from "./consumers/consume-with-dlq";
 
 export type {
 	DLQContext,
+	DLQFailure,
 	DLQMessageParts,
 	CreateDLQPublisherOptions,
 } from "./consumers/dlq.factory";

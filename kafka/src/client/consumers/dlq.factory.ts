@@ -1,8 +1,12 @@
 import type { IHeaders, Producer } from "kafkajs";
-import { DlqMessageSchema } from "../../schemas/dlq.schema";
+import {
+	DlqMessageSchema,
+	type TDlqValidationIssue,
+} from "../../schemas/dlq.schema";
 import type { TKafkaMessage } from "../../types";
 import type { DeepReadonly } from "../../types/utility-types";
 import { logger } from "../../utils/logger";
+import { KafkaError } from "../core/errors";
 
 import type { TopicName, ConsumerGroupId } from "../../types/utility-types";
 
@@ -19,14 +23,69 @@ export type DLQMessageParts = {
 	headers?: IHeaders | undefined;
 };
 
+/**
+ * Why a message is sent to the DLQ
+ */
+export type DLQFailure =
+	| {
+			reason: "handler";
+			/**
+			 * What the handler threw on its last attempt
+			 */
+			error: unknown;
+	  }
+	| {
+			reason: "schema";
+			/**
+			 * What the topic's schema rejected
+			 */
+			issues: TDlqValidationIssue[];
+	  };
+
 export type CreateDLQPublisherOptions = {
 	dlqSuffix?: string;
 };
+
+function messageOf(error: unknown) {
+	return error instanceof Error ? error.message || error.name : String(error);
+}
+
+/**
+ * The fields of a DLQ entry that say why the message failed
+ */
+function describeFailure(failure: DLQFailure) {
+	if (failure.reason === "schema") {
+		const summary = failure.issues
+			.map((issue) =>
+				issue.path ? `${issue.path}: ${issue.message}` : issue.message,
+			)
+			.join("; ");
+		return {
+			reason: failure.reason,
+			errorMessage: `The message doesn't match the topic's schema: ${summary}`,
+			validationIssues: failure.issues,
+		};
+	}
+	const { error } = failure;
+	return {
+		reason: failure.reason,
+		errorMessage: messageOf(error),
+		stackTrace: error instanceof Error ? error.stack : undefined,
+		errorCause:
+			error instanceof Error && error.cause !== undefined
+				? messageOf(error.cause)
+				: undefined,
+	};
+}
 
 /**
  * Create a reusable DLQ publisher consistent with createEventPublisher patterns.
  * - Validates payload against DlqMessageSchema
  * - Adds x-original-* headers for traceability
+ *
+ * The entry says why the message failed: the handler's last error, or the
+ * issues the topic's schema raised. A failed publish throws a `KafkaError`
+ * about the publish, with the handler's error as its `cause`
  */
 export function createDLQPublisher(
 	producer: Producer,
@@ -36,7 +95,7 @@ export function createDLQPublisher(
 
 	return async function publishToDLQ(
 		message: DLQMessageParts,
-		error: Error,
+		failure: DLQFailure,
 		ctx: DLQContext,
 	): Promise<void> {
 		const dlqTopic = `${ctx.topic}${dlqSuffix}`;
@@ -63,8 +122,7 @@ export function createDLQPublisher(
 			originalPartition: ctx.partition,
 			originalOffset: ctx.offset,
 			consumerGroup: ctx.groupId,
-			errorMessage: error.message || "Message processing failed",
-			stackTrace: error.stack,
+			...describeFailure(failure),
 			originalKey:
 				typeof message.key === "string" ? message.key : message.key?.toString(),
 			originalHeaders: Object.fromEntries(
@@ -116,7 +174,11 @@ export function createDLQPublisher(
 				groupId: ctx.groupId,
 				error: err,
 			});
-			throw error; // rethrow original to block offset commit
+			throw new KafkaError(
+				`Failed to publish to ${dlqTopic}: ${messageOf(err)}`,
+				failure.reason === "handler" ? failure.error : undefined,
+				{ dlqTopic, publishError: err },
+			);
 		}
 	};
 }
