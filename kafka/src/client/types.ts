@@ -72,12 +72,6 @@ export interface KafkaOptions {
 	 * @default "gzip"
 	 */
 	compression?: "gzip" | "none" | undefined;
-	/**
-	 * Counts publishes, failures and reconnections
-	 *
-	 * @default true
-	 */
-	metrics?: boolean | undefined;
 	connect?:
 		| {
 				/**
@@ -220,6 +214,12 @@ export type Kafka<Options extends KafkaOptions = KafkaOptions> = {
 	provision: () => Promise<void>;
 	/**
 	 * Publishes one event to one of the topics
+	 * @description Refused with `NOT_CONNECTED` before `connect()`, with
+	 * `CIRCUIT_OPEN` while publishes are failing, with `TOPIC_NOT_PROVISIONED`
+	 * when the topic is gone (a publish never creates one, and it waits for
+	 * kafkajs to retry first, about 10 seconds) and with `PUBLISH_FAILED` when
+	 * the broker refuses the message. A client that is not `enabled` logs at
+	 * `warn` and sends nothing
 	 *
 	 * @example
 	 * await kafka.publish({

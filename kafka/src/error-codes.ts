@@ -20,7 +20,10 @@ export const KAFKA_ERROR_CODES = defineErrorCodes({
 		"The circuit breaker is open: publishes are failing, and the next one is let through after circuitBreaker.resetTimeoutMs",
 	TOPIC_NOT_PROVISIONED:
 		"The topic doesn't exist, and topics are never created on first use. Call provision() with it first",
+	TOPIC_NOT_DECLARED:
+		"The client has no topic with that key. Declare it in the topics option of createKafka",
 	EVENT_REJECTED_BY_SCHEMA: "The event doesn't match the topic's schema",
+	PUBLISH_FAILED: "The broker did not accept the message",
 	DLQ_PUBLISH_FAILED:
 		"The message could not be published to the DLQ, so its partition was paused and its offset left uncommitted",
 });

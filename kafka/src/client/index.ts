@@ -1,10 +1,19 @@
 import { createLogger, type InternalLogger } from "@gatwech/core/env";
 import { z } from "@gatwech/utils/zod";
-import { Kafka as KafkaJS, type LogEntry, logLevel } from "kafkajs";
+import {
+	CompressionTypes,
+	Kafka as KafkaJS,
+	KafkaJSNumberOfRetriesExceeded,
+	KafkaJSProtocolError,
+	type LogEntry,
+	logLevel,
+	Partitioners,
+} from "kafkajs";
 import { initializeKafkaTopics } from "../config/initialize.topics";
 import type { TopicConfig } from "../config/topics/topic-config-schema";
 import { KAFKA_ERROR_CODES, KafkaError } from "../error-codes";
 import { defaultDlqTopicName, resolveTopics } from "../topics";
+import { buildMessages } from "./build-messages";
 import { createCircuitBreaker } from "./circuit-breaker";
 import { createReconnectionMonitor } from "./reconnection";
 import type { Kafka, KafkaOptions } from "./types";
@@ -16,6 +25,13 @@ const sleep = (ms: number) =>
 
 const messageOf = (error: unknown) =>
 	error instanceof Error ? error.message : String(error);
+
+// kafkajs wraps an error it retried in KafkaJSNumberOfRetriesExceeded
+const isMissingTopic = (error: unknown): boolean =>
+	error instanceof KafkaJSProtocolError
+		? error.type === "UNKNOWN_TOPIC_OR_PARTITION"
+		: error instanceof KafkaJSNumberOfRetriesExceeded &&
+			isMissingTopic(error.cause);
 
 /**
  * Sends what kafkajs warns about and fails on to the client's logger
@@ -75,7 +91,14 @@ export function createKafka<Options extends KafkaOptions>(
 		logCreator: createLogCreator(logger),
 	});
 	let admin = connectionClient.admin();
-	let producer = client.producer();
+	// Topics are provisioned, so a send never creates one (#23)
+	const createProducer = () =>
+		client.producer({
+			allowAutoTopicCreation: false,
+			idempotent: true,
+			createPartitioner: Partitioners.DefaultPartitioner,
+		});
+	let producer = createProducer();
 
 	const breaker = createCircuitBreaker({
 		enabled: options.circuitBreaker?.enabled ?? true,
@@ -127,7 +150,7 @@ export function createKafka<Options extends KafkaOptions>(
 		]);
 		isConnected = false;
 		admin = connectionClient.admin();
-		producer = client.producer();
+		producer = createProducer();
 		watchClients();
 		return disconnections;
 	};
@@ -273,6 +296,78 @@ export function createKafka<Options extends KafkaOptions>(
 		}
 	};
 
+	const send = async (message: {
+		topic: string;
+		events: unknown[];
+		correlationId?: string | undefined;
+		headers?: Record<string, string> | undefined;
+	}) => {
+		if (!isEnabled) {
+			logger.warn("Kafka is disabled; not publishing", { topic: message.topic });
+			return;
+		}
+		const topic = topics[message.topic];
+		if (!topic) {
+			throw new KafkaError(KAFKA_ERROR_CODES.TOPIC_NOT_DECLARED, message.topic);
+		}
+		if (!isConnected) {
+			throw new KafkaError(KAFKA_ERROR_CODES.NOT_CONNECTED);
+		}
+
+		const messages = buildMessages({
+			topic,
+			clientId: options.clientId,
+			events: message.events,
+			correlationId: message.correlationId,
+			headers: message.headers,
+		});
+		let missingTopic: unknown;
+		try {
+			await breaker.run(async () => {
+				try {
+					await producer.send({
+						topic: topic.name,
+						messages,
+						compression:
+							options.compression === "none"
+								? CompressionTypes.None
+								: CompressionTypes.GZIP,
+					});
+				} catch (error) {
+					// A topic that's gone is not the broker failing, so it doesn't count
+					// against the circuit, which would refuse every other topic too
+					if (isMissingTopic(error)) {
+						missingTopic = error;
+						return;
+					}
+					throw error;
+				}
+			});
+		} catch (error) {
+			if (error instanceof KafkaError) {
+				throw error;
+			}
+			throw new KafkaError(KAFKA_ERROR_CODES.PUBLISH_FAILED, error);
+		}
+		if (missingTopic) {
+			throw new KafkaError(KAFKA_ERROR_CODES.TOPIC_NOT_PROVISIONED, missingTopic);
+		}
+	};
+
+	const publish: Kafka<Options>["publish"] = ({
+		topic,
+		event,
+		correlationId,
+		headers,
+	}) => send({ topic, events: [event], correlationId, headers });
+
+	const publishBatch: Kafka<Options>["publishBatch"] = ({
+		topic,
+		events,
+		correlationId,
+		headers,
+	}) => send({ topic, events, correlationId, headers });
+
 	const notYet = (name: string) => async () => {
 		throw new Error(`kafka.${name} is not implemented yet`);
 	};
@@ -282,8 +377,8 @@ export function createKafka<Options extends KafkaOptions>(
 		disconnect,
 		healthCheck,
 		provision,
-		publish: notYet("publish"),
-		publishBatch: notYet("publishBatch"),
+		publish,
+		publishBatch,
 		consume: notYet("consume"),
 		topics,
 		options,
