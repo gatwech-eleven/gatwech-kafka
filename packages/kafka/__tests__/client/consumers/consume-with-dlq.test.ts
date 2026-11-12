@@ -96,7 +96,7 @@ describe("consumeWithRetryAndDLQ generic inference", () => {
 
 		expect(handler).not.toHaveBeenCalled();
 		expect(mockPublishToDLQ).toHaveBeenCalled();
-		const failure = mockPublishToDLQ.mock.calls[0][1];
+		const failure = mockPublishToDLQ.mock.calls[0]![1];
 		expect(failure.reason).toBe("schema");
 		expect(failure.issues[0].path).toBe("id");
 	});
@@ -238,7 +238,7 @@ describe("consumeWithRetryAndDLQ generic inference", () => {
 		expect(handler).toHaveBeenCalledTimes(2);
 
 		expect(mockPublishToDLQ).toHaveBeenCalled();
-		const failure = mockPublishToDLQ.mock.calls[0][1];
+		const failure = mockPublishToDLQ.mock.calls[0]![1];
 		expect(failure.reason).toBe("handler");
 		expect(failure.error.message).toBe("Processing failed");
 	});

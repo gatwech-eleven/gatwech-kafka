@@ -3,12 +3,16 @@
   "version": "0.0.9-beta.2",
   "description": "Payvo Node.js Kafka Client for Microservices Messaging",
   "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.mts",
   "scripts": {
     "build": "tsdown --tsconfig tsconfig.build.json",
-    "typecheck": "tsc --noEmit",
+    "dev": "tsdown --watch",
+    "typecheck": "tsc --project tsconfig.json",
     "test": "vitest run",
     "test:e2e": "tsx ./__tests__/e2e/basic-flow.e2e.ts",
     "test:e2e:service": "tsx ./__tests__/e2e/service-publisher.e2e.ts",
@@ -48,10 +52,10 @@
     "nodemon": "^3.1.10",
     "supertest": "^7.1.4",
     "ts-node": "^10.9.2",
-    "tsdown": "^0.16.4",
-    "tsx": "^4.20.6",
-    "typescript": "^5.9.3",
-    "vitest": "^4.0.9"
+    "tsdown": "catalog:default",
+    "tsx": "catalog:default",
+    "typescript": "catalog:default",
+    "vitest": "catalog:default"
   },
   "exports": {
     ".": {
