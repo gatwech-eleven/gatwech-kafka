@@ -1,6 +1,6 @@
 {
   "name": "@gatwech/kafka",
-  "version": "0.0.9-beta.2",
+  "version": "0.1.0-beta.0",
   "description": "Payvo Node.js Kafka Client for Microservices Messaging",
   "type": "module",
   "publishConfig": {
