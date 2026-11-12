@@ -1,9 +1,7 @@
 import { createLogger, type InternalLogger } from "@gatwech/core/env";
-import {
+import kafkajs, {
 	CompressionTypes,
 	Kafka as KafkaJS,
-	KafkaJSNumberOfRetriesExceeded,
-	KafkaJSProtocolError,
 	type LogEntry,
 	logLevel,
 	Partitioners,
@@ -24,6 +22,10 @@ const sleep = (ms: number) =>
 
 const messageOf = (error: unknown) =>
 	error instanceof Error ? error.message : String(error);
+
+// Node's ESM finds only some of kafkajs's exports by name, so these two are
+// read from the default export, which is the whole module
+const { KafkaJSNumberOfRetriesExceeded, KafkaJSProtocolError } = kafkajs;
 
 // kafkajs wraps an error it retried in KafkaJSNumberOfRetriesExceeded
 const isMissingTopic = (error: unknown): boolean =>
@@ -488,49 +490,3 @@ export function createKafka<Options extends KafkaOptions>(
 		$ERROR_CODES: KAFKA_ERROR_CODES,
 	};
 }
-
-// The old API, until the rewrite replaces it (gatwech-kafka#13)
-
-export { createKafkaClient } from "./core/create-client";
-export { connectWithRetry } from "./core/connect-with-retry";
-export { DEFAULT_OPTIONS } from "./core/default-options";
-
-export type {
-	KafkaClient,
-	KafkaClientConfig,
-	CreateKafkaClientConfig,
-	KafkaExtension,
-	GatwechKafkaExtensions,
-} from "./core/create-client";
-
-export type { ConnectRetryOptions } from "./core/connect-with-retry";
-
-export { BaseProducer } from "./producers/base";
-export {
-	createEventPublisher,
-	createPublisher,
-} from "./producers/event.factory";
-export { GenericKafkaProducer } from "./producers/generic-producer";
-export { createServicePublisherFactory } from "./producers/service-publisher-factory";
-
-export type { CreatePublisherOptions } from "./producers/event.factory";
-
-export type { EventPublisher } from "./producers/service-publisher-factory";
-
-export type {
-	PartitionKeyFn,
-	KeyDeriver,
-	ReadyToPublishMessage,
-} from "./producers/generic-producer";
-
-export { consumeWithRetryAndDLQ } from "./consumers/consume-with-dlq";
-export { createDLQPublisher } from "./consumers/dlq.factory";
-
-export type { ConsumeHandlerContext } from "./consumers/consume-with-dlq";
-
-export type {
-	DLQContext,
-	DLQFailure,
-	DLQMessageParts,
-	CreateDLQPublisherOptions,
-} from "./consumers/dlq.factory";

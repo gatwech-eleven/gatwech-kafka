@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { ConfigResourceTypes, Kafka, logLevel } from "kafkajs";
 import { createKafka } from "../client";
-import { BaseKafkaClient } from "../client/core/kafka";
 import type { KafkaOptions } from "../client/types";
 
 /**
@@ -30,13 +29,8 @@ export const getTestInstance = async <
 	const admin = kafkajs.admin();
 	await admin.connect();
 
-	const client = new BaseKafkaClient(`test-${id}`, brokers, {
-		retryDelayMs: 100,
-		maxConnectionRetries: 2,
-		allowAutoTopicCreation: false,
-		metricsEnabled: false,
-	});
-	await client.connect();
+	const producer = kafkajs.producer({ allowAutoTopicCreation: false });
+	await producer.connect();
 
 	const createdTopics: string[] = [];
 	const readers: { disconnect: () => Promise<void> }[] = [];
@@ -59,7 +53,6 @@ export const getTestInstance = async <
 	});
 
 	return {
-		client,
 		kafka,
 		brokers,
 		namespace,
@@ -148,7 +141,7 @@ export const getTestInstance = async <
 		},
 		/** Publishes each value as a message on the topic */
 		send: async (topic: string, values: string[]) => {
-			await client.getProducer().send({
+			await producer.send({
 				topic,
 				messages: values.map((value) => ({ value })),
 			});
@@ -232,7 +225,7 @@ export const getTestInstance = async <
 			throw new Error(`The topic ${name} was not deleted`);
 		},
 		close: async () => {
-			await client.disconnect();
+			await producer.disconnect();
 			for (const reader of readers) {
 				await reader.disconnect().catch(() => undefined);
 			}

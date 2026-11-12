@@ -4,6 +4,5 @@
     "lib": ["esnext", "dom", "dom.iterable"],
     "types": ["node", "vitest"]
   },
-  "include": ["src", "__tests__", "tsdown.config.ts", "vitest.config.ts"],
-  "exclude": ["__tests__/e2e"]
+  "include": ["src", "tsdown.config.ts", "vitest.config.ts"]
 }

@@ -8,9 +8,6 @@ import { createKafka } from ".";
 import { createCircuitBreaker } from "./circuit-breaker";
 import { createReconnectionMonitor } from "./reconnection";
 
-// The shared setup fakes timers, and the broker needs real ones
-vi.useRealTimers();
-
 /**
  * The contract is types, so these are checked by `tsc` and never run
  */
