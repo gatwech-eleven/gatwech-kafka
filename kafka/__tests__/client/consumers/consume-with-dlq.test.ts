@@ -96,10 +96,9 @@ describe("consumeWithRetryAndDLQ generic inference", () => {
 
 		expect(handler).not.toHaveBeenCalled();
 		expect(mockPublishToDLQ).toHaveBeenCalled();
-		// Check if called with an Error object
-		const errorArg = mockPublishToDLQ.mock.calls[0][1];
-		expect(errorArg).toBeInstanceOf(Error);
-		// Zod error message might vary, just check it's an error
+		const failure = mockPublishToDLQ.mock.calls[0][1];
+		expect(failure.reason).toBe("schema");
+		expect(failure.issues[0].path).toBe("id");
 	});
 
 	it("should reject and pause the partition when the DLQ publish fails for an invalid message", async () => {
@@ -239,7 +238,8 @@ describe("consumeWithRetryAndDLQ generic inference", () => {
 		expect(handler).toHaveBeenCalledTimes(2);
 
 		expect(mockPublishToDLQ).toHaveBeenCalled();
-		const errorArg = mockPublishToDLQ.mock.calls[0][1];
-		expect(errorArg.message).toContain("Message processing failed after retries");
+		const failure = mockPublishToDLQ.mock.calls[0][1];
+		expect(failure.reason).toBe("handler");
+		expect(failure.error.message).toBe("Processing failed");
 	});
 });
