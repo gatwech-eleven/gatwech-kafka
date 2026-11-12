@@ -67,7 +67,10 @@ export function createKafka<Options extends KafkaOptions>(
 		throw new KafkaError(KAFKA_ERROR_CODES.BROKERS_REQUIRED);
 	}
 
-	const logger = createLogger(options.logger);
+	const logger = createLogger({
+		...options.logger,
+		tag: options.logger?.tag ?? "Payvo Kafka",
+	});
 	const isEnabled = options.enabled ?? true;
 	const topics = resolveTopics(options.topics ?? {}, options.namespace);
 	const attempts = Math.max(1, options.connect?.attempts ?? 5);

@@ -52,6 +52,9 @@ export interface KafkaOptions {
 	 * Where this client logs
 	 * @description The same logger options as `payvoAuth`. Nothing is read from
 	 * the environment
+	 *
+	 * @example { level: "info", tag: "wallet-service" }
+	 * @default its lines are tagged "Payvo Kafka"
 	 */
 	logger?: Logger | undefined;
 	/**
