@@ -8,6 +8,16 @@ export interface TopicOptions<Schema extends ZodType = ZodType> {
 	 */
 	name: string;
 	/**
+	 * Whether the client's `namespace` is put in front of the name
+	 * @description `false` keeps the name as declared. A service whose topics
+	 * were already on the broker without the namespace needs it, or moving to
+	 * `namespace` renames them and the consumers that have not moved stop
+	 * receiving them
+	 *
+	 * @default true
+	 */
+	namespaced?: boolean | undefined;
+	/**
 	 * What an event on this topic looks like
 	 * @description Publishers refuse an event it rejects, and consumers send a
 	 * message it rejects to the DLQ
@@ -56,6 +66,7 @@ export interface TopicOptions<Schema extends ZodType = ZodType> {
  */
 export interface Topic<Schema extends ZodType = ZodType> {
 	readonly name: string;
+	readonly namespaced: boolean;
 	readonly schema: Schema;
 	readonly key: (event: z.output<Schema>) => string;
 	readonly partitions: number | undefined;

@@ -21,6 +21,10 @@ export interface ConsumeContext<T extends Topic<any> = Topic> {
 	 * What the publisher passed as `correlationId`
 	 */
 	correlationId: string | undefined;
+	/**
+	 * The `clientId` of the service that published the message
+	 */
+	source: string | undefined;
 }
 
 export interface ConsumeOptions<
@@ -30,10 +34,15 @@ export interface ConsumeOptions<
 	/**
 	 * The consumer group. The consumers of one group share the topic's
 	 * partitions
+	 * @description One group reads one topic. A service that reads several
+	 * calls `consume` once for each, and each gets its own group. A group that
+	 * has no committed offset starts where `fromBeginning` says, so naming a
+	 * group that exists keeps its place
 	 *
 	 * @example "payvo-wallet-service.user-registered"
+	 * @default `${clientId}.${topic}`, e.g. "payvo-wallet-service.userRegistered"
 	 */
-	groupId: string;
+	groupId?: string | undefined;
 	/**
 	 * The key of the topic to read in the `topics` option of `createKafka`
 	 *
@@ -42,8 +51,11 @@ export interface ConsumeOptions<
 	topic: Name;
 	/**
 	 * Handles one event
-	 * @description When it throws, it is called again after `retry.backoffMs`,
-	 * up to `retry.attempts` times in all. Then the message goes to the DLQ
+	 * @description Let errors throw. When it throws, it is called again after
+	 * `retry.backoffMs`, up to `retry.attempts` times in all, and every failure
+	 * is logged. Then the message goes to the DLQ. A handler that catches its
+	 * own error to log it hides the message from all of that, and its offset is
+	 * committed
 	 */
 	handler: (ctx: ConsumeContext<T>) => Promise<void>;
 	retry?:
