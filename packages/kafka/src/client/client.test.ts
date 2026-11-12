@@ -1673,6 +1673,65 @@ describe("client - publish", () => {
 	});
 });
 
+/**
+ * @see https://github.com/gatwech-eleven/gatwech-kafka/issues/59
+ */
+describe("client - logger tag", () => {
+	it("should tag its log lines as Payvo Kafka", async () => {
+		const mockWarn = vi
+			.spyOn(console, "warn")
+			.mockImplementation(() => undefined);
+		onTestFinished(() => {
+			mockWarn.mockRestore();
+		});
+		const kafka = createKafka({
+			clientId: "payvo-test",
+			brokers: ["localhost:1"],
+			enabled: false,
+			logger: { level: "warn", disableColors: true },
+			topics: defineTopics({
+				userRegistered: {
+					name: "user.registered",
+					schema: z.object({ userId: z.string() }),
+					key: (event) => event.userId,
+				},
+			}),
+		});
+
+		await kafka.publish({ topic: "userRegistered", event: { userId: "u1" } });
+
+		expect(mockWarn).toHaveBeenCalledTimes(1);
+		expect(String(mockWarn.mock.calls[0]?.[0])).toContain("[Payvo Kafka]:");
+	});
+
+	it("should use the tag the caller gives", async () => {
+		const mockWarn = vi
+			.spyOn(console, "warn")
+			.mockImplementation(() => undefined);
+		onTestFinished(() => {
+			mockWarn.mockRestore();
+		});
+		const kafka = createKafka({
+			clientId: "payvo-test",
+			brokers: ["localhost:1"],
+			enabled: false,
+			logger: { level: "warn", disableColors: true, tag: "wallet-service" },
+			topics: defineTopics({
+				userRegistered: {
+					name: "user.registered",
+					schema: z.object({ userId: z.string() }),
+					key: (event) => event.userId,
+				},
+			}),
+		});
+
+		await kafka.publish({ topic: "userRegistered", event: { userId: "u1" } });
+
+		expect(mockWarn).toHaveBeenCalledTimes(1);
+		expect(String(mockWarn.mock.calls[0]?.[0])).toContain("[wallet-service]:");
+	});
+});
+
 describe("client - options", () => {
 	it("should refuse a client with no brokers", () => {
 		expect(() => createKafka({ clientId: "payvo-test", brokers: [] })).toThrow(
