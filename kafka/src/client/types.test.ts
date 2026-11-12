@@ -2,12 +2,12 @@ import { z } from "@gatwech/utils/zod";
 import { describe, expectTypeOf, it } from "vitest";
 import type { KafkaConsumer } from "../consumer/types";
 import { KAFKA_ERROR_CODES } from "../error-codes";
-import { defineTopics } from "../topics/types";
+import { defineTopics } from "../topics";
 import { createKafka } from "./types";
 
 /**
  * The contract is types, so these are checked by `tsc` and never run:
- * `createKafka` and `defineTopics` are declarations until their modules land
+ * `createKafka` is a declaration until its module lands
  */
 describe("kafka - public types", () => {
 	const userRegistered = {

@@ -1,6 +1,14 @@
 import { defineErrorCodes } from "@gatwech/core/utils";
 
 export const KAFKA_ERROR_CODES = defineErrorCodes({
+	TOPIC_NAME_REQUIRED: "A topic needs a name",
+	TOPIC_NAME_DUPLICATED:
+		"Two topics have the same name. Give them different names, or set namespaced: false on one",
+	TOPIC_SCHEMA_REQUIRED: "A topic needs a schema, such as z.object({ ... })",
+	TOPIC_KEY_REQUIRED:
+		"A topic needs a key function that returns the partition key of an event",
+	TOPIC_OPTION_INVALID:
+		"partitions, replicationFactor and retentionMs must be positive whole numbers",
 	BROKERS_REQUIRED: "options.brokers must list at least one broker",
 	HEARTBEAT_NOT_BELOW_SESSION_TIMEOUT:
 		"session.heartbeatInterval must be shorter than session.timeout",
