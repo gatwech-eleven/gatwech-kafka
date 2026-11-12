@@ -1,12 +1,6 @@
+import { nanoid } from "nanoid";
 import { KAFKA_ERROR_CODES, KafkaError } from "../error-codes";
 import type { Topic } from "../topics";
-import type { CorrelationId } from "../types/utility-types";
-import {
-	buildHeaders,
-	extractEventMetadata,
-	stringifyHeaders,
-} from "../utils/event-helpers";
-import { generateCorrelationId } from "../utils/helpers";
 
 /**
  * The messages for events of one topic, ready for the broker
@@ -14,9 +8,10 @@ import { generateCorrelationId } from "../utils/helpers";
  * topic's `key`. The message has the shape `createEventPublisher` writes, so
  * consumers that have not moved read it unchanged: the body is what the schema
  * outputs with `metadata: { source, correlationId }` added, and the headers
- * are `event-version`, `event-type`, `timestamp`, `correlation-id` and
- * `source`. Throws `EVENT_REJECTED_BY_SCHEMA` for the first event the schema
- * rejects, before any message is built for the ones after it
+ * are `event-version`, `event-type`, `timestamp`, `correlation-id`, `source`
+ * and, when the event's metadata carries one, `schema-hash`. Throws
+ * `EVENT_REJECTED_BY_SCHEMA` for the first event the schema rejects, before
+ * any message is built for the ones after it
  */
 export function buildMessages(options: {
 	/**
@@ -31,7 +26,7 @@ export function buildMessages(options: {
 	correlationId?: string | undefined;
 	headers?: Record<string, string> | undefined;
 }) {
-	const generatedCorrelationId = generateCorrelationId("evt");
+	const generatedCorrelationId = `evt_${nanoid(12)}`;
 
 	return options.events.map((event) => {
 		const parsed = options.topic.schema.safeParse(event);
@@ -43,13 +38,21 @@ export function buildMessages(options: {
 		}
 
 		const data = parsed.data as Record<string, unknown>;
-		const ownMetadata = extractEventMetadata(data.metadata);
+		const ownMetadata =
+			typeof data.metadata === "object" &&
+			data.metadata !== null &&
+			!Array.isArray(data.metadata)
+				? (data.metadata as Record<string, unknown>)
+				: {};
 		const metadata = {
 			source: options.clientId,
 			...ownMetadata,
-			correlationId: (options.correlationId ??
-				ownMetadata.correlationId ??
-				generatedCorrelationId) as CorrelationId,
+			correlationId:
+				options.correlationId ??
+				(typeof ownMetadata.correlationId === "string"
+					? ownMetadata.correlationId
+					: undefined) ??
+				generatedCorrelationId,
 		};
 		const timestamp =
 			typeof data.timestamp === "number" ? new Date(data.timestamp) : new Date();
@@ -58,7 +61,14 @@ export function buildMessages(options: {
 			key: options.topic.key(parsed.data),
 			value: JSON.stringify({ ...data, metadata }),
 			headers: {
-				...stringifyHeaders(buildHeaders(options.topic.name, timestamp, metadata)),
+				"event-version": "1.0",
+				"event-type": options.topic.name,
+				timestamp: timestamp.toISOString(),
+				"correlation-id": metadata.correlationId,
+				...(typeof metadata.source === "string" ? { source: metadata.source } : {}),
+				...(typeof ownMetadata.schemaHash === "string"
+					? { "schema-hash": ownMetadata.schemaHash }
+					: {}),
 				...options.headers,
 			},
 		};

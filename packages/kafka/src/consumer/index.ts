@@ -1,12 +1,8 @@
 import type { InternalLogger } from "@gatwech/core/env";
 import type { EachMessagePayload, Producer } from "kafkajs";
-import {
-	createDLQPublisher,
-	type DLQFailure,
-} from "../client/consumers/dlq.factory";
 import { KAFKA_ERROR_CODES, KafkaError } from "../error-codes";
 import type { Topic } from "../topics";
-import { asConsumerGroupId, asTopicName } from "../types/utility-types";
+import { type DlqFailure, publishToDlq } from "./dlq";
 
 const MAX_BACKOFF_MS = 30_000;
 
@@ -69,7 +65,7 @@ export function createMessageHandler(options: {
 			]),
 		);
 
-		let failure: DLQFailure | undefined;
+		let failure: DlqFailure | undefined;
 		let body: unknown;
 		try {
 			body = JSON.parse(message.value?.toString() ?? "");
@@ -144,17 +140,27 @@ export function createMessageHandler(options: {
 
 		for (let attempt = 1; attempt <= dlq.attempts; attempt++) {
 			try {
-				await createDLQPublisher(options.getProducer())(
-					{ value: message.value, key: message.key, headers: message.headers },
-					failure as DLQFailure,
-					{
-						topic: asTopicName(topic.name),
+				await publishToDlq({
+					producer: options.getProducer(),
+					dlqTopic: dlq.topic,
+					message: {
+						value: message.value,
+						key: message.key,
+						headers: message.headers,
+					},
+					failure: failure as DlqFailure,
+					origin: {
+						topic: topic.name,
 						partition,
 						offset: message.offset,
-						groupId: asConsumerGroupId(groupId),
-						dlqTopic: dlq.topic,
+						groupId,
 					},
-				);
+				});
+				logger.warn("Message sent to the DLQ", {
+					...location,
+					groupId,
+					dlqTopic: dlq.topic,
+				});
 				return;
 			} catch (error) {
 				if (attempt < dlq.attempts) {

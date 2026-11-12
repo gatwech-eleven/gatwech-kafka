@@ -99,15 +99,34 @@ export const getTestInstance = async <
 		listTopics: async (prefix: string) =>
 			(await admin.listTopics()).filter((name) => name.startsWith(prefix)),
 		groupId: `group.${id}`,
-		/** Creates a one-partition topic and returns its name */
+		/**
+		 * Creates a one-partition topic, waits until the broker serves it, and
+		 * returns its name
+		 */
 		createTopic: async (name?: string | undefined) => {
 			const topic = name ?? `topic.${id}.${createdTopics.length}`;
 			await admin.createTopics({
 				topics: [{ topic, numPartitions: 1 }],
-				waitForLeaders: true,
+				waitForLeaders: false,
 			});
 			createdTopics.push(topic);
-			return topic;
+			// The broker answers "unknown topic" for a moment after it created one,
+			// above all while other tests delete theirs, so this asks until it knows
+			const deadline = Date.now() + 15_000;
+			while (true) {
+				try {
+					const { topics } = await admin.fetchTopicMetadata({ topics: [topic] });
+					if (topics[0]?.partitions.every((partition) => partition.leader !== -1)) {
+						return topic;
+					}
+				} catch {
+					// Not known yet
+				}
+				if (Date.now() > deadline) {
+					throw new Error(`The topic ${topic} did not become ready`);
+				}
+				await new Promise((resolve) => setTimeout(resolve, 200));
+			}
 		},
 		/**
 		 * Resolves once the group has a member and is stable. A group with no
@@ -219,7 +238,7 @@ export const getTestInstance = async <
 			}
 			await kafka.disconnect();
 			const provisioned = (await admin.listTopics()).filter(
-				(name) => name.startsWith(`${namespace}.`) || name.endsWith(`.${id}`),
+				(name) => name.startsWith(`${namespace}.`) || name.includes(`.${id}`),
 			);
 			await admin
 				.deleteTopics({ topics: [...createdTopics, ...provisioned] })
