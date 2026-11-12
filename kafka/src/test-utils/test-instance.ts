@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { Kafka, logLevel } from "kafkajs";
+import { ConfigResourceTypes, Kafka, logLevel } from "kafkajs";
 import { BaseKafkaClient } from "../client/core/kafka";
 
 /**
@@ -31,9 +31,49 @@ export const getTestInstance = async () => {
 
 	const createdTopics: string[] = [];
 	const readers: { disconnect: () => Promise<void> }[] = [];
+	const tracked: { disconnect: () => Promise<void> }[] = [];
+	// Every topic a test provisions starts with this, so they can all be removed
+	const namespace = `test${id}`;
 
 	return {
 		client,
+		brokers,
+		namespace,
+		/** A name that no other test uses, for a topic that is not namespaced */
+		uniqueName: (name: string) => `${name}.${id}`,
+		/** Disconnects the client when the instance is closed */
+		track: <T extends { disconnect: () => Promise<void> }>(kafka: T) => {
+			tracked.push(kafka);
+			return kafka;
+		},
+		/** What the broker has for a topic, or `undefined` when it doesn't exist */
+		describeTopic: async (name: string) => {
+			// A broker that doesn't create topics on its own fails a lookup of one
+			// that doesn't exist
+			if (!(await admin.listTopics()).includes(name)) {
+				return undefined;
+			}
+			const { topics } = await admin.fetchTopicMetadata({ topics: [name] });
+			const metadata = topics.find((topic) => topic.name === name);
+			if (!metadata || metadata.partitions.length === 0) {
+				return undefined;
+			}
+			const { resources } = await admin.describeConfigs({
+				resources: [{ type: ConfigResourceTypes.TOPIC, name }],
+				includeSynonyms: false,
+			});
+			const entry = (key: string) =>
+				resources[0]?.configEntries.find((config) => config.configName === key)
+					?.configValue;
+			return {
+				partitions: metadata.partitions.length,
+				retentionMs: Number(entry("retention.ms")),
+				cleanupPolicy: entry("cleanup.policy"),
+			};
+		},
+		/** The names of the topics on the broker that start with the prefix */
+		listTopics: async (prefix: string) =>
+			(await admin.listTopics()).filter((name) => name.startsWith(prefix)),
 		groupId: `group.${id}`,
 		/** Creates a one-partition topic and returns its name */
 		createTopic: async (name?: string | undefined) => {
@@ -96,7 +136,15 @@ export const getTestInstance = async () => {
 			for (const reader of readers) {
 				await reader.disconnect().catch(() => undefined);
 			}
-			await admin.deleteTopics({ topics: createdTopics }).catch(() => undefined);
+			for (const instance of tracked) {
+				await instance.disconnect().catch(() => undefined);
+			}
+			const provisioned = (await admin.listTopics()).filter(
+				(name) => name.startsWith(`${namespace}.`) || name.endsWith(`.${id}`),
+			);
+			await admin
+				.deleteTopics({ topics: [...createdTopics, ...provisioned] })
+				.catch(() => undefined);
 			await admin.disconnect();
 		},
 	};

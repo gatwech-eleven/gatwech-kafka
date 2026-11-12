@@ -1,7 +1,281 @@
+import { createLogger, type InternalLogger } from "@gatwech/core/env";
+import { z } from "@gatwech/utils/zod";
+import { Kafka as KafkaJS, type LogEntry, logLevel } from "kafkajs";
+import { initializeKafkaTopics } from "../config/initialize.topics";
+import type { TopicConfig } from "../config/topics/topic-config-schema";
+import { KAFKA_ERROR_CODES, KafkaError } from "../error-codes";
+import { defaultDlqTopicName, resolveTopics } from "../topics";
+import { createCircuitBreaker } from "./circuit-breaker";
+import { createReconnectionMonitor } from "./reconnection";
+import type { Kafka, KafkaHealth, KafkaOptions } from "./types";
+
+export type * from "./types";
+
+const sleep = (ms: number) =>
+	new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+const messageOf = (error: unknown) =>
+	error instanceof Error ? error.message : String(error);
+
 /**
- * Client module exports
- * Provides core Kafka client functionality, producers, and consumers
+ * Sends what kafkajs warns about and fails on to the client's logger
  */
+const createLogCreator =
+	(logger: InternalLogger) =>
+	() =>
+	({ level, log }: LogEntry) => {
+		const { message, ...details } = log;
+		if (level === logLevel.ERROR) {
+			logger.error(message, details);
+		} else if (level === logLevel.WARN) {
+			logger.warn(message, details);
+		}
+	};
+
+/**
+ * Creates the Kafka client of a service. One per service
+ *
+ * @example
+ * export const kafka = createKafka({
+ * 	clientId: "payvo-auth-service",
+ * 	brokers: ["localhost:9092"],
+ * 	topics,
+ * 	namespace: env.KAFKA_NAMESPACE,
+ * });
+ */
+export function createKafka<Options extends KafkaOptions>(
+	options: Options & Record<never, never>,
+): Kafka<Options> {
+	if (!options.brokers || options.brokers.length === 0) {
+		throw new KafkaError(KAFKA_ERROR_CODES.BROKERS_REQUIRED);
+	}
+
+	const logger = createLogger(options.logger);
+	const isEnabled = options.enabled ?? true;
+	const topics = resolveTopics(options.topics ?? {}, options.namespace);
+	const maxAttempts = Math.max(1, options.connect?.maxAttempts ?? 5);
+	const retryDelayMs = options.connect?.retryDelayMs ?? 2_000;
+
+	const brokerOptions = {
+		clientId: options.clientId,
+		brokers: options.brokers,
+		ssl: options.ssl,
+		sasl: options.sasl,
+	};
+	// kafkajs retries a connection by itself, which would multiply
+	// `connect.maxAttempts`. The attempts are made on a client that doesn't
+	const connectionClient = new KafkaJS({
+		...brokerOptions,
+		logLevel: logLevel.NOTHING,
+		retry: { retries: 0 },
+	});
+	const client = new KafkaJS({
+		...brokerOptions,
+		logLevel: logLevel.WARN,
+		logCreator: createLogCreator(logger),
+	});
+	const admin = connectionClient.admin();
+	const producer = client.producer();
+
+	const breaker = createCircuitBreaker({
+		enabled: options.circuitBreaker?.enabled ?? true,
+		failureThreshold: options.circuitBreaker?.failureThreshold ?? 5,
+		resetTimeoutMs: options.circuitBreaker?.resetTimeoutMs ?? 30_000,
+	});
+
+	// Each topic and the DLQ its messages go to, as the broker knows them
+	const provisioned: Record<string, TopicConfig> = {};
+	for (const [key, topic] of Object.entries(options.topics ?? {})) {
+		provisioned[key] = topics[key] as TopicConfig;
+		provisioned[`${key}.dlq`] = {
+			name: defaultDlqTopicName(topic, options.namespace),
+			schema: z.unknown(),
+			partitions: 1,
+			replicationFactor: topic.replicationFactor,
+			retentionMs: topic.retentionMs,
+			cleanupPolicy: "delete",
+		};
+	}
+
+	let isConnected = false;
+	let isClosed = false;
+	let connecting: Promise<void> | undefined;
+
+	producer.on(producer.events.DISCONNECT, () => {
+		isConnected = false;
+	});
+	admin.on(admin.events.DISCONNECT, () => {
+		isConnected = false;
+	});
+
+	const closeClients = async () => {
+		const results = await Promise.allSettled([
+			producer.disconnect(),
+			admin.disconnect(),
+		]);
+		isConnected = false;
+		return results;
+	};
+
+	const connectWithAttempts = async () => {
+		let lastError: unknown;
+		for (let attempt = 1; attempt <= maxAttempts && !isClosed; attempt++) {
+			try {
+				await admin.connect();
+				await producer.connect();
+				isConnected = true;
+				logger.info("Connected to Kafka", { attempt });
+				return;
+			} catch (error) {
+				lastError = error;
+				await closeClients();
+				logger.warn("Could not connect to Kafka", {
+					attempt,
+					maxAttempts,
+					error: messageOf(error),
+				});
+				if (attempt < maxAttempts) {
+					await sleep(retryDelayMs);
+				}
+			}
+		}
+		if (!isClosed) {
+			throw new KafkaError(KAFKA_ERROR_CODES.BROKER_UNREACHABLE, lastError);
+		}
+	};
+
+	const provision = async () => {
+		if (!isEnabled || Object.keys(provisioned).length === 0) {
+			return;
+		}
+		if (!isConnected) {
+			throw new KafkaError(KAFKA_ERROR_CODES.NOT_CONNECTED);
+		}
+		await initializeKafkaTopics(
+			admin,
+			{
+				topics: provisioned,
+				partitions: options.provisioning?.partitions,
+				replicationFactor: options.provisioning?.replicationFactor,
+				waitForLeadersMs: options.provisioning?.waitForLeadersMs,
+			},
+			false,
+		);
+	};
+
+	const monitor = createReconnectionMonitor({
+		intervalMs: options.reconnection?.intervalMs ?? 60_000,
+		check: async () => {
+			if (!isConnected) {
+				return false;
+			}
+			try {
+				await admin.describeCluster();
+				return true;
+			} catch {
+				return false;
+			}
+		},
+		reconnect: async () => {
+			if (isClosed) {
+				return;
+			}
+			if (connecting) {
+				await connecting;
+				return;
+			}
+			logger.info("Reconnecting to Kafka");
+			await closeClients();
+			await start();
+		},
+		onError: (error) => {
+			logger.warn("Could not reconnect to Kafka", { error: messageOf(error) });
+		},
+	});
+
+	const connectAndProvision = async () => {
+		try {
+			await connectWithAttempts();
+			if (!isClosed) {
+				await provision();
+			}
+		} catch (error) {
+			await closeClients();
+			throw error;
+		} finally {
+			if (!isClosed && (options.reconnection?.enabled ?? true)) {
+				monitor.start();
+			}
+		}
+	};
+
+	const start = () => {
+		connecting ??= connectAndProvision().finally(() => {
+			connecting = undefined;
+		});
+		return connecting;
+	};
+
+	const connect = async () => {
+		if (!isEnabled) {
+			logger.info("Kafka is disabled; not connecting");
+			return;
+		}
+		isClosed = false;
+		if (!isConnected) {
+			await start();
+		}
+	};
+
+	const disconnect = async () => {
+		isClosed = true;
+		monitor.stop();
+		if (!isEnabled) {
+			return;
+		}
+		const results = await closeClients();
+		for (const result of results) {
+			if (result.status === "rejected") {
+				logger.error("Could not disconnect from Kafka", {
+					error: messageOf(result.reason),
+				});
+			}
+		}
+	};
+
+	const healthCheck = async (): Promise<KafkaHealth> => {
+		const circuit = breaker.state();
+		if (!isEnabled || !isConnected) {
+			return { healthy: false, connected: false, circuit };
+		}
+		try {
+			const { controller } = await admin.describeCluster();
+			// A controller's node id can be 0
+			return { healthy: controller !== null, connected: isConnected, circuit };
+		} catch {
+			return { healthy: false, connected: isConnected, circuit };
+		}
+	};
+
+	const notYet = (name: string) => async () => {
+		throw new Error(`kafka.${name} is not implemented yet`);
+	};
+
+	return {
+		connect,
+		disconnect,
+		healthCheck,
+		provision,
+		publish: notYet("publish"),
+		publishBatch: notYet("publishBatch"),
+		consume: notYet("consume"),
+		topics,
+		options,
+		$ERROR_CODES: KAFKA_ERROR_CODES,
+	} as unknown as Kafka<Options>;
+}
+
+// The old API, until the rewrite replaces it (gatwech-kafka#13)
 
 export { createKafkaClient } from "./core/create-client";
 export { connectWithRetry } from "./core/connect-with-retry";
