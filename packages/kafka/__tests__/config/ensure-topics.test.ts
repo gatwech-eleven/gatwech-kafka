@@ -29,16 +29,16 @@ describe("initializeKafkaTopics - topics provisioning", () => {
 		expect(admin.disconnect).toHaveBeenCalledTimes(1);
 
 		expect(calls.createTopics).toHaveLength(1);
-		const createArg = calls.createTopics[0];
+		const createArg = calls.createTopics[0]!;
 		expect(Array.isArray(createArg.topics)).toBe(true);
 		expect(createArg.topics).toHaveLength(1);
-		expect(createArg.topics[0].topic).toBe(topicName);
+		expect(createArg.topics[0]!.topic).toBe(topicName);
 		// partitions default propagated
-		expect(createArg.topics[0].numPartitions).toBe(3);
+		expect(createArg.topics[0]!.numPartitions).toBe(3);
 
 		// alterConfigs should target only our topic
 		expect(calls.alterConfigs).toHaveLength(1);
-		const alterArg = calls.alterConfigs[0];
+		const alterArg = calls.alterConfigs[0]!;
 		const names = alterArg.resources.map((r: any) => r.name);
 		expect(names).toEqual([topicName]);
 
@@ -73,7 +73,7 @@ describe("initializeKafkaTopics - behaviors", () => {
 
 		expect(calls.createTopics).toHaveLength(1);
 		expect(calls.createPartitions).toHaveLength(1);
-		const incArg = calls.createPartitions[0];
+		const incArg = calls.createPartitions[0]!;
 		expect(incArg.topicPartitions).toEqual([{ topic: topicName, count: 3 }]);
 	}, 20_000);
 
@@ -103,10 +103,10 @@ describe("initializeKafkaTopics - behaviors", () => {
 		});
 
 		expect(calls.alterConfigs).toHaveLength(1);
-		const alterArg = calls.alterConfigs[0];
+		const alterArg = calls.alterConfigs[0]!;
 		expect(alterArg.resources).toHaveLength(1);
-		expect(alterArg.resources[0].name).toBe(topicName);
-		expect(alterArg.resources[0].configEntries).toEqual([
+		expect(alterArg.resources[0]!.name).toBe(topicName);
+		expect(alterArg.resources[0]!.configEntries).toEqual([
 			{ name: "retention.ms", value: "86400000" },
 		]);
 	}, 20_000);

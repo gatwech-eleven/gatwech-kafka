@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.base.json",
+  "include": ["./*.ts", "./*.js"],
+  "references": [
+    {
+      "path": "./packages/kafka/tsconfig.json"
+    },
+    {
+      "path": "./packages/kafka-cli/tsconfig.json"
+    }
+  ]
+}

@@ -1,9 +1,12 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "noEmit": false,
+    "rootDir": ".",
+    "outDir": "dist",
     "incremental": false,
-    "composite": false
+    "composite": false,
+    "paths": {},
+    "tsBuildInfoFile": "${configDir}/node_modules/.cache/ts/build.tsbuildinfo"
   },
   "include": ["src/**/*"],
   "exclude": ["**/*.test.ts", "**/*.spec.ts"]

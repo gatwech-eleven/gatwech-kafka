@@ -65,7 +65,7 @@ describe("consumeWithRetryAndDLQ - DLQ publishing edge case", () => {
 
 		// Assert producer.send called once to DLQ
 		expect(fakeSend).toHaveBeenCalled();
-		const callArg = fakeSend.mock.calls[0][0];
+		const callArg = fakeSend.mock.calls[0]![0];
 		expect(callArg.topic).toBe("topic.test.dlq");
 		// Inspect sent message payload JSON
 		const sentMessage = callArg.messages[0];

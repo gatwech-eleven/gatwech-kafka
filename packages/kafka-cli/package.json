@@ -1,6 +1,7 @@
 {
   "name": "@gatwech/kafka-cli",
   "version": "0.1.0",
+  "private": true,
   "description": "CLI tool for @gatwech/kafka",
   "type": "module",
   "bin": {
@@ -21,11 +22,11 @@
     "templates"
   ],
   "scripts": {
-    "build": "tsdown",
+    "build": "tsdown --tsconfig tsconfig.build.json",
     "dev": "tsx src/index.ts",
     "kafka": "node ./dist/index.mjs",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --project tsconfig.json",
     "test:watch": "vitest"
   },
   "dependencies": {
@@ -41,9 +42,9 @@
   "devDependencies": {
     "@types/inquirer": "^9.0.7",
     "@types/node": "^24.10.1",
-    "tsdown": "^0.16.4",
-    "tsx": "^4.20.6",
-    "typescript": "^5.9.3",
-    "vitest": "^4.0.9"
+    "tsdown": "catalog:default",
+    "tsx": "catalog:default",
+    "typescript": "catalog:default",
+    "vitest": "catalog:default"
   }
 }
