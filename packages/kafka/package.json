@@ -13,17 +13,7 @@
     "build": "tsdown --tsconfig tsconfig.build.json",
     "dev": "tsdown --watch",
     "typecheck": "tsc --project tsconfig.json",
-    "test": "vitest run",
-    "test:e2e": "tsx ./__tests__/e2e/basic-flow.e2e.ts",
-    "test:e2e:service": "tsx ./__tests__/e2e/service-publisher.e2e.ts",
-    "test:e2e:integration": "tsx ./__tests__/e2e/service-integration.e2e.ts",
-    "test:e2e:express": "tsx ./__tests__/e2e/express-integration.e2e.ts",
-    "test:e2e:modular": "tsx ./__tests__/e2e/modular-client.e2e.ts",
-    "test:e2e:resilience": "tsx ./__tests__/e2e/app-resilience.e2e.ts",
-    "bench:kafka-batch": "tsx ./__tests__/e2e/performance.e2e.ts",
-    "generate:kafka-config": "tsx ./scripts/generate-kafka-config.ts",
-    "init:kafka-topics": "bash scripts/kafka-init.sh",
-    "setup:kafka": "pnpm run generate:kafka-config && pnpm run init:kafka-topics"
+    "test": "vitest run"
   },
   "keywords": [
     "kafka",
@@ -37,23 +27,13 @@
   "dependencies": {
     "@gatwech/core": "1.0.0-beta.26",
     "@gatwech/utils": "^0.5.3",
-    "buffer": "^6.0.3",
     "kafkajs": "^2.2.4",
     "nanoid": "^5.1.6",
-    "prom-client": "^15.1.2",
-    "winston": "^3.17.0",
     "zod": "^4.1.5"
   },
   "devDependencies": {
-    "@types/express": "^4.17.21",
     "@types/node": "^24.10.1",
-    "@types/supertest": "^6.0.3",
-    "express": "^4.21.2",
-    "nodemon": "^3.1.10",
-    "supertest": "^7.1.4",
-    "ts-node": "^10.9.2",
     "tsdown": "catalog:default",
-    "tsx": "catalog:default",
     "typescript": "catalog:default",
     "vitest": "catalog:default"
   },
@@ -63,30 +43,15 @@
       "import": "./dist/index.mjs",
       "require": "./dist/index.cjs"
     },
-    "./topics": {
-      "types": "./dist/config/topics/index.d.mts",
-      "import": "./dist/config/topics/index.mjs",
-      "require": "./dist/config/topics/index.cjs"
-    },
     "./client": {
       "types": "./dist/client/index.d.mts",
       "import": "./dist/client/index.mjs",
       "require": "./dist/client/index.cjs"
     },
-    "./types": {
-      "types": "./dist/types/index.d.mts",
-      "import": "./dist/types/index.mjs",
-      "require": "./dist/types/index.cjs"
-    },
-    "./config": {
-      "types": "./dist/config/index.d.mts",
-      "import": "./dist/config/index.mjs",
-      "require": "./dist/config/index.cjs"
-    },
-    "./extensions": {
-      "types": "./dist/extensions/index.d.mts",
-      "import": "./dist/extensions/index.mjs",
-      "require": "./dist/extensions/index.cjs"
+    "./topics": {
+      "types": "./dist/topics/index.d.mts",
+      "import": "./dist/topics/index.mjs",
+      "require": "./dist/topics/index.cjs"
     }
   },
   "files": [
@@ -98,16 +63,7 @@
         "dist/client/index.d.mts"
       ],
       "topics": [
-        "dist/config/topics/index.d.mts"
-      ],
-      "types": [
-        "dist/types/index.d.mts"
-      ],
-      "config": [
-        "dist/config/index.d.mts"
-      ],
-      "extensions": [
-        "dist/extensions/index.d.mts"
+        "dist/topics/index.d.mts"
       ],
       "*": [
         "dist/index.d.mts"

@@ -1,5 +1,9 @@
 import type { InternalLogger } from "@gatwech/core/env";
-import { type Admin, ConfigResourceTypes } from "kafkajs";
+import kafkajs, { type Admin } from "kafkajs";
+
+// Node's ESM doesn't find ConfigResourceTypes by name, so it is read from the
+// default export, which is the whole module
+const { ConfigResourceTypes } = kafkajs;
 
 const RETRY_DELAY_BASE_MS = 250;
 const RETRY_DELAY_CAP_MS = 2_000;

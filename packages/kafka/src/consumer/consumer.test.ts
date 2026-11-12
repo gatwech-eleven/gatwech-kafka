@@ -4,9 +4,6 @@ import { KAFKA_ERROR_CODES, KafkaError } from "../error-codes";
 import { getTestInstance } from "../test-utils/test-instance";
 import { defineTopics } from "../topics";
 
-// The shared setup fakes timers, and the broker needs real ones
-vi.useRealTimers();
-
 describe("consumer - handler", () => {
 	it("should call the handler with the event the schema parsed", async () => {
 		const { kafka, namespace, joined, close } = await getTestInstance({
