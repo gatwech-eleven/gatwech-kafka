@@ -46,6 +46,12 @@ export type {
 	CreateDLQPublisherOptions,
 } from "./client/consumers/dlq.factory";
 
+// The rewrite (gatwech-kafka#13): these replace the exports around them
+
+export { defineTopics } from "./topics";
+export type { AnyTopics, Topic, TopicOptions, Topics } from "./topics";
+export { KAFKA_ERROR_CODES, KafkaError } from "./error-codes";
+
 // Topic Configuration Exports
 
 export {
