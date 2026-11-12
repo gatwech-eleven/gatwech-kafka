@@ -940,6 +940,186 @@ describe("client - provision", () => {
 	});
 });
 
+describe("client - provision, topics that exist", () => {
+	it("should raise the partitions of a topic that has fewer", async () => {
+		const { kafka, brokers, namespace, describeTopic, close } =
+			await getTestInstance({
+				topics: defineTopics({
+					userRegistered: {
+						name: "user.registered",
+						schema: z.object({ userId: z.string() }),
+						key: (event) => event.userId,
+						partitions: 1,
+					},
+				}),
+			});
+		onTestFinished(close);
+		await kafka.connect();
+		expect(
+			(await describeTopic(`${namespace}.user.registered`))?.partitions,
+		).toBe(1);
+		const raised = createKafka({
+			clientId: "payvo-test-raised",
+			brokers,
+			namespace,
+			topics: defineTopics({
+				userRegistered: {
+					name: "user.registered",
+					schema: z.object({ userId: z.string() }),
+					key: (event) => event.userId,
+					partitions: 3,
+				},
+			}),
+		});
+		onTestFinished(() => raised.disconnect());
+
+		await raised.connect();
+
+		expect(
+			(await describeTopic(`${namespace}.user.registered`))?.partitions,
+		).toBe(3);
+	}, 60_000);
+
+	it("should leave the partitions of a topic that has more", async () => {
+		const { kafka, brokers, namespace, describeTopic, close } =
+			await getTestInstance({
+				topics: defineTopics({
+					userRegistered: {
+						name: "user.registered",
+						schema: z.object({ userId: z.string() }),
+						key: (event) => event.userId,
+						partitions: 3,
+					},
+				}),
+			});
+		onTestFinished(close);
+		await kafka.connect();
+		const fewer = createKafka({
+			clientId: "payvo-test-fewer",
+			brokers,
+			namespace,
+			topics: defineTopics({
+				userRegistered: {
+					name: "user.registered",
+					schema: z.object({ userId: z.string() }),
+					key: (event) => event.userId,
+					partitions: 1,
+				},
+			}),
+		});
+		onTestFinished(() => fewer.disconnect());
+
+		await expect(fewer.connect()).resolves.toBeUndefined();
+
+		expect(
+			(await describeTopic(`${namespace}.user.registered`))?.partitions,
+		).toBe(3);
+	}, 60_000);
+
+	it("should change the retention and the cleanup policy of a topic that differs", async () => {
+		const { kafka, brokers, namespace, describeTopic, close } =
+			await getTestInstance({
+				topics: defineTopics({
+					userRegistered: {
+						name: "user.registered",
+						schema: z.object({ userId: z.string() }),
+						key: (event) => event.userId,
+						retentionMs: 60_000,
+						cleanupPolicy: "delete",
+					},
+				}),
+			});
+		onTestFinished(close);
+		await kafka.connect();
+		const changed = createKafka({
+			clientId: "payvo-test-changed",
+			brokers,
+			namespace,
+			topics: defineTopics({
+				userRegistered: {
+					name: "user.registered",
+					schema: z.object({ userId: z.string() }),
+					key: (event) => event.userId,
+					retentionMs: 120_000,
+					cleanupPolicy: "compact,delete",
+				},
+			}),
+		});
+		onTestFinished(() => changed.disconnect());
+
+		await changed.connect();
+
+		// The broker applies a change of configs a moment after it accepts it
+		await vi.waitFor(
+			async () =>
+				expect(await describeTopic(`${namespace}.user.registered`)).toMatchObject({
+					retentionMs: 120_000,
+					cleanupPolicy: "compact,delete",
+				}),
+			{ timeout: 10_000, interval: 200 },
+		);
+	}, 60_000);
+
+	it("should let six clients provision the same topics at once", async () => {
+		const { kafka, brokers, namespace, describeTopic, close } =
+			await getTestInstance({
+				topics: defineTopics({
+					userRegistered: {
+						name: "user.registered",
+						schema: z.object({ userId: z.string() }),
+						key: (event) => event.userId,
+					},
+				}),
+			});
+		onTestFinished(close);
+		const others = Array.from({ length: 5 }, (_, index) =>
+			createKafka({
+				clientId: `payvo-test-other-${index}`,
+				brokers,
+				namespace,
+				topics: kafka.options.topics,
+			}),
+		);
+		onTestFinished(async () => {
+			await Promise.all(others.map((other) => other.disconnect()));
+		});
+
+		await Promise.all([
+			kafka.connect(),
+			...others.map((other) => other.connect()),
+		]);
+
+		expect(await describeTopic(`${namespace}.user.registered`)).toBeDefined();
+		expect(await describeTopic(`${namespace}.user.registered.dlq`)).toBeDefined();
+	}, 60_000);
+
+	it("should keep the declaration of a DLQ that is declared as a topic", async () => {
+		const { kafka, namespace, describeTopic, close } = await getTestInstance({
+			topics: defineTopics({
+				userRegistered: {
+					name: "user.registered",
+					schema: z.object({ userId: z.string() }),
+					key: (event) => event.userId,
+				},
+				userRegisteredDlq: {
+					name: "user.registered.dlq",
+					schema: z.object({ errorMessage: z.string() }),
+					key: (event) => event.errorMessage,
+					partitions: 2,
+					retentionMs: 123_000,
+				},
+			}),
+		});
+		onTestFinished(close);
+
+		await kafka.connect();
+
+		expect(await describeTopic(`${namespace}.user.registered.dlq`)).toMatchObject(
+			{ partitions: 2, retentionMs: 123_000 },
+		);
+	}, 60_000);
+});
+
 /**
  * @see https://github.com/gatwech-eleven/gatwech-kafka/issues/30
  */

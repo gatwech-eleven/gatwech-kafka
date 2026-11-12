@@ -1,5 +1,4 @@
 import { createLogger, type InternalLogger } from "@gatwech/core/env";
-import { z } from "@gatwech/utils/zod";
 import {
 	CompressionTypes,
 	Kafka as KafkaJS,
@@ -9,11 +8,10 @@ import {
 	logLevel,
 	Partitioners,
 } from "kafkajs";
-import { initializeKafkaTopics } from "../config/initialize.topics";
-import type { TopicConfig } from "../config/topics/topic-config-schema";
 import { createMessageHandler, getBackoffMs } from "../consumer";
 import { KAFKA_ERROR_CODES, KafkaError } from "../error-codes";
 import { defaultDlqTopicName, resolveTopics } from "../topics";
+import { provisionTopics } from "../topics/provision";
 import { buildMessages } from "./build-messages";
 import { createCircuitBreaker } from "./circuit-breaker";
 import { createReconnectionMonitor } from "./reconnection";
@@ -107,18 +105,19 @@ export function createKafka<Options extends KafkaOptions>(
 		resetTimeoutMs: options.circuitBreaker?.resetTimeoutMs ?? 30_000,
 	});
 
-	// Each topic and the DLQ its messages go to, as the broker knows them
-	const provisioned: Record<string, TopicConfig> = {};
-	for (const [key, topic] of Object.entries(options.topics ?? {})) {
-		provisioned[key] = topics[key] as TopicConfig;
-		provisioned[`${key}.dlq`] = {
-			name: defaultDlqTopicName(topic, options.namespace),
-			schema: z.unknown(),
-			partitions: 1,
-			replicationFactor: topic.replicationFactor,
-			retentionMs: topic.retentionMs,
-			cleanupPolicy: "delete",
-		};
+	// Each topic and the DLQ its messages go to, as the broker knows them. A DLQ
+	// that is also declared as a topic, to be consumed, keeps its declaration
+	const provisioned = Object.values(topics);
+	for (const topic of Object.values(options.topics ?? {})) {
+		const name = defaultDlqTopicName(topic, options.namespace);
+		if (!provisioned.some((declared) => declared.name === name)) {
+			provisioned.push({
+				...topic,
+				name,
+				partitions: 1,
+				cleanupPolicy: "delete",
+			});
+		}
 	}
 
 	let isConnected = false;
@@ -185,22 +184,20 @@ export function createKafka<Options extends KafkaOptions>(
 	};
 
 	const provision: Kafka<Options>["provision"] = async () => {
-		if (!isEnabled || Object.keys(provisioned).length === 0) {
+		if (!isEnabled || provisioned.length === 0) {
 			return;
 		}
 		if (!isConnected) {
 			throw new KafkaError(KAFKA_ERROR_CODES.NOT_CONNECTED);
 		}
-		await initializeKafkaTopics(
+		await provisionTopics({
 			admin,
-			{
-				topics: provisioned,
-				partitions: options.provisioning?.partitions,
-				replicationFactor: options.provisioning?.replicationFactor,
-				waitForLeadersMs: options.provisioning?.waitForLeadersMs,
-			},
-			false,
-		);
+			logger,
+			topics: provisioned,
+			partitions: options.provisioning?.partitions ?? 3,
+			replicationFactor: options.provisioning?.replicationFactor ?? 1,
+			waitForLeadersMs: options.provisioning?.waitForLeadersMs ?? 15_000,
+		});
 	};
 
 	const monitor = createReconnectionMonitor({
