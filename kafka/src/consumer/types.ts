@@ -70,7 +70,7 @@ export interface ConsumeOptions<
 				/**
 				 * How long to wait after the first failure, in milliseconds
 				 * @description It doubles after each one, up to 30 seconds. The
-				 * total must stay below `session.timeout`
+				 * total must stay below `session.timeoutMs`
 				 *
 				 * @default 500
 				 */
@@ -106,21 +106,21 @@ export interface ConsumeOptions<
 				 *
 				 * @default 30_000
 				 */
-				timeout?: number | undefined;
+				timeoutMs?: number | undefined;
 				/**
 				 * How often the consumer tells the broker it is alive, in
-				 * milliseconds. Shorter than `timeout`, usually a third of it
+				 * milliseconds. Shorter than `timeoutMs`, usually a third of it
 				 *
 				 * @default 3_000
 				 */
-				heartbeatInterval?: number | undefined;
+				heartbeatIntervalMs?: number | undefined;
 				/**
 				 * How long the group waits for each member to rejoin when it
 				 * rebalances, in milliseconds
 				 *
 				 * @default 60_000
 				 */
-				rebalanceTimeout?: number | undefined;
+				rebalanceTimeoutMs?: number | undefined;
 		  }
 		| undefined;
 	/**

@@ -11,9 +11,9 @@ export const KAFKA_ERROR_CODES = defineErrorCodes({
 		"partitions, replicationFactor and retentionMs must be positive whole numbers",
 	BROKERS_REQUIRED: "options.brokers must list at least one broker",
 	HEARTBEAT_NOT_BELOW_SESSION_TIMEOUT:
-		"session.heartbeatInterval must be shorter than session.timeout",
+		"session.heartbeatIntervalMs must be shorter than session.timeoutMs",
 	RETRY_EXCEEDS_SESSION_TIMEOUT:
-		"The retries back off for longer than session.timeout, so the broker would remove the consumer from its group. Lower retry.attempts or retry.backoffMs, or raise session.timeout",
+		"The retries back off for longer than session.timeoutMs, so the broker would remove the consumer from its group. Lower retry.attempts or retry.backoffMs, or raise session.timeoutMs",
 	BROKER_UNREACHABLE: "No broker answered within connect.maxAttempts attempts",
 	NOT_CONNECTED: "Call connect() before publishing or consuming",
 	CIRCUIT_OPEN:
