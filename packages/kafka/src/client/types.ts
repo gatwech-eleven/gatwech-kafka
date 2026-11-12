@@ -288,6 +288,14 @@ export type Kafka<Options extends KafkaOptions = KafkaOptions> = {
 	}) => Promise<void>;
 	/**
 	 * Reads one of the topics, with retries and a DLQ
+	 * @description Resolves once the consumer has joined its group. Refused with
+	 * `NOT_CONNECTED` before `connect()` (the DLQ is published with the client's
+	 * producer), with `TOPIC_NOT_DECLARED`, with `RETRY_EXCEEDS_SESSION_TIMEOUT`
+	 * and `HEARTBEAT_NOT_BELOW_SESSION_TIMEOUT` for settings that would get the
+	 * consumer removed from its group, and with `CONSUMER_START_FAILED` when it
+	 * can't join or subscribe. `disconnect()` of the client disconnects every
+	 * consumer it created. A client that is not `enabled` logs at `warn` and
+	 * returns a consumer that does nothing
 	 *
 	 * @example
 	 * await kafka.consume({

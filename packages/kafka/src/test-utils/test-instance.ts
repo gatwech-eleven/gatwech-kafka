@@ -134,10 +134,23 @@ export const getTestInstance = async <
 				messages: values.map((value) => ({ value })),
 			});
 		},
-		/** The offset a group has committed on the topic's only partition, or `-1` */
+		/**
+		 * How many messages a group has committed on the topic, over all its
+		 * partitions, or `-1` when it has committed none
+		 */
 		committedOffset: async (groupId: string, topic: string) => {
 			const [group] = await admin.fetchOffsets({ groupId, topics: [topic] });
-			return Number(group?.partitions[0]?.offset ?? -1);
+			const offsets = (group?.partitions ?? []).map((partition) =>
+				Number(partition.offset),
+			);
+			return offsets.every((offset) => offset < 0)
+				? -1
+				: offsets.reduce((sum, offset) => sum + Math.max(offset, 0), 0);
+		},
+		/** How many consumers are in the group right now */
+		groupMembers: async (groupId: string) => {
+			const { groups } = await admin.describeGroups([groupId]);
+			return groups[0]?.members.length ?? 0;
 		},
 		/** Every value on the topic, read from the start by a group of its own */
 		readTopic: async (topic: string, options: { within: number }) => {

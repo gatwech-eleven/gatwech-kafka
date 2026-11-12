@@ -11,12 +11,13 @@ import {
 } from "kafkajs";
 import { initializeKafkaTopics } from "../config/initialize.topics";
 import type { TopicConfig } from "../config/topics/topic-config-schema";
+import { createMessageHandler, getBackoffMs } from "../consumer";
 import { KAFKA_ERROR_CODES, KafkaError } from "../error-codes";
 import { defaultDlqTopicName, resolveTopics } from "../topics";
 import { buildMessages } from "./build-messages";
 import { createCircuitBreaker } from "./circuit-breaker";
 import { createReconnectionMonitor } from "./reconnection";
-import type { Kafka, KafkaOptions } from "./types";
+import type { InferTopics, Kafka, KafkaOptions } from "./types";
 
 export type * from "./types";
 
@@ -123,6 +124,7 @@ export function createKafka<Options extends KafkaOptions>(
 	let isConnected = false;
 	let isClosed = false;
 	let connecting: Promise<void> | undefined;
+	const consumers = new Set<{ disconnect: () => Promise<void> }>();
 
 	// A kafkajs client can't be used again once it has disconnected: its next
 	// request fails with "write after end". A late event from a client that was
@@ -271,7 +273,11 @@ export function createKafka<Options extends KafkaOptions>(
 		if (!isEnabled) {
 			return;
 		}
-		const disconnections = await closeClients();
+		// The consumers go first: the DLQ is published with the producer
+		const leavings = await Promise.allSettled(
+			[...consumers].map((consuming) => consuming.disconnect()),
+		);
+		const disconnections = [...leavings, ...(await closeClients())];
 		for (const disconnection of disconnections) {
 			if (disconnection.status === "rejected") {
 				logger.error("Could not disconnect from Kafka", {
@@ -368,8 +374,108 @@ export function createKafka<Options extends KafkaOptions>(
 		headers,
 	}) => send({ topic, events, correlationId, headers });
 
-	const notYet = (name: string) => async () => {
-		throw new Error(`kafka.${name} is not implemented yet`);
+	const consume: Kafka<Options>["consume"] = async (consumeOptions) => {
+		const groupId =
+			consumeOptions.groupId ?? `${options.clientId}.${consumeOptions.topic}`;
+		if (!isEnabled) {
+			logger.warn("Kafka is disabled; not consuming", {
+				topic: consumeOptions.topic,
+			});
+			return {
+				groupId,
+				paused: () => [],
+				resume: () => {},
+				disconnect: async () => {},
+			};
+		}
+		const topic = topics[consumeOptions.topic];
+		if (!topic) {
+			throw new KafkaError(
+				KAFKA_ERROR_CODES.TOPIC_NOT_DECLARED,
+				consumeOptions.topic,
+			);
+		}
+		if (!isConnected) {
+			throw new KafkaError(KAFKA_ERROR_CODES.NOT_CONNECTED);
+		}
+
+		const retry = {
+			attempts: Math.max(1, consumeOptions.retry?.attempts ?? 3),
+			backoffMs: Math.max(1, consumeOptions.retry?.backoffMs ?? 500),
+		};
+		const session = {
+			timeoutMs: consumeOptions.session?.timeoutMs ?? 30_000,
+			heartbeatIntervalMs: consumeOptions.session?.heartbeatIntervalMs ?? 3_000,
+			rebalanceTimeoutMs: consumeOptions.session?.rebalanceTimeoutMs ?? 60_000,
+		};
+		if (session.heartbeatIntervalMs >= session.timeoutMs) {
+			throw new KafkaError(KAFKA_ERROR_CODES.HEARTBEAT_NOT_BELOW_SESSION_TIMEOUT);
+		}
+		// A handler that retries sends no heartbeat, so the broker would remove
+		// the consumer from its group in the middle of the back-off
+		let totalBackoffMs = 0;
+		for (let failures = 1; failures < retry.attempts; failures++) {
+			totalBackoffMs += getBackoffMs(retry.backoffMs, failures);
+		}
+		if (totalBackoffMs >= session.timeoutMs) {
+			throw new KafkaError(KAFKA_ERROR_CODES.RETRY_EXCEEDS_SESSION_TIMEOUT);
+		}
+
+		const consumer = client.consumer({
+			groupId,
+			sessionTimeout: session.timeoutMs,
+			heartbeatInterval: session.heartbeatIntervalMs,
+			rebalanceTimeout: session.rebalanceTimeoutMs,
+			allowAutoTopicCreation: false,
+		});
+		consumer.on(consumer.events.CRASH, ({ payload }) => {
+			logger.error("Kafka consumer crashed", {
+				groupId,
+				error: messageOf(payload.error),
+				restarting: payload.restart,
+			});
+		});
+
+		try {
+			await consumer.connect();
+			await consumer.subscribe({
+				topic: topic.name,
+				fromBeginning: consumeOptions.fromBeginning ?? false,
+			});
+			await consumer.run({
+				eachMessage: createMessageHandler({
+					topic,
+					groupId,
+					logger,
+					getProducer: () => producer,
+					// The handler is typed by the schema of the topic it reads
+					handler: consumeOptions.handler as Parameters<
+						typeof createMessageHandler
+					>[0]["handler"],
+					retry,
+					dlq: {
+						topic: consumeOptions.dlq?.topic ?? `${topic.name}.dlq`,
+						attempts: Math.max(1, consumeOptions.dlq?.attempts ?? 3),
+					},
+				}),
+			});
+		} catch (error) {
+			await consumer.disconnect().catch(() => undefined);
+			throw new KafkaError(KAFKA_ERROR_CODES.CONSUMER_START_FAILED, error);
+		}
+
+		const consuming = {
+			groupId,
+			paused: () => consumer.paused(),
+			resume: () => consumer.resume(consumer.paused()),
+			disconnect: async () => {
+				consumers.delete(consuming);
+				await consumer.disconnect();
+			},
+		};
+		consumers.add(consuming);
+		logger.info("Consuming", { topic: topic.name, groupId });
+		return consuming;
 	};
 
 	return {
@@ -379,11 +485,11 @@ export function createKafka<Options extends KafkaOptions>(
 		provision,
 		publish,
 		publishBatch,
-		consume: notYet("consume"),
-		topics,
+		consume,
+		topics: topics as InferTopics<Options>,
 		options,
 		$ERROR_CODES: KAFKA_ERROR_CODES,
-	} as unknown as Kafka<Options>;
+	};
 }
 
 // The old API, until the rewrite replaces it (gatwech-kafka#13)
