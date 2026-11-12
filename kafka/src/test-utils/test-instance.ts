@@ -1,24 +1,33 @@
 import { randomUUID } from "node:crypto";
 import { ConfigResourceTypes, Kafka, logLevel } from "kafkajs";
+import { createKafka } from "../client";
 import { BaseKafkaClient } from "../client/core/kafka";
+import type { KafkaOptions } from "../client/types";
 
 /**
  * A client on a real broker (`KAFKA_BROKERS`, default `localhost:9092`), with
  * topics and groups unique to the call
  *
+ * `kafka` is a `createKafka` client of the same broker, with a namespace of its
+ * own, that the options override. It is not connected
+ *
  * The broker must not create topics on its own, so a missing topic fails
  * as it would in production
  */
-export const getTestInstance = async () => {
+export const getTestInstance = async <
+	Options extends Partial<KafkaOptions> = Partial<KafkaOptions>,
+>(
+	options?: Options,
+) => {
 	const brokers = (process.env.KAFKA_BROKERS ?? "localhost:9092").split(",");
 	const id = randomUUID().slice(0, 8);
 
-	const kafka = new Kafka({
+	const kafkajs = new Kafka({
 		clientId: `test-${id}`,
 		brokers,
 		logLevel: logLevel.NOTHING,
 	});
-	const admin = kafka.admin();
+	const admin = kafkajs.admin();
 	await admin.connect();
 
 	const client = new BaseKafkaClient(`test-${id}`, brokers, {
@@ -31,21 +40,36 @@ export const getTestInstance = async () => {
 
 	const createdTopics: string[] = [];
 	const readers: { disconnect: () => Promise<void> }[] = [];
-	const tracked: { disconnect: () => Promise<void> }[] = [];
 	// Every topic a test provisions starts with this, so they can all be removed
 	const namespace = `test${id}`;
 
-	return {
-		client,
+	const logs: { level: string; message: string }[] = [];
+	const kafka = createKafka({
+		clientId: `payvo-test-${id}`,
 		brokers,
 		namespace,
+		connect: { maxAttempts: 2, retryDelayMs: 50 },
+		logger: {
+			level: "debug",
+			log: (level, message) => {
+				logs.push({ level, message });
+			},
+		},
+		...options,
+	});
+
+	return {
+		client,
+		kafka,
+		brokers,
+		namespace,
+		/** What the client has logged, in order */
+		logs,
+		/** How many times the client has logged exactly this message */
+		countLogs: (message: string) =>
+			logs.filter((entry) => entry.message === message).length,
 		/** A name that no other test uses, for a topic that is not namespaced */
 		uniqueName: (name: string) => `${name}.${id}`,
-		/** Disconnects the client when the instance is closed */
-		track: <T extends { disconnect: () => Promise<void> }>(kafka: T) => {
-			tracked.push(kafka);
-			return kafka;
-		},
 		/** What the broker has for a topic, or `undefined` when it doesn't exist */
 		describeTopic: async (name: string) => {
 			// A broker that doesn't create topics on its own fails a lookup of one
@@ -117,7 +141,7 @@ export const getTestInstance = async () => {
 		},
 		/** Every value on the topic, read from the start by a group of its own */
 		readTopic: async (topic: string, options: { within: number }) => {
-			const reader = kafka.consumer({ groupId: `reader.${randomUUID()}` });
+			const reader = kafkajs.consumer({ groupId: `reader.${randomUUID()}` });
 			readers.push(reader);
 			const values: string[] = [];
 			await reader.connect();
@@ -136,9 +160,7 @@ export const getTestInstance = async () => {
 			for (const reader of readers) {
 				await reader.disconnect().catch(() => undefined);
 			}
-			for (const instance of tracked) {
-				await instance.disconnect().catch(() => undefined);
-			}
+			await kafka.disconnect();
 			const provisioned = (await admin.listTopics()).filter(
 				(name) => name.startsWith(`${namespace}.`) || name.endsWith(`.${id}`),
 			);

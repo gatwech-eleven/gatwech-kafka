@@ -1,8 +1,6 @@
 import { KAFKA_ERROR_CODES, KafkaError } from "../error-codes";
 
-export type CircuitState = "closed" | "open" | "half-open";
-
-export interface CircuitBreakerOptions {
+export function createCircuitBreaker(options: {
 	/**
 	 * Whether the circuit ever opens. Off, `run` only calls the function
 	 */
@@ -20,29 +18,13 @@ export interface CircuitBreakerOptions {
 	 * The clock, for tests
 	 */
 	now?: (() => number) | undefined;
-}
-
-export interface CircuitBreaker {
-	/**
-	 * Calls the function unless the circuit is open
-	 * @description When it is, throws `CIRCUIT_OPEN` without calling it. Once
-	 * `resetTimeoutMs` has passed, exactly one call is let through: if it works
-	 * the circuit closes, and if it fails the circuit opens again. The calls
-	 * that arrive while it runs are refused
-	 */
-	run: <T>(fn: () => Promise<T>) => Promise<T>;
-	state: () => CircuitState;
-}
-
-export function createCircuitBreaker(
-	options: CircuitBreakerOptions,
-): CircuitBreaker {
+}) {
 	const now = options.now ?? Date.now;
 	let failures = 0;
 	let openedAt: number | undefined;
 	let isTrialRunning = false;
 
-	const state = (): CircuitState => {
+	const state = (): "closed" | "open" | "half-open" => {
 		if (!options.enabled || openedAt === undefined) {
 			return "closed";
 		}
@@ -53,7 +35,14 @@ export function createCircuitBreaker(
 
 	return {
 		state,
-		run: async (fn) => {
+		/**
+		 * Calls the function unless the circuit is open
+		 * @description When it is, throws `CIRCUIT_OPEN` without calling it. Once
+		 * `resetTimeoutMs` has passed, exactly one call is let through: if it works
+		 * the circuit closes, and if it fails the circuit opens again. The calls
+		 * that arrive while it runs are refused
+		 */
+		run: async <T>(fn: () => Promise<T>): Promise<T> => {
 			if (!options.enabled) {
 				return fn();
 			}
@@ -71,10 +60,10 @@ export function createCircuitBreaker(
 			}
 
 			try {
-				const result = await fn();
+				const returned = await fn();
 				failures = 0;
 				openedAt = undefined;
-				return result;
+				return returned;
 			} catch (error) {
 				failures++;
 				// The count stays at the threshold while the circuit is open, so a

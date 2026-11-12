@@ -1,9 +1,8 @@
 import type { ConnectionOptions } from "node:tls";
 import type { Logger } from "@gatwech/core/env";
+import type { z } from "@gatwech/utils/zod";
 import type { SASLOptions } from "kafkajs";
 import type { KAFKA_ERROR_CODES } from "../error-codes";
-import type { ConsumeOptions, KafkaConsumer } from "../consumer/types";
-import type { PublishBatchOptions, PublishOptions } from "../publisher/types";
 import type { AnyTopics, Topic } from "../topics/types";
 
 export interface KafkaOptions {
@@ -185,23 +184,6 @@ export type InferTopic<
 	Name extends keyof InferTopics<Options>,
 > = InferTopics<Options>[Name] extends infer T extends Topic<any> ? T : never;
 
-export interface KafkaHealth {
-	/**
-	 * Whether a broker answered. Checking never connects the client, and a
-	 * client that is not `enabled` is never healthy
-	 */
-	healthy: boolean;
-	/**
-	 * Whether `connect()` has succeeded and `disconnect()` has not been called
-	 */
-	connected: boolean;
-	/**
-	 * Whether publishes are going through: `"open"` refuses them, and
-	 * `"half-open"` lets one through to find out
-	 */
-	circuit: "closed" | "open" | "half-open";
-}
-
 export type Kafka<Options extends KafkaOptions = KafkaOptions> = {
 	/**
 	 * Connects the producer, then provisions the topics. Throws
@@ -214,7 +196,22 @@ export type Kafka<Options extends KafkaOptions = KafkaOptions> = {
 	 * logged, and the rest are still disconnected, so a shutdown carries on
 	 */
 	disconnect: () => Promise<void>;
-	healthCheck: () => Promise<KafkaHealth>;
+	healthCheck: () => Promise<{
+		/**
+		 * Whether a broker answered. Checking never connects the client, and a
+		 * client that is not `enabled` is never healthy
+		 */
+		healthy: boolean;
+		/**
+		 * Whether `connect()` has succeeded and `disconnect()` has not been called
+		 */
+		connected: boolean;
+		/**
+		 * Whether publishes are going through: `"open"` refuses them, and
+		 * `"half-open"` lets one through to find out
+		 */
+		circuit: "closed" | "open" | "half-open";
+	}>;
 	/**
 	 * Creates the topics that are missing, and a DLQ for each, so nothing has to
 	 * be created on first use
@@ -230,15 +227,65 @@ export type Kafka<Options extends KafkaOptions = KafkaOptions> = {
 	 * 	event: { userId, email },
 	 * });
 	 */
-	publish: <Name extends keyof InferTopics<Options> & string>(
-		options: PublishOptions<Name, InferTopic<Options, Name>>,
-	) => Promise<void>;
+	publish: <Name extends keyof InferTopics<Options> & string>(options: {
+		/**
+		 * The key of the topic in the `topics` option of `createKafka`
+		 * @description The topic's schema checks the event, and its `key` picks the
+		 * partition
+		 *
+		 * @example "userRegistered"
+		 */
+		topic: Name;
+		/**
+		 * The event to publish
+		 * @description The publish is refused with `EVENT_REJECTED_BY_SCHEMA` when
+		 * the topic's schema rejects it
+		 */
+		event: z.input<InferTopic<Options, Name>["schema"]>;
+		/**
+		 * Ties this message to the others of one request
+		 * @description Consumers get it as `ctx.correlationId`. The message has the
+		 * shape `createEventPublisher` writes today, so consumers that have not
+		 * moved read it unchanged: the body is the event with
+		 * `metadata: { source, correlationId }` added, `source` is the `clientId`,
+		 * and the headers are `event-version`, `event-type`, `timestamp` and
+		 * `correlation-id`
+		 *
+		 * @default a new id for each publish
+		 */
+		correlationId?: string | undefined;
+		/**
+		 * Extra headers on the message
+		 */
+		headers?: Record<string, string> | undefined;
+	}) => Promise<void>;
 	/**
 	 * Publishes several events to one of the topics in one request
 	 */
-	publishBatch: <Name extends keyof InferTopics<Options> & string>(
-		options: PublishBatchOptions<Name, InferTopic<Options, Name>>,
-	) => Promise<void>;
+	publishBatch: <Name extends keyof InferTopics<Options> & string>(options: {
+		/**
+		 * The key of the topic in the `topics` option of `createKafka`
+		 *
+		 * @example "userRegistered"
+		 */
+		topic: Name;
+		/**
+		 * The events to publish
+		 * @description Each one is checked first, and none is sent if any is
+		 * rejected
+		 */
+		events: z.input<InferTopic<Options, Name>["schema"]>[];
+		/**
+		 * Ties these messages to the others of one request
+		 *
+		 * @default a new id for each publish
+		 */
+		correlationId?: string | undefined;
+		/**
+		 * Extra headers on every message
+		 */
+		headers?: Record<string, string> | undefined;
+	}) => Promise<void>;
 	/**
 	 * Reads one of the topics, with retries and a DLQ
 	 *
@@ -251,9 +298,147 @@ export type Kafka<Options extends KafkaOptions = KafkaOptions> = {
 	 * 	},
 	 * });
 	 */
-	consume: <Name extends keyof InferTopics<Options> & string>(
-		options: ConsumeOptions<InferTopic<Options, Name>, Name>,
-	) => Promise<KafkaConsumer>;
+	consume: <Name extends keyof InferTopics<Options> & string>(options: {
+		/**
+		 * The consumer group. The consumers of one group share the topic's
+		 * partitions
+		 * @description One group reads one topic. A service that reads several
+		 * calls `consume` once for each, and each gets its own group. A group that
+		 * has no committed offset starts where `fromBeginning` says, so naming a
+		 * group that exists keeps its place
+		 *
+		 * @example "payvo-wallet-service.user-registered"
+		 * @default `${clientId}.${topic}`, e.g. "payvo-wallet-service.userRegistered"
+		 */
+		groupId?: string | undefined;
+		/**
+		 * The key of the topic to read in the `topics` option of `createKafka`
+		 *
+		 * @example "userRegistered"
+		 */
+		topic: Name;
+		/**
+		 * Handles one event
+		 * @description Let errors throw. When it throws, it is called again after
+		 * `retry.backoffMs`, up to `retry.attempts` times in all, and every failure
+		 * is logged. Then the message goes to the DLQ. A handler that catches its
+		 * own error to log it hides the message from all of that, and its offset is
+		 * committed
+		 */
+		handler: (ctx: {
+			/**
+			 * The event, parsed by the topic's schema
+			 */
+			event: z.output<InferTopic<Options, Name>["schema"]>;
+			/**
+			 * The topic's name on the broker, its namespace included
+			 */
+			topic: string;
+			partition: number;
+			offset: string;
+			/**
+			 * The partition key the message was published with
+			 */
+			key: string | null;
+			headers: Record<string, string>;
+			/**
+			 * What the publisher passed as `correlationId`
+			 */
+			correlationId: string | undefined;
+			/**
+			 * The `clientId` of the service that published the message
+			 */
+			source: string | undefined;
+		}) => Promise<void>;
+		retry?:
+			| {
+					/**
+					 * How many times the handler is called for one message, the first
+					 * call included
+					 *
+					 * @default 3
+					 */
+					attempts?: number | undefined;
+					/**
+					 * How long to wait after the first failure, in milliseconds
+					 * @description It doubles after each one, up to 30 seconds. The
+					 * total must stay below `session.timeoutMs`
+					 *
+					 * @default 500
+					 */
+					backoffMs?: number | undefined;
+			  }
+			| undefined;
+		dlq?:
+			| {
+					/**
+					 * Where a message goes once the handler has failed every attempt, or
+					 * when it doesn't match the topic's schema. It must exist:
+					 * `provision()` creates the default one of every topic
+					 *
+					 * @default the topic's name with `.dlq` added, its namespace included
+					 */
+					topic?: string | undefined;
+					/**
+					 * How many times a failed publish to the DLQ is tried
+					 * @description Then the partition is paused, an `error` is logged and
+					 * the offset is left uncommitted: the message is neither lost nor
+					 * handled again until `resume()`
+					 *
+					 * @default 3
+					 */
+					publishAttempts?: number | undefined;
+			  }
+			| undefined;
+		session?:
+			| {
+					/**
+					 * How long the broker waits for a heartbeat before it removes the
+					 * consumer from its group, in milliseconds
+					 *
+					 * @default 30_000
+					 */
+					timeoutMs?: number | undefined;
+					/**
+					 * How often the consumer tells the broker it is alive, in
+					 * milliseconds. Shorter than `timeoutMs`, usually a third of it
+					 *
+					 * @default 3_000
+					 */
+					heartbeatIntervalMs?: number | undefined;
+					/**
+					 * How long the group waits for each member to rejoin when it
+					 * rebalances, in milliseconds
+					 *
+					 * @default 60_000
+					 */
+					rebalanceTimeoutMs?: number | undefined;
+			  }
+			| undefined;
+		/**
+		 * Where a group with no committed offset starts
+		 * @description `false` starts at the end of the topic, so messages
+		 * published before the group joined are skipped
+		 *
+		 * @default false
+		 */
+		fromBeginning?: boolean | undefined;
+	}) => Promise<{
+		groupId: string;
+		/**
+		 * The partitions this consumer paused after a failed publish to the DLQ
+		 */
+		paused: () => { topic: string; partitions: number[] }[];
+		/**
+		 * Resumes the paused partitions. The message that was kept is handled
+		 * again
+		 */
+		resume: () => void;
+		/**
+		 * Leaves the group and stops reading
+		 */
+		disconnect: () => Promise<void>;
+	}>;
 	/**
 	 * The topics as the broker knows them: with the `namespace` in their names
 	 */

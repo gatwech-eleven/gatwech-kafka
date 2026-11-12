@@ -1,6 +1,6 @@
 import { z } from "@gatwech/utils/zod";
 import { describe, expect, it } from "vitest";
-import { KAFKA_ERROR_CODES, KafkaError } from "../error-codes";
+import { KAFKA_ERROR_CODES } from "../error-codes";
 import {
 	defaultDlqTopicName,
 	defineTopics,
@@ -8,22 +8,14 @@ import {
 	resolveTopics,
 } from ".";
 
-const schema = z.object({ userId: z.string(), email: z.string() });
-const key = (event: { userId: string }) => event.userId;
-
-const refusal = (declare: () => unknown) => {
-	try {
-		declare();
-	} catch (error) {
-		return error as KafkaError;
-	}
-	throw new Error("defineTopics did not refuse");
-};
-
 describe("topics - defineTopics", () => {
 	it("should fill in the defaults a topic leaves out", () => {
 		const topics = defineTopics({
-			userRegistered: { name: "user.registered", schema, key },
+			userRegistered: {
+				name: "user.registered",
+				schema: z.object({ userId: z.string(), email: z.string() }),
+				key: (event) => event.userId,
+			},
 		});
 
 		expect(topics.userRegistered).toMatchObject({
@@ -41,8 +33,8 @@ describe("topics - defineTopics", () => {
 			userRegistered: {
 				name: "user.registered",
 				namespaced: false,
-				schema,
-				key,
+				schema: z.object({ userId: z.string(), email: z.string() }),
+				key: (event) => event.userId,
 				partitions: 3,
 				replicationFactor: 2,
 				retentionMs: 1_000,
@@ -61,17 +53,25 @@ describe("topics - defineTopics", () => {
 
 	it("should derive the partition key from the event", () => {
 		const topics = defineTopics({
-			userRegistered: { name: "user.registered", schema, key },
+			userRegistered: {
+				name: "user.registered",
+				schema: z.object({ userId: z.string(), email: z.string() }),
+				key: (event) => event.userId,
+			},
 		});
 
-		expect(topics.userRegistered.key({ userId: "u1", email: "a@b.c" })).toBe(
-			"u1",
-		);
+		const key = topics.userRegistered.key({ userId: "u1", email: "a@b.c" });
+
+		expect(key).toBe("u1");
 	});
 
 	it("should return topics that cannot be changed", () => {
 		const topics = defineTopics({
-			userRegistered: { name: "user.registered", schema, key },
+			userRegistered: {
+				name: "user.registered",
+				schema: z.object({ userId: z.string(), email: z.string() }),
+				key: (event) => event.userId,
+			},
 		});
 
 		expect(Object.isFrozen(topics)).toBe(true);
@@ -79,79 +79,181 @@ describe("topics - defineTopics", () => {
 	});
 
 	it("should refuse a topic with no name", () => {
-		const error = refusal(() =>
-			defineTopics({ userRegistered: { name: "", schema, key } }),
+		expect(() =>
+			defineTopics({
+				userRegistered: {
+					name: "",
+					schema: z.object({ userId: z.string() }),
+					key: (event) => event.userId,
+				},
+			}),
+		).toThrow(
+			expect.objectContaining({
+				message: KAFKA_ERROR_CODES.TOPIC_NAME_REQUIRED,
+				cause: "userRegistered",
+			}),
 		);
-
-		expect(error).toBeInstanceOf(KafkaError);
-		expect(error.message).toBe(KAFKA_ERROR_CODES.TOPIC_NAME_REQUIRED);
-		expect(error.cause).toBe("userRegistered");
 	});
 
 	it("should refuse a topic with no schema", () => {
-		const error = refusal(() =>
+		expect(() =>
 			defineTopics({
-				userRegistered: { name: "user.registered", schema: undefined as any, key },
+				userRegistered: {
+					name: "user.registered",
+					schema: undefined as any,
+					key: () => "key",
+				},
+			}),
+		).toThrow(
+			expect.objectContaining({
+				message: KAFKA_ERROR_CODES.TOPIC_SCHEMA_REQUIRED,
+				cause: "userRegistered",
 			}),
 		);
-
-		expect(error.message).toBe(KAFKA_ERROR_CODES.TOPIC_SCHEMA_REQUIRED);
-		expect(error.cause).toBe("userRegistered");
 	});
 
 	it("should refuse a topic with no key function", () => {
-		const error = refusal(() =>
+		expect(() =>
 			defineTopics({
 				userRegistered: {
 					name: "user.registered",
-					schema,
+					schema: z.object({ userId: z.string() }),
 					key: "userId" as any,
 				},
 			}),
+		).toThrow(
+			expect.objectContaining({
+				message: KAFKA_ERROR_CODES.TOPIC_KEY_REQUIRED,
+				cause: "userRegistered",
+			}),
 		);
-
-		expect(error.message).toBe(KAFKA_ERROR_CODES.TOPIC_KEY_REQUIRED);
-		expect(error.cause).toBe("userRegistered");
 	});
 
-	it.each([
-		["partitions", 0],
-		["partitions", 1.5],
-		["replicationFactor", -1],
-		["retentionMs", 0],
-		["retentionMs", Number.NaN],
-	] as const)("should refuse %s of %s", (option, value) => {
-		const error = refusal(() =>
+	it("should refuse no partitions", () => {
+		expect(() =>
 			defineTopics({
 				userRegistered: {
 					name: "user.registered",
-					schema,
-					key,
-					[option]: value,
+					schema: z.object({ userId: z.string() }),
+					key: (event) => event.userId,
+					partitions: 0,
 				},
 			}),
+		).toThrow(
+			expect.objectContaining({
+				message: KAFKA_ERROR_CODES.TOPIC_OPTION_INVALID,
+				cause: "userRegistered.partitions",
+			}),
 		);
+	});
 
-		expect(error.message).toBe(KAFKA_ERROR_CODES.TOPIC_OPTION_INVALID);
-		expect(error.cause).toBe(`userRegistered.${option}`);
+	it("should refuse a part of a partition", () => {
+		expect(() =>
+			defineTopics({
+				userRegistered: {
+					name: "user.registered",
+					schema: z.object({ userId: z.string() }),
+					key: (event) => event.userId,
+					partitions: 1.5,
+				},
+			}),
+		).toThrow(
+			expect.objectContaining({
+				message: KAFKA_ERROR_CODES.TOPIC_OPTION_INVALID,
+				cause: "userRegistered.partitions",
+			}),
+		);
+	});
+
+	it("should refuse a negative replication factor", () => {
+		expect(() =>
+			defineTopics({
+				userRegistered: {
+					name: "user.registered",
+					schema: z.object({ userId: z.string() }),
+					key: (event) => event.userId,
+					replicationFactor: -1,
+				},
+			}),
+		).toThrow(
+			expect.objectContaining({
+				message: KAFKA_ERROR_CODES.TOPIC_OPTION_INVALID,
+				cause: "userRegistered.replicationFactor",
+			}),
+		);
+	});
+
+	it("should refuse no retention", () => {
+		expect(() =>
+			defineTopics({
+				userRegistered: {
+					name: "user.registered",
+					schema: z.object({ userId: z.string() }),
+					key: (event) => event.userId,
+					retentionMs: 0,
+				},
+			}),
+		).toThrow(
+			expect.objectContaining({
+				message: KAFKA_ERROR_CODES.TOPIC_OPTION_INVALID,
+				cause: "userRegistered.retentionMs",
+			}),
+		);
+	});
+
+	it("should refuse a retention that is not a number", () => {
+		expect(() =>
+			defineTopics({
+				userRegistered: {
+					name: "user.registered",
+					schema: z.object({ userId: z.string() }),
+					key: (event) => event.userId,
+					retentionMs: Number.NaN,
+				},
+			}),
+		).toThrow(
+			expect.objectContaining({
+				message: KAFKA_ERROR_CODES.TOPIC_OPTION_INVALID,
+				cause: "userRegistered.retentionMs",
+			}),
+		);
 	});
 
 	it("should refuse two topics of one name", () => {
-		const error = refusal(() =>
+		expect(() =>
 			defineTopics({
-				registered: { name: "user.registered", schema, key },
-				registeredAgain: { name: "user.registered", schema, key },
+				registered: {
+					name: "user.registered",
+					schema: z.object({ userId: z.string() }),
+					key: (event) => event.userId,
+				},
+				registeredAgain: {
+					name: "user.registered",
+					schema: z.object({ userId: z.string() }),
+					key: (event) => event.userId,
+				},
+			}),
+		).toThrow(
+			expect.objectContaining({
+				message: KAFKA_ERROR_CODES.TOPIC_NAME_DUPLICATED,
+				cause: "registeredAgain",
 			}),
 		);
-
-		expect(error.message).toBe(KAFKA_ERROR_CODES.TOPIC_NAME_DUPLICATED);
-		expect(error.cause).toBe("registeredAgain");
 	});
 
 	it("should allow a namespaced and a bare topic of one name", () => {
 		const topics = defineTopics({
-			namespaced: { name: "user.registered", schema, key },
-			bare: { name: "user.registered", namespaced: false, schema, key },
+			namespaced: {
+				name: "user.registered",
+				schema: z.object({ userId: z.string() }),
+				key: (event) => event.userId,
+			},
+			bare: {
+				name: "user.registered",
+				namespaced: false,
+				schema: z.object({ userId: z.string() }),
+				key: (event) => event.userId,
+			},
 		});
 
 		expect(Object.keys(topics)).toEqual(["namespaced", "bare"]);
@@ -159,16 +261,22 @@ describe("topics - defineTopics", () => {
 
 	it("should read nothing from the environment", () => {
 		const read: string[] = [];
-		const env = new Proxy(process.env, {
+		const original = process.env;
+		process.env = new Proxy(original, {
 			get: (target, name) => {
 				read.push(String(name));
 				return target[name as string];
 			},
 		});
-		const original = process.env;
-		process.env = env;
+
 		try {
-			defineTopics({ userRegistered: { name: "user.registered", schema, key } });
+			defineTopics({
+				userRegistered: {
+					name: "user.registered",
+					schema: z.object({ userId: z.string() }),
+					key: (event) => event.userId,
+				},
+			});
 		} finally {
 			process.env = original;
 		}
@@ -178,40 +286,101 @@ describe("topics - defineTopics", () => {
 });
 
 describe("topics - names on the broker", () => {
-	const topics = defineTopics({
-		namespaced: { name: "user.registered", schema, key },
-		bare: { name: "user.created", namespaced: false, schema, key },
-	});
-
 	it("should put the namespace in front of a namespaced topic", () => {
-		expect(resolveTopicName(topics.namespaced, "prod")).toBe(
-			"prod.user.registered",
-		);
+		const topics = defineTopics({
+			userRegistered: {
+				name: "user.registered",
+				schema: z.object({ userId: z.string() }),
+				key: (event) => event.userId,
+			},
+		});
+
+		const name = resolveTopicName(topics.userRegistered, "prod");
+
+		expect(name).toBe("prod.user.registered");
 	});
 
 	it("should keep the name of a topic that opts out", () => {
-		expect(resolveTopicName(topics.bare, "prod")).toBe("user.created");
+		const topics = defineTopics({
+			userCreated: {
+				name: "user.created",
+				namespaced: false,
+				schema: z.object({ userId: z.string() }),
+				key: (event) => event.userId,
+			},
+		});
+
+		const name = resolveTopicName(topics.userCreated, "prod");
+
+		expect(name).toBe("user.created");
 	});
 
 	it("should keep every name when there is no namespace", () => {
-		expect(resolveTopicName(topics.namespaced)).toBe("user.registered");
-		expect(resolveTopicName(topics.namespaced, "")).toBe("user.registered");
+		const topics = defineTopics({
+			userRegistered: {
+				name: "user.registered",
+				schema: z.object({ userId: z.string() }),
+				key: (event) => event.userId,
+			},
+		});
+
+		const withoutNamespace = resolveTopicName(topics.userRegistered);
+		const withEmptyNamespace = resolveTopicName(topics.userRegistered, "");
+
+		expect(withoutNamespace).toBe("user.registered");
+		expect(withEmptyNamespace).toBe("user.registered");
 	});
 
-	it("should name the DLQ after the name on the broker", () => {
-		expect(defaultDlqTopicName(topics.namespaced, "prod")).toBe(
-			"prod.user.registered.dlq",
-		);
-		expect(defaultDlqTopicName(topics.bare, "prod")).toBe("user.created.dlq");
+	it("should name the DLQ of a namespaced topic after its name on the broker", () => {
+		const topics = defineTopics({
+			userRegistered: {
+				name: "user.registered",
+				schema: z.object({ userId: z.string() }),
+				key: (event) => event.userId,
+			},
+		});
+
+		const name = defaultDlqTopicName(topics.userRegistered, "prod");
+
+		expect(name).toBe("prod.user.registered.dlq");
+	});
+
+	it("should name the DLQ of a topic that opts out after its declared name", () => {
+		const topics = defineTopics({
+			userCreated: {
+				name: "user.created",
+				namespaced: false,
+				schema: z.object({ userId: z.string() }),
+				key: (event) => event.userId,
+			},
+		});
+
+		const name = defaultDlqTopicName(topics.userCreated, "prod");
+
+		expect(name).toBe("user.created.dlq");
 	});
 
 	it("should resolve every topic and leave the declared ones as they were", () => {
+		const topics = defineTopics({
+			userRegistered: {
+				name: "user.registered",
+				schema: z.object({ userId: z.string() }),
+				key: (event) => event.userId,
+			},
+			userCreated: {
+				name: "user.created",
+				namespaced: false,
+				schema: z.object({ userId: z.string() }),
+				key: (event) => event.userId,
+			},
+		});
+
 		const resolved = resolveTopics(topics, "prod");
 
-		expect(resolved.namespaced.name).toBe("prod.user.registered");
-		expect(resolved.bare.name).toBe("user.created");
-		expect(topics.namespaced.name).toBe("user.registered");
+		expect(resolved.userRegistered.name).toBe("prod.user.registered");
+		expect(resolved.userCreated.name).toBe("user.created");
+		expect(topics.userRegistered.name).toBe("user.registered");
 		expect(Object.isFrozen(resolved)).toBe(true);
-		expect(resolved.namespaced.key({ userId: "u1", email: "" })).toBe("u1");
+		expect(resolved.userRegistered.key({ userId: "u1" })).toBe("u1");
 	});
 });
