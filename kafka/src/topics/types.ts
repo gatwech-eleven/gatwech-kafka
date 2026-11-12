@@ -83,22 +83,3 @@ export type Topics<Schemas extends Record<string, ZodType>> = {
  * Any set of topics, as `createKafka` takes them
  */
 export type AnyTopics = Record<string, Topic<any>>;
-
-/**
- * Declares a service's topics
- * @description The way `schema.ts` declares a plugin's models: it describes
- * the topics and reads nothing from the environment. What differs between
- * environments, like the `namespace`, is an option of `createKafka`
- *
- * @example
- * export const topics = defineTopics({
- * 	userRegistered: {
- * 		name: "user.registered",
- * 		schema: z.object({ userId: z.string(), email: z.string() }),
- * 		key: (event) => event.userId,
- * 	},
- * });
- */
-export declare function defineTopics<Schemas extends Record<string, ZodType>>(
-	topics: { [Name in keyof Schemas]: TopicOptions<Schemas[Name]> },
-): Topics<Schemas>;
