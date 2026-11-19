@@ -1,7 +1,7 @@
 {
   "name": "@gatwech/kafka",
   "version": "0.1.0-beta.0",
-  "description": "Payvo Node.js Kafka Client for Microservices Messaging",
+  "description": "A typed Kafka client for Node.js: topics with schemas, retries and a dead letter queue",
   "type": "module",
   "publishConfig": {
     "access": "public"
@@ -20,7 +20,8 @@
     "microservices",
     "messaging",
     "event-driven",
-    "payvo"
+    "zod",
+    "dlq"
   ],
   "author": "Gatwech Tap Nguth",
   "license": "ISC",
