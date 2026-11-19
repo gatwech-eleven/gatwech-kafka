@@ -78,7 +78,7 @@ export interface KafkaOptions {
 	connect?:
 		| {
 				/**
-				 * How many times `connect()` tries before it throws
+				 * How many times a connection is tried before it throws
 				 * `BROKER_UNREACHABLE`, a DNS failure included
 				 *
 				 * @default 5
@@ -147,9 +147,10 @@ export interface KafkaOptions {
 		| {
 				/**
 				 * Reconnects when the connection drops
-				 * @description It also starts when the first `connect()` fails, so a
+				 * @description It also starts when the first connection fails, so a
 				 * service can carry on without Kafka and be connected later. After
-				 * each reconnection the topics are provisioned again
+				 * each reconnection the topics are provisioned again, and the
+				 * consumers waiting for it join
 				 *
 				 * @default true
 				 */
@@ -185,6 +186,9 @@ export type Kafka<Options extends KafkaOptions = KafkaOptions> = {
 	/**
 	 * Connects the producer, then provisions the topics. Throws
 	 * `BROKER_UNREACHABLE` once `connect.attempts` is spent
+	 * @description Optional: every operation connects the client first when it
+	 * isn't. Call it at start to connect before the first operation needs it.
+	 * Creating the client never connects
 	 */
 	connect: () => Promise<void>;
 	/**
@@ -200,7 +204,8 @@ export type Kafka<Options extends KafkaOptions = KafkaOptions> = {
 		 */
 		healthy: boolean;
 		/**
-		 * Whether `connect()` has succeeded and `disconnect()` has not been called
+		 * Whether a connection has succeeded and `disconnect()` has not been
+		 * called since
 		 */
 		connected: boolean;
 		/**
@@ -212,12 +217,14 @@ export type Kafka<Options extends KafkaOptions = KafkaOptions> = {
 	/**
 	 * Creates the topics that are missing, and a DLQ for each, so nothing has to
 	 * be created on first use
-	 * @description `connect()` already calls it
+	 * @description Connecting already does it, so a client that isn't connected
+	 * is connected instead
 	 */
 	provision: () => Promise<void>;
 	/**
 	 * Publishes one event to one of the topics
-	 * @description Refused with `NOT_CONNECTED` before `connect()`, with
+	 * @description Connects the client first when it isn't, and throws
+	 * `BROKER_UNREACHABLE` when no broker answers. Refused with
 	 * `CIRCUIT_OPEN` while publishes are failing, with `TOPIC_NOT_PROVISIONED`
 	 * when the topic is gone (a publish never creates one, and it waits for
 	 * kafkajs to retry first, about 10 seconds) and with `PUBLISH_FAILED` when
@@ -291,14 +298,18 @@ export type Kafka<Options extends KafkaOptions = KafkaOptions> = {
 	}) => Promise<void>;
 	/**
 	 * Reads one of the topics, with retries and a DLQ
-	 * @description Resolves once the consumer has joined its group. Refused with
-	 * `NOT_CONNECTED` before `connect()` (the DLQ is published with the client's
-	 * producer), with `TOPIC_NOT_DECLARED`, with `RETRY_EXCEEDS_SESSION_TIMEOUT`
-	 * and `HEARTBEAT_NOT_BELOW_SESSION_TIMEOUT` for settings that would get the
-	 * consumer removed from its group, and with `CONSUMER_START_FAILED` when it
-	 * can't join or subscribe. `disconnect()` of the client disconnects every
-	 * consumer it created. A client that is not `enabled` logs at `warn` and
-	 * returns a consumer that does nothing
+	 * @description Resolves once the consumer has joined its group. Before the
+	 * client is connected it waits, and joins once `connect()` or a
+	 * reconnection has connected the client and provisioned its topics, since
+	 * the DLQ is published with the client's producer. So it can be called at
+	 * start, before anyone knows whether the brokers are up. When
+	 * `disconnect()` comes first, it resolves with a consumer that does nothing.
+	 * Refused at once with `TOPIC_NOT_DECLARED`, with
+	 * `RETRY_EXCEEDS_SESSION_TIMEOUT` and `HEARTBEAT_NOT_BELOW_SESSION_TIMEOUT`
+	 * for settings that would get the consumer removed from its group, and with
+	 * `CONSUMER_START_FAILED` when it can't join or subscribe. `disconnect()` of
+	 * the client disconnects every consumer it created. A client that is not
+	 * `enabled` logs at `warn` and returns a consumer that does nothing
 	 *
 	 * @example
 	 * await kafka.consume({

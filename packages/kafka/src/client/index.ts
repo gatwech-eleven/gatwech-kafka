@@ -9,7 +9,7 @@ import kafkajs, {
 import { createMessageHandler, getBackoffMs } from "../consumer";
 import { KAFKA_ERROR_CODES, KafkaError } from "../error-codes";
 import { defaultDlqTopicName, resolveTopics } from "../topics";
-import { provisionTopics } from "../topics/provision";
+import { provisionTopics as createMissingTopics } from "../topics/provision";
 import { buildMessages } from "./build-messages";
 import { createCircuitBreaker } from "./circuit-breaker";
 import { createReconnectionMonitor } from "./reconnection";
@@ -130,6 +130,25 @@ export function createKafka<Options extends KafkaOptions>(
 	let connecting: Promise<void> | undefined;
 	const consumers = new Set<{ disconnect: () => Promise<void> }>();
 
+	// What `consume` waits on before the client is connected: each is settled
+	// with `true` once a connection, made by any operation or by a
+	// reconnection, has provisioned the topics, and with `false` by
+	// `disconnect()`
+	let waitingForConnection: ((connected: boolean) => void)[] = [];
+	const settleWaiting = (connected: boolean) => {
+		const waiting = waitingForConnection;
+		waitingForConnection = [];
+		for (const settle of waiting) {
+			settle(connected);
+		}
+	};
+	const whenConnected = () =>
+		isConnected && !connecting
+			? Promise.resolve(true)
+			: new Promise<boolean>((resolve) => {
+					waitingForConnection.push(resolve);
+				});
+
 	// A kafkajs client can't be used again once it has disconnected: its next
 	// request fails with "write after end". A late event from a client that was
 	// replaced says nothing about the one in use
@@ -188,14 +207,11 @@ export function createKafka<Options extends KafkaOptions>(
 		}
 	};
 
-	const provision: Kafka<Options>["provision"] = async () => {
-		if (!isEnabled || provisioned.length === 0) {
+	const provisionTopics = async () => {
+		if (provisioned.length === 0) {
 			return;
 		}
-		if (!isConnected) {
-			throw new KafkaError(KAFKA_ERROR_CODES.NOT_CONNECTED);
-		}
-		await provisionTopics({
+		await createMissingTopics({
 			admin,
 			logger,
 			topics: provisioned,
@@ -238,9 +254,13 @@ export function createKafka<Options extends KafkaOptions>(
 	const connectAndProvision = async () => {
 		try {
 			await connectWithAttempts();
-			if (!isClosed) {
-				await provision();
+			// `disconnect()` came while it connected: what connected doesn't stay open
+			if (isClosed) {
+				await closeClients();
+				return;
 			}
+			await provisionTopics();
+			settleWaiting(true);
 		} catch (error) {
 			await closeClients();
 			throw error;
@@ -258,20 +278,38 @@ export function createKafka<Options extends KafkaOptions>(
 		return connecting;
 	};
 
+	// What every operation awaits: the connection being made, or a new one
+	const ensureConnected = async () => {
+		isClosed = false;
+		if (!isConnected || connecting) {
+			await start();
+		}
+	};
+
 	const connect: Kafka<Options>["connect"] = async () => {
 		if (!isEnabled) {
 			logger.info("Kafka is disabled; not connecting");
 			return;
 		}
-		isClosed = false;
-		if (!isConnected) {
-			await start();
+		await ensureConnected();
+	};
+
+	const provision: Kafka<Options>["provision"] = async () => {
+		if (!isEnabled) {
+			return;
 		}
+		if (!isConnected || connecting) {
+			// Connecting provisions the topics
+			await ensureConnected();
+			return;
+		}
+		await provisionTopics();
 	};
 
 	const disconnect: Kafka<Options>["disconnect"] = async () => {
 		isClosed = true;
 		monitor.stop();
+		settleWaiting(false);
 		if (!isEnabled) {
 			return;
 		}
@@ -318,9 +356,7 @@ export function createKafka<Options extends KafkaOptions>(
 		if (!topic) {
 			throw new KafkaError(KAFKA_ERROR_CODES.TOPIC_NOT_DECLARED, message.topic);
 		}
-		if (!isConnected) {
-			throw new KafkaError(KAFKA_ERROR_CODES.NOT_CONNECTED);
-		}
+		await ensureConnected();
 
 		const messages = buildMessages({
 			topic,
@@ -379,16 +415,17 @@ export function createKafka<Options extends KafkaOptions>(
 	const consume: Kafka<Options>["consume"] = async (consumeOptions) => {
 		const groupId =
 			consumeOptions.groupId ?? `${options.clientId}.${consumeOptions.topic}`;
+		const consumingNothing = {
+			groupId,
+			paused: () => [],
+			resume: () => {},
+			disconnect: async () => {},
+		};
 		if (!isEnabled) {
 			logger.warn("Kafka is disabled; not consuming", {
 				topic: consumeOptions.topic,
 			});
-			return {
-				groupId,
-				paused: () => [],
-				resume: () => {},
-				disconnect: async () => {},
-			};
+			return consumingNothing;
 		}
 		const topic = topics[consumeOptions.topic];
 		if (!topic) {
@@ -396,9 +433,6 @@ export function createKafka<Options extends KafkaOptions>(
 				KAFKA_ERROR_CODES.TOPIC_NOT_DECLARED,
 				consumeOptions.topic,
 			);
-		}
-		if (!isConnected) {
-			throw new KafkaError(KAFKA_ERROR_CODES.NOT_CONNECTED);
 		}
 
 		const retry = {
@@ -421,6 +455,25 @@ export function createKafka<Options extends KafkaOptions>(
 		}
 		if (totalBackoffMs >= session.timeoutMs) {
 			throw new KafkaError(KAFKA_ERROR_CODES.RETRY_EXCEEDS_SESSION_TIMEOUT);
+		}
+
+		// The DLQ is published with the client's producer, and the topic must
+		// exist, so a consumer joins only once both are there. A connection that
+		// fails here is not the consumer's failure: the reconnection keeps trying,
+		// and the consumer joins when it succeeds
+		if (!isConnected || connecting) {
+			logger.info("Waiting for Kafka before consuming", {
+				topic: topic.name,
+				groupId,
+			});
+			ensureConnected().catch(() => undefined);
+		}
+		if (!(await whenConnected())) {
+			logger.info("Not consuming: the client was disconnected first", {
+				topic: topic.name,
+				groupId,
+			});
+			return consumingNothing;
 		}
 
 		const consumer = client.consumer({
