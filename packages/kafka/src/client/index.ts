@@ -54,7 +54,7 @@ const createLogCreator =
  *
  * @example
  * export const kafka = createKafka({
- * 	clientId: "orders-service",
+ * 	clientId: "example-service",
  * 	brokers: ["localhost:9092"],
  * 	topics,
  * 	namespace: env.KAFKA_NAMESPACE,
@@ -544,5 +544,6 @@ export function createKafka<Options extends KafkaOptions>(
 		topics: topics as InferTopics<Options>,
 		options,
 		$ERROR_CODES: KAFKA_ERROR_CODES,
+		$Infer: {} as Kafka<Options>["$Infer"],
 	};
 }

@@ -4,7 +4,7 @@ export interface TopicOptions<Schema extends ZodType = ZodType> {
 	/**
 	 * The topic's name on the broker
 	 *
-	 * @example "orders.order.created"
+	 * @example "example.created"
 	 */
 	name: string;
 	/**
@@ -24,7 +24,7 @@ export interface TopicOptions<Schema extends ZodType = ZodType> {
 	 * The partition key of an event. Events with the same key sit on one
 	 * partition, so they are read in the order they were published
 	 *
-	 * @example (event) => event.userId
+	 * @example (event) => event.id
 	 */
 	key: (event: z.output<Schema>) => string;
 	/**

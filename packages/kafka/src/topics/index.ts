@@ -13,10 +13,10 @@ const DEFAULT_RETENTION_MS = 604_800_000;
  *
  * @example
  * export const topics = defineTopics({
- * 	userRegistered: {
- * 		name: "user.registered",
- * 		schema: z.object({ userId: z.string(), email: z.string() }),
- * 		key: (event) => event.userId,
+ * 	example: {
+ * 		name: "example.created",
+ * 		schema: z.object({ id: z.string(), label: z.string() }),
+ * 		key: (event) => event.id,
  * 	},
  * });
  */
