@@ -7,10 +7,9 @@ export type * from "./types";
 const DEFAULT_RETENTION_MS = 604_800_000;
 
 /**
- * Declares a service's topics
- * @description The way `schema.ts` declares a plugin's models: it describes
- * the topics and reads nothing from the environment. What differs between
- * environments, like the `namespace`, is an option of `createKafka`
+ * Declares a service's topics. It describes them and reads nothing from the
+ * environment: what differs between environments, like the `namespace`, is an
+ * option of `createKafka`
  *
  * @example
  * export const topics = defineTopics({
@@ -47,7 +46,7 @@ export function defineTopics<Schemas extends Record<string, ZodType>>(
 			const value = options[option];
 			if (value !== undefined && !(Number.isInteger(value) && value > 0)) {
 				throw new KafkaError(
-					KAFKA_ERROR_CODES.TOPIC_OPTION_INVALID,
+					KAFKA_ERROR_CODES.INVALID_TOPIC_OPTION,
 					`${key}.${option}`,
 				);
 			}

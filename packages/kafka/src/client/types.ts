@@ -9,7 +9,7 @@ export interface KafkaOptions {
 	/**
 	 * Names this service to the broker and in its logs
 	 *
-	 * @example "payvo-auth-service"
+	 * @example "orders-service"
 	 */
 	clientId: string;
 	/**
@@ -19,41 +19,34 @@ export interface KafkaOptions {
 	 */
 	brokers: string[];
 	/**
-	 * The topics this service publishes and consumes
-	 * @description Declared once with `defineTopics`, the way a plugin carries
-	 * its schema. `publish` and `consume` name them by key, `provision`
+	 * The topics this service publishes and consumes, declared once with
+	 * `defineTopics`. `publish` and `consume` name them by key, `provision`
 	 * creates them, and `kafka.topics` holds them as the broker knows them
 	 *
 	 * @default {}
 	 */
 	topics?: AnyTopics | undefined;
 	/**
-	 * Turns the client on or off
-	 * @description Off, `connect`, `provision`, `disconnect` and `consume` do
-	 * nothing, and `publish` logs at `warn` and sends nothing. It replaces
-	 * wiring a service's `KAFKA_ENABLED` into four options and an `if` in each
-	 * of its start and stop functions
+	 * Turns the client on or off. Off, `connect`, `provision`, `disconnect` and
+	 * `consume` do nothing, and `publish` logs at `warn` and sends nothing
 	 *
 	 * @default true
 	 */
 	enabled?: boolean | undefined;
 	/**
-	 * Prefixes the name of every topic, and of its DLQ
-	 * @description Keeps environments that share a broker apart, without the
-	 * topic declarations reading the environment. It replaces the `topic()`
-	 * helper each service writes for itself. A topic opts out with
-	 * `namespaced: false`
+	 * Prefixes the name of every topic, and of its DLQ. It keeps environments
+	 * that share a broker apart, without the topic declarations reading the
+	 * environment. A topic opts out with `namespaced: false`
 	 *
 	 * @example "prod" makes `user.registered` `prod.user.registered`
 	 * @default undefined, topics keep their declared names
 	 */
 	namespace?: string | undefined;
 	/**
-	 * Where this client logs
-	 * @description The same logger options as `payvoAuth`. Nothing is read from
-	 * the environment
+	 * Where this client logs: a `Logger` from `@gatwech/core/env`. Nothing is
+	 * read from the environment
 	 *
-	 * @example { level: "info", tag: "wallet-service" }
+	 * @example { level: "info", tag: "orders-service" }
 	 * @default its lines are tagged "Payvo Kafka"
 	 */
 	logger?: Logger | undefined;
@@ -79,42 +72,42 @@ export interface KafkaOptions {
 		| {
 				/**
 				 * How many times a connection is tried before it throws
-				 * `BROKER_UNREACHABLE`, a DNS failure included
+				 * `FAILED_TO_CONNECT`, a DNS failure included
 				 *
-				 * @default 5
+				 * @default 5 tries
 				 */
 				attempts?: number | undefined;
 				/**
 				 * How long to wait between tries, in milliseconds
 				 *
-				 * @default 2_000
+				 * @default 2_000 milliseconds
 				 */
 				retryDelayMs?: number | undefined;
 		  }
 		| undefined;
 	/**
-	 * What `provision()` uses for a topic that sets neither
-	 * @description A topic's DLQ gets one partition, the topic's replication
-	 * factor and retention, and the `"delete"` cleanup policy
+	 * What `provision()` uses for a topic that sets neither. A topic's DLQ gets
+	 * one partition, the topic's replication factor and retention, and the
+	 * `"delete"` cleanup policy
 	 */
 	provisioning?:
 		| {
 				/**
 				 * How many partitions a new topic has
 				 *
-				 * @default 3
+				 * @default 3 partitions
 				 */
 				partitions?: number | undefined;
 				/**
 				 * How many brokers keep a copy of each partition
 				 *
-				 * @default 1
+				 * @default 1 broker
 				 */
 				replicationFactor?: number | undefined;
 				/**
 				 * How long to wait for each partition's leader, in milliseconds
 				 *
-				 * @default 15_000
+				 * @default 15_000 milliseconds
 				 */
 				waitForLeadersMs?: number | undefined;
 		  }
@@ -131,14 +124,14 @@ export interface KafkaOptions {
 				/**
 				 * How many publishes in a row fail before the circuit opens
 				 *
-				 * @default 5
+				 * @default 5 publishes
 				 */
 				failureThreshold?: number | undefined;
 				/**
 				 * How long the circuit stays open before one publish is let through,
 				 * in milliseconds. If it works the circuit closes
 				 *
-				 * @default 30_000
+				 * @default 30_000 milliseconds
 				 */
 				resetTimeoutMs?: number | undefined;
 		  }
@@ -146,11 +139,10 @@ export interface KafkaOptions {
 	reconnection?:
 		| {
 				/**
-				 * Reconnects when the connection drops
-				 * @description It also starts when the first connection fails, so a
-				 * service can carry on without Kafka and be connected later. After
-				 * each reconnection the topics are provisioned again, and the
-				 * consumers waiting for it join
+				 * Reconnects when the connection drops. It also starts when the first
+				 * connection fails, so a service can carry on without Kafka and be
+				 * connected later. After each reconnection the topics are provisioned
+				 * again, and the consumers waiting for it join
 				 *
 				 * @default true
 				 */
@@ -158,7 +150,7 @@ export interface KafkaOptions {
 				/**
 				 * How often to check the connection, in milliseconds
 				 *
-				 * @default 60_000
+				 * @default 60_000 milliseconds
 				 */
 				intervalMs?: number | undefined;
 		  }
@@ -185,16 +177,16 @@ export type InferTopic<
 export type Kafka<Options extends KafkaOptions = KafkaOptions> = {
 	/**
 	 * Connects the producer, then provisions the topics. Throws
-	 * `BROKER_UNREACHABLE` once `connect.attempts` is spent
-	 * @description Optional: every operation connects the client first when it
-	 * isn't. Call it at start to connect before the first operation needs it.
-	 * Creating the client never connects
+	 * `FAILED_TO_CONNECT` once `connect.attempts` is spent. Optional: every
+	 * operation connects the client first when it isn't, so call it at start to
+	 * connect before the first operation needs it. Creating the client never
+	 * connects
 	 */
 	connect: () => Promise<void>;
 	/**
-	 * Disconnects the producer and every consumer this client created
-	 * @description It never throws: a consumer that fails to leave its group is
-	 * logged, and the rest are still disconnected, so a shutdown carries on
+	 * Disconnects the producer and every consumer this client created. It never
+	 * throws: a consumer that fails to leave its group is logged, and the rest
+	 * are still disconnected, so a shutdown carries on
 	 */
 	disconnect: () => Promise<void>;
 	healthCheck: () => Promise<{
@@ -216,20 +208,18 @@ export type Kafka<Options extends KafkaOptions = KafkaOptions> = {
 	}>;
 	/**
 	 * Creates the topics that are missing, and a DLQ for each, so nothing has to
-	 * be created on first use
-	 * @description Connecting already does it, so a client that isn't connected
-	 * is connected instead
+	 * be created on first use. Connecting already does it, so a client that
+	 * isn't connected is connected instead
 	 */
 	provision: () => Promise<void>;
 	/**
-	 * Publishes one event to one of the topics
-	 * @description Connects the client first when it isn't, and throws
-	 * `BROKER_UNREACHABLE` when no broker answers. Refused with
-	 * `CIRCUIT_OPEN` while publishes are failing, with `TOPIC_NOT_PROVISIONED`
-	 * when the topic is gone (a publish never creates one, and it waits for
-	 * kafkajs to retry first, about 10 seconds) and with `PUBLISH_FAILED` when
-	 * the broker refuses the message. A client that is not `enabled` logs at
-	 * `warn` and sends nothing
+	 * Publishes one event to one of the topics. It connects the client first
+	 * when it isn't, and throws `FAILED_TO_CONNECT` when no broker answers.
+	 * Refused with `CIRCUIT_OPEN` while publishes are failing, with
+	 * `TOPIC_NOT_PROVISIONED` when the topic is gone (a publish never creates
+	 * one, and it waits for kafkajs to retry first, about 10 seconds) and with
+	 * `FAILED_TO_PUBLISH` when the broker refuses the message. A client that is
+	 * not `enabled` logs at `warn` and sends nothing
 	 *
 	 * @example
 	 * await kafka.publish({
@@ -239,27 +229,23 @@ export type Kafka<Options extends KafkaOptions = KafkaOptions> = {
 	 */
 	publish: <Name extends keyof InferTopics<Options> & string>(options: {
 		/**
-		 * The key of the topic in the `topics` option of `createKafka`
-		 * @description The topic's schema checks the event, and its `key` picks the
-		 * partition
+		 * The key of the topic in the `topics` option of `createKafka`. The
+		 * topic's schema checks the event, and its `key` picks the partition
 		 *
 		 * @example "userRegistered"
 		 */
 		topic: Name;
 		/**
-		 * The event to publish
-		 * @description The publish is refused with `EVENT_REJECTED_BY_SCHEMA` when
+		 * The event to publish. The publish is refused with `INVALID_EVENT` when
 		 * the topic's schema rejects it
 		 */
 		event: z.input<InferTopic<Options, Name>["schema"]>;
 		/**
-		 * Ties this message to the others of one request
-		 * @description Consumers get it as `ctx.correlationId`. The message has the
-		 * shape `createEventPublisher` writes today, so consumers that have not
-		 * moved read it unchanged: the body is the event with
-		 * `metadata: { source, correlationId }` added, `source` is the `clientId`,
-		 * and the headers are `event-version`, `event-type`, `timestamp` and
-		 * `correlation-id`
+		 * Ties this message to the others of one request: consumers get it as
+		 * `ctx.correlationId`. The body is the event with
+		 * `metadata: { source, correlationId }` added, `source` is the
+		 * `clientId`, and the headers are `event-version`, `event-type`,
+		 * `timestamp` and `correlation-id`
 		 *
 		 * @default a new id for each publish
 		 */
@@ -280,9 +266,8 @@ export type Kafka<Options extends KafkaOptions = KafkaOptions> = {
 		 */
 		topic: Name;
 		/**
-		 * The events to publish
-		 * @description Each one is checked first, and none is sent if any is
-		 * rejected
+		 * The events to publish. Each one is checked first, and none is sent if
+		 * any is rejected
 		 */
 		events: z.input<InferTopic<Options, Name>["schema"]>[];
 		/**
@@ -297,23 +282,24 @@ export type Kafka<Options extends KafkaOptions = KafkaOptions> = {
 		headers?: Record<string, string> | undefined;
 	}) => Promise<void>;
 	/**
-	 * Reads one of the topics, with retries and a DLQ
-	 * @description Resolves once the consumer has joined its group. Before the
-	 * client is connected it waits, and joins once `connect()` or a
-	 * reconnection has connected the client and provisioned its topics, since
-	 * the DLQ is published with the client's producer. So it can be called at
-	 * start, before anyone knows whether the brokers are up. When
-	 * `disconnect()` comes first, it resolves with a consumer that does nothing.
-	 * Refused at once with `TOPIC_NOT_DECLARED`, with
-	 * `RETRY_EXCEEDS_SESSION_TIMEOUT` and `HEARTBEAT_NOT_BELOW_SESSION_TIMEOUT`
-	 * for settings that would get the consumer removed from its group, and with
-	 * `CONSUMER_START_FAILED` when it can't join or subscribe. `disconnect()` of
-	 * the client disconnects every consumer it created. A client that is not
-	 * `enabled` logs at `warn` and returns a consumer that does nothing
+	 * Reads one of the topics, with retries and a DLQ, and resolves once the
+	 * consumer has joined its group. Before the client is connected it waits,
+	 * and joins once a connection, made by any operation or by a reconnection,
+	 * has provisioned the topics, since the DLQ is published with the client's
+	 * producer. So it can be called at start, before anyone knows whether the
+	 * brokers are up. When `disconnect()` comes first, it resolves with a
+	 * consumer that does nothing.
+	 *
+	 * Refused at once with `TOPIC_NOT_DECLARED`, with `INVALID_RETRY` and
+	 * `INVALID_HEARTBEAT_INTERVAL` for settings that would get the consumer
+	 * removed from its group, and with `FAILED_TO_START_CONSUMER` when it can't
+	 * join or subscribe. `disconnect()` of the client disconnects every consumer
+	 * it created. A client that is not `enabled` logs at `warn` and returns a
+	 * consumer that does nothing
 	 *
 	 * @example
 	 * await kafka.consume({
-	 * 	groupId: "payvo-wallet-service.user-registered",
+	 * 	groupId: "wallet-service.user-registered",
 	 * 	topic: "userRegistered",
 	 * 	handler: async ({ event }) => {
 	 * 		await createWallet(event.userId);
@@ -323,14 +309,13 @@ export type Kafka<Options extends KafkaOptions = KafkaOptions> = {
 	consume: <Name extends keyof InferTopics<Options> & string>(options: {
 		/**
 		 * The consumer group. The consumers of one group share the topic's
-		 * partitions
-		 * @description One group reads one topic. A service that reads several
-		 * calls `consume` once for each, and each gets its own group. A group that
-		 * has no committed offset starts where `fromBeginning` says, so naming a
-		 * group that exists keeps its place
+		 * partitions. One group reads one topic: a service that reads several
+		 * calls `consume` once for each, and each gets its own group. A group
+		 * that has no committed offset starts where `fromBeginning` says, so
+		 * naming a group that exists keeps its place
 		 *
-		 * @example "payvo-wallet-service.user-registered"
-		 * @default `${clientId}.${topic}`, e.g. "payvo-wallet-service.userRegistered"
+		 * @example "wallet-service.user-registered"
+		 * @default `${clientId}.${topic}`, e.g. "wallet-service.userRegistered"
 		 */
 		groupId?: string | undefined;
 		/**
@@ -340,12 +325,11 @@ export type Kafka<Options extends KafkaOptions = KafkaOptions> = {
 		 */
 		topic: Name;
 		/**
-		 * Handles one event
-		 * @description Let errors throw. When it throws, it is called again after
-		 * `retry.backoffMs`, up to `retry.attempts` times in all, and every failure
-		 * is logged. Then the message goes to the DLQ. A handler that catches its
-		 * own error to log it hides the message from all of that, and its offset is
-		 * committed
+		 * Handles one event. Let errors throw: when it throws, it is called again
+		 * after `retry.backoffMs`, up to `retry.attempts` times in all, and every
+		 * failure is logged. Then the message goes to the DLQ. A handler that
+		 * catches its own error to log it hides the message from all of that,
+		 * and its offset is committed
 		 */
 		handler: (ctx: {
 			/**
@@ -378,15 +362,15 @@ export type Kafka<Options extends KafkaOptions = KafkaOptions> = {
 					 * How many times the handler is called for one message, the first
 					 * call included
 					 *
-					 * @default 3
+					 * @default 3 calls
 					 */
 					attempts?: number | undefined;
 					/**
-					 * How long to wait after the first failure, in milliseconds
-					 * @description It doubles after each one, up to 30 seconds. The
-					 * total must stay below `session.timeoutMs`
+					 * How long to wait after the first failure, in milliseconds. It
+					 * doubles after each one, up to 30 seconds. The total must stay
+					 * below `session.timeoutMs`
 					 *
-					 * @default 500
+					 * @default 500 milliseconds
 					 */
 					backoffMs?: number | undefined;
 			  }
@@ -402,12 +386,12 @@ export type Kafka<Options extends KafkaOptions = KafkaOptions> = {
 					 */
 					topic?: string | undefined;
 					/**
-					 * How many times a failed publish to the DLQ is tried
-					 * @description Then the partition is paused, an `error` is logged and
-					 * the offset is left uncommitted: the message is neither lost nor
-					 * handled again until `resume()`
+					 * How many times a failed publish to the DLQ is tried. Then the
+					 * partition is paused, an `error` is logged and the offset is left
+					 * uncommitted: the message is neither lost nor handled again until
+					 * `resume()`
 					 *
-					 * @default 3
+					 * @default 3 tries
 					 */
 					attempts?: number | undefined;
 			  }
@@ -418,29 +402,28 @@ export type Kafka<Options extends KafkaOptions = KafkaOptions> = {
 					 * How long the broker waits for a heartbeat before it removes the
 					 * consumer from its group, in milliseconds
 					 *
-					 * @default 30_000
+					 * @default 30_000 milliseconds
 					 */
 					timeoutMs?: number | undefined;
 					/**
 					 * How often the consumer tells the broker it is alive, in
 					 * milliseconds. Shorter than `timeoutMs`, usually a third of it
 					 *
-					 * @default 3_000
+					 * @default 3_000 milliseconds
 					 */
 					heartbeatIntervalMs?: number | undefined;
 					/**
 					 * How long the group waits for each member to rejoin when it
 					 * rebalances, in milliseconds
 					 *
-					 * @default 60_000
+					 * @default 60_000 milliseconds
 					 */
 					rebalanceTimeoutMs?: number | undefined;
 			  }
 			| undefined;
 		/**
-		 * Where a group with no committed offset starts
-		 * @description `false` starts at the end of the topic, so messages
-		 * published before the group joined are skipped
+		 * Where a group with no committed offset starts. `false` starts at the end
+		 * of the topic, so messages published before the group joined are skipped
 		 *
 		 * @default false
 		 */

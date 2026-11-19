@@ -75,8 +75,8 @@ async function waitForLeaders(options: {
 }
 
 /**
- * Brings the topics on the broker in line with the ones given
- * @description Creates the ones that are missing, raises the partitions of the
+ * Brings the topics on the broker in line with the ones given. It creates the
+ * ones that are missing, raises the partitions of the
  * ones that have fewer than wanted (Kafka can't lower them), and sets their
  * retention and cleanup policy when those differ. A client that can't change
  * the configs of a topic (the ACLs, or an old broker) logs a warning and goes on

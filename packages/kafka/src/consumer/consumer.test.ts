@@ -577,7 +577,7 @@ describe("consumer - session", () => {
 			.catch((reason) => reason);
 
 		expect(error).toBeInstanceOf(KafkaError);
-		expect(error.message).toBe(KAFKA_ERROR_CODES.RETRY_EXCEEDS_SESSION_TIMEOUT);
+		expect(error.message).toBe(KAFKA_ERROR_CODES.INVALID_RETRY);
 	});
 
 	it("should accept retries that fit in the session", async () => {
@@ -622,7 +622,7 @@ describe("consumer - session", () => {
 				session: { timeoutMs: 5_000, heartbeatIntervalMs: 5_000 },
 				handler: async () => {},
 			}),
-		).rejects.toThrow(KAFKA_ERROR_CODES.HEARTBEAT_NOT_BELOW_SESSION_TIMEOUT);
+		).rejects.toThrow(KAFKA_ERROR_CODES.INVALID_HEARTBEAT_INTERVAL);
 	});
 });
 
@@ -795,7 +795,7 @@ describe("consumer - lifecycle", () => {
 		});
 		const mockHandler = vi.fn(async (_ctx: unknown) => {});
 		await expect(kafka.connect()).rejects.toThrow(
-			KAFKA_ERROR_CODES.BROKER_UNREACHABLE,
+			KAFKA_ERROR_CODES.FAILED_TO_CONNECT,
 		);
 
 		const consuming = kafka.consume({
@@ -855,7 +855,7 @@ describe("consumer - lifecycle", () => {
 				handler: async () => {},
 				session: { timeoutMs: 6_000, heartbeatIntervalMs: 6_000 },
 			}),
-		).rejects.toThrow(KAFKA_ERROR_CODES.HEARTBEAT_NOT_BELOW_SESSION_TIMEOUT);
+		).rejects.toThrow(KAFKA_ERROR_CODES.INVALID_HEARTBEAT_INTERVAL);
 	});
 
 	it("should log and consume nothing when the client is not enabled", async () => {

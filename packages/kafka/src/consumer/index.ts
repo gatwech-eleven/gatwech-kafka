@@ -20,8 +20,8 @@ export const getBackoffMs = (backoffMs: number, failures: number) =>
 	Math.min(backoffMs * 2 ** (failures - 1), MAX_BACKOFF_MS);
 
 /**
- * Handles the messages of one topic for one consumer group
- * @description Each message is parsed and checked by the topic's schema, and
+ * Handles the messages of one topic for one consumer group. Each message is
+ * parsed and checked by the topic's schema, and
  * the handler is called with the event. A handler that throws is called again
  * after a back-off, `retry.attempts` times in all. A message the schema
  * rejects, or that the handler failed on every time, goes to the DLQ. When the
@@ -180,7 +180,7 @@ export function createMessageHandler(options: {
 					error: messageOf(error),
 				});
 				pause();
-				throw new KafkaError(KAFKA_ERROR_CODES.DLQ_PUBLISH_FAILED, error);
+				throw new KafkaError(KAFKA_ERROR_CODES.FAILED_TO_PUBLISH_TO_DLQ, error);
 			}
 		}
 	};
