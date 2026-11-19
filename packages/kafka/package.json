@@ -1,6 +1,6 @@
 {
   "name": "@gatwech/kafka",
-  "version": "0.1.0-beta.0",
+  "version": "1.0.0-beta.0",
   "description": "A typed Kafka client for Node.js: topics with schemas, retries and a dead letter queue",
   "type": "module",
   "publishConfig": {
