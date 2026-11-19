@@ -263,7 +263,7 @@ describe("client - public types", () => {
 			});
 
 			expectTypeOf(kafka.$ERROR_CODES).toEqualTypeOf<typeof KAFKA_ERROR_CODES>();
-			expectTypeOf(kafka.$ERROR_CODES.BROKER_UNREACHABLE).toBeString();
+			expectTypeOf(kafka.$ERROR_CODES.FAILED_TO_CONNECT).toBeString();
 		};
 		void check;
 	});
@@ -663,7 +663,7 @@ describe("client - connect", () => {
 		expect(countLogs("Could not connect to Kafka")).toBe(0);
 	});
 
-	it("should throw BROKER_UNREACHABLE after exactly connect.attempts tries", async () => {
+	it("should throw FAILED_TO_CONNECT after exactly connect.attempts tries", async () => {
 		const { kafka, countLogs, close } = await getTestInstance({
 			brokers: ["localhost:1"],
 			connect: { attempts: 3, retryDelayMs: 10 },
@@ -674,7 +674,7 @@ describe("client - connect", () => {
 		const error = await kafka.connect().catch((reason) => reason);
 
 		expect(error).toBeInstanceOf(KafkaError);
-		expect(error.message).toBe(KAFKA_ERROR_CODES.BROKER_UNREACHABLE);
+		expect(error.message).toBe(KAFKA_ERROR_CODES.FAILED_TO_CONNECT);
 		expect(error.cause).toBeDefined();
 		expect(countLogs("Could not connect to Kafka")).toBe(3);
 		// kafkajs would retry each of the three by itself, for about 8 seconds
@@ -690,7 +690,7 @@ describe("client - connect", () => {
 
 		const error = await kafka.connect().catch((reason) => reason);
 
-		expect(error.message).toBe(KAFKA_ERROR_CODES.BROKER_UNREACHABLE);
+		expect(error.message).toBe(KAFKA_ERROR_CODES.FAILED_TO_CONNECT);
 		expect(countLogs("Could not connect to Kafka")).toBe(2);
 	}, 30_000);
 
@@ -1461,7 +1461,7 @@ describe("client - publish", () => {
 			.catch((reason) => reason);
 
 		expect(error).toBeInstanceOf(KafkaError);
-		expect(error.message).toBe(KAFKA_ERROR_CODES.EVENT_REJECTED_BY_SCHEMA);
+		expect(error.message).toBe(KAFKA_ERROR_CODES.INVALID_EVENT);
 		expect(error.cause).toBeInstanceOf(z.ZodError);
 		expect(
 			await readMessages(`${namespace}.user.registered`, { within: 1_000 }),
@@ -1502,7 +1502,7 @@ describe("client - publish", () => {
 		expect(messages[0]?.key).toBe("u1");
 	}, 30_000);
 
-	it("should throw BROKER_UNREACHABLE on a publish when no broker answers", async () => {
+	it("should throw FAILED_TO_CONNECT on a publish when no broker answers", async () => {
 		const { kafka, close } = await getTestInstance({
 			brokers: ["localhost:1"],
 			connect: { attempts: 1, retryDelayMs: 10 },
@@ -1519,7 +1519,7 @@ describe("client - publish", () => {
 
 		await expect(
 			kafka.publish({ topic: "userRegistered", event: { userId: "u1" } }),
-		).rejects.toThrow(KAFKA_ERROR_CODES.BROKER_UNREACHABLE);
+		).rejects.toThrow(KAFKA_ERROR_CODES.FAILED_TO_CONNECT);
 	});
 
 	it("should send a batch in one request, tied by one correlation id", async () => {
@@ -1572,7 +1572,7 @@ describe("client - publish", () => {
 				topic: "userRegistered",
 				events: [{ userId: "u1" }, { userId: 2 as any }],
 			}),
-		).rejects.toThrow(KAFKA_ERROR_CODES.EVENT_REJECTED_BY_SCHEMA);
+		).rejects.toThrow(KAFKA_ERROR_CODES.INVALID_EVENT);
 
 		expect(
 			await readMessages(`${namespace}.user.registered`, { within: 1_000 }),
@@ -1665,7 +1665,7 @@ describe("client - publish", () => {
 			})
 			.catch((reason) => reason);
 
-		expect(failed.message).toBe(KAFKA_ERROR_CODES.PUBLISH_FAILED);
+		expect(failed.message).toBe(KAFKA_ERROR_CODES.FAILED_TO_PUBLISH);
 		expect(failed.cause).toBeDefined();
 		expect(await kafka.healthCheck()).toMatchObject({ circuit: "open" });
 		await expect(

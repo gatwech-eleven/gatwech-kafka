@@ -1,7 +1,7 @@
 /**
- * Checks the connection every `intervalMs` and reconnects when it is down
- * @description A check or a reconnection that is still running when the next
- * tick comes is not started again. The timer doesn't keep the process alive
+ * Checks the connection every `intervalMs` and reconnects when it is down. A
+ * check or a reconnection that is still running when the next tick comes is
+ * not started again. The timer doesn't keep the process alive
  */
 export function createReconnectionMonitor(options: {
 	/**

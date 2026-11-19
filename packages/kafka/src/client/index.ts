@@ -54,7 +54,7 @@ const createLogCreator =
  *
  * @example
  * export const kafka = createKafka({
- * 	clientId: "payvo-auth-service",
+ * 	clientId: "orders-service",
  * 	brokers: ["localhost:9092"],
  * 	topics,
  * 	namespace: env.KAFKA_NAMESPACE,
@@ -203,7 +203,7 @@ export function createKafka<Options extends KafkaOptions>(
 			}
 		}
 		if (!isClosed) {
-			throw new KafkaError(KAFKA_ERROR_CODES.BROKER_UNREACHABLE, lastError);
+			throw new KafkaError(KAFKA_ERROR_CODES.FAILED_TO_CONNECT, lastError);
 		}
 	};
 
@@ -391,7 +391,7 @@ export function createKafka<Options extends KafkaOptions>(
 			if (error instanceof KafkaError) {
 				throw error;
 			}
-			throw new KafkaError(KAFKA_ERROR_CODES.PUBLISH_FAILED, error);
+			throw new KafkaError(KAFKA_ERROR_CODES.FAILED_TO_PUBLISH, error);
 		}
 		if (missingTopic) {
 			throw new KafkaError(KAFKA_ERROR_CODES.TOPIC_NOT_PROVISIONED, missingTopic);
@@ -445,7 +445,7 @@ export function createKafka<Options extends KafkaOptions>(
 			rebalanceTimeoutMs: consumeOptions.session?.rebalanceTimeoutMs ?? 60_000,
 		};
 		if (session.heartbeatIntervalMs >= session.timeoutMs) {
-			throw new KafkaError(KAFKA_ERROR_CODES.HEARTBEAT_NOT_BELOW_SESSION_TIMEOUT);
+			throw new KafkaError(KAFKA_ERROR_CODES.INVALID_HEARTBEAT_INTERVAL);
 		}
 		// A handler that retries sends no heartbeat, so the broker would remove
 		// the consumer from its group in the middle of the back-off
@@ -454,7 +454,7 @@ export function createKafka<Options extends KafkaOptions>(
 			totalBackoffMs += getBackoffMs(retry.backoffMs, failures);
 		}
 		if (totalBackoffMs >= session.timeoutMs) {
-			throw new KafkaError(KAFKA_ERROR_CODES.RETRY_EXCEEDS_SESSION_TIMEOUT);
+			throw new KafkaError(KAFKA_ERROR_CODES.INVALID_RETRY);
 		}
 
 		// The DLQ is published with the client's producer, and the topic must
@@ -516,7 +516,7 @@ export function createKafka<Options extends KafkaOptions>(
 			});
 		} catch (error) {
 			await consumer.disconnect().catch(() => undefined);
-			throw new KafkaError(KAFKA_ERROR_CODES.CONSUMER_START_FAILED, error);
+			throw new KafkaError(KAFKA_ERROR_CODES.FAILED_TO_START_CONSUMER, error);
 		}
 
 		const consuming = {

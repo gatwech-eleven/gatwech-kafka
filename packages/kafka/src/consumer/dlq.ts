@@ -46,8 +46,8 @@ function describeFailure(failure: DlqFailure) {
 }
 
 /**
- * Publishes a message that couldn't be handled to the DLQ
- * @description The entry holds the message as it was, where it came from and
+ * Publishes a message that couldn't be handled to the DLQ. The entry holds
+ * the message as it was, where it came from and
  * why it failed: the handler's last error with its stack and cause, or the
  * issues the topic's schema raised. It is keyed by the message's key, or by its
  * offset when it has none. What the producer throws is thrown

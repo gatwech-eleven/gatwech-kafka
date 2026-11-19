@@ -1,32 +1,23 @@
 import { defineErrorCodes } from "@gatwech/core/utils";
 
 export const KAFKA_ERROR_CODES = defineErrorCodes({
-	TOPIC_NAME_REQUIRED: "A topic needs a name",
-	TOPIC_NAME_DUPLICATED:
-		"Two topics have the same name. Give them different names, or set namespaced: false on one",
-	TOPIC_SCHEMA_REQUIRED: "A topic needs a schema, such as z.object({ ... })",
-	TOPIC_KEY_REQUIRED:
-		"A topic needs a key function that returns the partition key of an event",
-	TOPIC_OPTION_INVALID:
-		"partitions, replicationFactor and retentionMs must be positive whole numbers",
-	BROKERS_REQUIRED: "options.brokers must list at least one broker",
-	HEARTBEAT_NOT_BELOW_SESSION_TIMEOUT:
-		"session.heartbeatIntervalMs must be shorter than session.timeoutMs",
-	RETRY_EXCEEDS_SESSION_TIMEOUT:
-		"The retries back off for longer than session.timeoutMs, so the broker would remove the consumer from its group. Lower retry.attempts or retry.backoffMs, or raise session.timeoutMs",
-	BROKER_UNREACHABLE: "No broker answered within connect.attempts tries",
-	CIRCUIT_OPEN:
-		"The circuit breaker is open: publishes are failing, and the next one is let through after circuitBreaker.resetTimeoutMs",
-	TOPIC_NOT_PROVISIONED:
-		"The topic doesn't exist, and topics are never created on first use. Call provision() with it first",
-	TOPIC_NOT_DECLARED:
-		"The client has no topic with that key. Declare it in the topics option of createKafka",
-	EVENT_REJECTED_BY_SCHEMA: "The event doesn't match the topic's schema",
-	PUBLISH_FAILED: "The broker did not accept the message",
-	CONSUMER_START_FAILED:
-		"The consumer could not connect, join its group or subscribe to the topic",
-	DLQ_PUBLISH_FAILED:
-		"The message could not be published to the DLQ, so its partition was paused and its offset left uncommitted",
+	TOPIC_NAME_REQUIRED: "Topic name is required",
+	TOPIC_NAME_DUPLICATED: "Topic name is already declared",
+	TOPIC_SCHEMA_REQUIRED: "Topic schema is required",
+	TOPIC_KEY_REQUIRED: "Topic key is required",
+	INVALID_TOPIC_OPTION: "Invalid topic option",
+	BROKERS_REQUIRED: "Brokers are required",
+	INVALID_HEARTBEAT_INTERVAL:
+		"Heartbeat interval must be shorter than the session timeout",
+	INVALID_RETRY: "Retry back-off must be shorter than the session timeout",
+	FAILED_TO_CONNECT: "Failed to connect to the brokers",
+	CIRCUIT_OPEN: "Circuit breaker is open",
+	TOPIC_NOT_PROVISIONED: "Topic is not provisioned",
+	TOPIC_NOT_DECLARED: "Topic is not declared",
+	INVALID_EVENT: "Invalid event",
+	FAILED_TO_PUBLISH: "Failed to publish",
+	FAILED_TO_START_CONSUMER: "Failed to start consumer",
+	FAILED_TO_PUBLISH_TO_DLQ: "Failed to publish to the DLQ",
 });
 
 /**

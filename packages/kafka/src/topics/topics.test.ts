@@ -141,7 +141,7 @@ describe("topics - defineTopics", () => {
 			}),
 		).toThrow(
 			expect.objectContaining({
-				message: KAFKA_ERROR_CODES.TOPIC_OPTION_INVALID,
+				message: KAFKA_ERROR_CODES.INVALID_TOPIC_OPTION,
 				cause: "userRegistered.partitions",
 			}),
 		);
@@ -159,7 +159,7 @@ describe("topics - defineTopics", () => {
 			}),
 		).toThrow(
 			expect.objectContaining({
-				message: KAFKA_ERROR_CODES.TOPIC_OPTION_INVALID,
+				message: KAFKA_ERROR_CODES.INVALID_TOPIC_OPTION,
 				cause: "userRegistered.partitions",
 			}),
 		);
@@ -177,7 +177,7 @@ describe("topics - defineTopics", () => {
 			}),
 		).toThrow(
 			expect.objectContaining({
-				message: KAFKA_ERROR_CODES.TOPIC_OPTION_INVALID,
+				message: KAFKA_ERROR_CODES.INVALID_TOPIC_OPTION,
 				cause: "userRegistered.replicationFactor",
 			}),
 		);
@@ -195,7 +195,7 @@ describe("topics - defineTopics", () => {
 			}),
 		).toThrow(
 			expect.objectContaining({
-				message: KAFKA_ERROR_CODES.TOPIC_OPTION_INVALID,
+				message: KAFKA_ERROR_CODES.INVALID_TOPIC_OPTION,
 				cause: "userRegistered.retentionMs",
 			}),
 		);
@@ -213,7 +213,7 @@ describe("topics - defineTopics", () => {
 			}),
 		).toThrow(
 			expect.objectContaining({
-				message: KAFKA_ERROR_CODES.TOPIC_OPTION_INVALID,
+				message: KAFKA_ERROR_CODES.INVALID_TOPIC_OPTION,
 				cause: "userRegistered.retentionMs",
 			}),
 		);

@@ -36,8 +36,8 @@ export function createCircuitBreaker(options: {
 	return {
 		state,
 		/**
-		 * Calls the function unless the circuit is open
-		 * @description When it is, throws `CIRCUIT_OPEN` without calling it. Once
+		 * Calls the function unless the circuit is open. When it is, throws
+		 * `CIRCUIT_OPEN` without calling it. Once
 		 * `resetTimeoutMs` has passed, exactly one call is let through: if it works
 		 * the circuit closes, and if it fails the circuit opens again. The calls
 		 * that arrive while it runs are refused
