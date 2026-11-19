@@ -15,7 +15,6 @@ export const KAFKA_ERROR_CODES = defineErrorCodes({
 	RETRY_EXCEEDS_SESSION_TIMEOUT:
 		"The retries back off for longer than session.timeoutMs, so the broker would remove the consumer from its group. Lower retry.attempts or retry.backoffMs, or raise session.timeoutMs",
 	BROKER_UNREACHABLE: "No broker answered within connect.attempts tries",
-	NOT_CONNECTED: "Call connect() before publishing or consuming",
 	CIRCUIT_OPEN:
 		"The circuit breaker is open: publishes are failing, and the next one is let through after circuitBreaker.resetTimeoutMs",
 	TOPIC_NOT_PROVISIONED:

@@ -1,3 +1,4 @@
+import { type AddressInfo, connect, createServer, type Socket } from "node:net";
 import { z } from "@gatwech/utils/zod";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { KAFKA_ERROR_CODES, KafkaError } from "../error-codes";
@@ -724,7 +725,119 @@ describe("consumer - lifecycle", () => {
 		expect(error.cause).toBe("userRegistered");
 	});
 
-	it("should refuse to consume before it is connected", async () => {
+	it("should connect the client itself when nothing has connected it yet", async () => {
+		const { kafka, joined, countLogs, close } = await getTestInstance({
+			topics: defineTopics({
+				userRegistered: {
+					name: "user.registered",
+					schema: z.object({ userId: z.string() }),
+					key: (event) => event.userId,
+				},
+			}),
+		});
+		onTestFinished(close);
+		const mockHandler = vi.fn(async (_ctx: unknown) => {});
+
+		const consumer = await kafka.consume({
+			topic: "userRegistered",
+			handler: mockHandler,
+		});
+		await joined(consumer.groupId);
+		await kafka.publish({ topic: "userRegistered", event: { userId: "u1" } });
+
+		await vi.waitFor(() => expect(mockHandler).toHaveBeenCalledTimes(1), {
+			timeout: 20_000,
+			interval: 200,
+		});
+		expect(countLogs("Waiting for Kafka before consuming")).toBe(1);
+		expect((await kafka.healthCheck()).connected).toBe(true);
+		expect(mockHandler.mock.calls[0]?.[0]).toMatchObject({
+			event: { userId: "u1" },
+		});
+	}, 60_000);
+
+	it("should join once a broker that was down at start comes up", async () => {
+		const [broker = "localhost:9092"] = (
+			process.env.KAFKA_BROKERS ?? "localhost:9092"
+		).split(",");
+		const [brokerHost = "localhost", brokerPort = "9092"] = broker.split(":");
+		// A port nothing listens on yet: the first connect fails there
+		const probe = createServer();
+		await new Promise<void>((resolve) => probe.listen(0, resolve));
+		const { port } = probe.address() as AddressInfo;
+		await new Promise<void>((resolve) => probe.close(() => resolve()));
+		const { kafka, joined, close } = await getTestInstance({
+			brokers: [`localhost:${port}`],
+			connect: { attempts: 1, retryDelayMs: 10 },
+			reconnection: { intervalMs: 200 },
+			topics: defineTopics({
+				userRegistered: {
+					name: "user.registered",
+					schema: z.object({ userId: z.string() }),
+					key: (event) => event.userId,
+				},
+			}),
+		});
+		const sockets = new Set<Socket>();
+		const forwarder = createServer((socket) => {
+			const upstream = connect(Number(brokerPort), brokerHost);
+			sockets.add(socket).add(upstream);
+			socket.pipe(upstream).pipe(socket);
+			socket.on("error", () => upstream.destroy());
+			upstream.on("error", () => socket.destroy());
+		});
+		onTestFinished(async () => {
+			await close();
+			for (const socket of sockets) {
+				socket.destroy();
+			}
+			await new Promise<void>((resolve) => forwarder.close(() => resolve()));
+		});
+		const mockHandler = vi.fn(async (_ctx: unknown) => {});
+		await expect(kafka.connect()).rejects.toThrow(
+			KAFKA_ERROR_CODES.BROKER_UNREACHABLE,
+		);
+
+		const consuming = kafka.consume({
+			topic: "userRegistered",
+			handler: mockHandler,
+		});
+		await new Promise<void>((resolve) => forwarder.listen(port, resolve));
+		const consumer = await consuming;
+		await joined(consumer.groupId);
+		await kafka.publish({ topic: "userRegistered", event: { userId: "u1" } });
+
+		await vi.waitFor(() => expect(mockHandler).toHaveBeenCalledTimes(1), {
+			timeout: 20_000,
+			interval: 200,
+		});
+	}, 60_000);
+
+	it("should consume nothing when it is disconnected before it connects", async () => {
+		const { kafka, countLogs, close } = await getTestInstance({
+			topics: defineTopics({
+				userRegistered: {
+					name: "user.registered",
+					schema: z.object({ userId: z.string() }),
+					key: (event) => event.userId,
+				},
+			}),
+		});
+		onTestFinished(close);
+
+		const consuming = kafka.consume({
+			topic: "userRegistered",
+			handler: async () => {},
+		});
+		await kafka.disconnect();
+		const consumer = await consuming;
+
+		expect(consumer.paused()).toEqual([]);
+		await expect(consumer.disconnect()).resolves.toBeUndefined();
+		expect(countLogs("Not consuming: the client was disconnected first")).toBe(1);
+	});
+
+	it("should refuse settings that would get it removed from its group at once, without waiting to connect", async () => {
 		const { kafka, close } = await getTestInstance({
 			topics: defineTopics({
 				userRegistered: {
@@ -737,8 +850,12 @@ describe("consumer - lifecycle", () => {
 		onTestFinished(close);
 
 		await expect(
-			kafka.consume({ topic: "userRegistered", handler: async () => {} }),
-		).rejects.toThrow(KAFKA_ERROR_CODES.NOT_CONNECTED);
+			kafka.consume({
+				topic: "userRegistered",
+				handler: async () => {},
+				session: { timeoutMs: 6_000, heartbeatIntervalMs: 6_000 },
+			}),
+		).rejects.toThrow(KAFKA_ERROR_CODES.HEARTBEAT_NOT_BELOW_SESSION_TIMEOUT);
 	});
 
 	it("should log and consume nothing when the client is not enabled", async () => {

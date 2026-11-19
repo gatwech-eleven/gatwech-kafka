@@ -910,8 +910,8 @@ describe("client - provision", () => {
 		expect(topic).toMatchObject({ retentionMs: 60_000 });
 	}, 30_000);
 
-	it("should refuse to provision before it is connected", async () => {
-		const { kafka, close } = await getTestInstance({
+	it("should connect the client when it provisions before anything connected it", async () => {
+		const { kafka, namespace, describeTopic, close } = await getTestInstance({
 			topics: defineTopics({
 				userRegistered: {
 					name: "user.registered",
@@ -922,10 +922,11 @@ describe("client - provision", () => {
 		});
 		onTestFinished(close);
 
-		await expect(kafka.provision()).rejects.toThrow(
-			KAFKA_ERROR_CODES.NOT_CONNECTED,
-		);
-	});
+		await kafka.provision();
+
+		expect(await describeTopic(`${namespace}.user.registered`)).toBeDefined();
+		expect((await kafka.healthCheck()).connected).toBe(true);
+	}, 30_000);
 
 	it("should create nothing for a client without topics", async () => {
 		const { kafka, namespace, listTopics, close } = await getTestInstance();
@@ -1480,8 +1481,32 @@ describe("client - publish", () => {
 		expect(error.cause).toBe("userRegistered");
 	});
 
-	it("should refuse to publish before it is connected", async () => {
+	it("should connect the client on its first publish", async () => {
+		const { kafka, namespace, readMessages, close } = await getTestInstance({
+			topics: defineTopics({
+				userRegistered: {
+					name: "user.registered",
+					schema: z.object({ userId: z.string() }),
+					key: (event) => event.userId,
+				},
+			}),
+		});
+		onTestFinished(close);
+
+		await kafka.publish({ topic: "userRegistered", event: { userId: "u1" } });
+
+		const messages = await readMessages(`${namespace}.user.registered`, {
+			within: 1_500,
+		});
+		expect(messages).toHaveLength(1);
+		expect(messages[0]?.key).toBe("u1");
+	}, 30_000);
+
+	it("should throw BROKER_UNREACHABLE on a publish when no broker answers", async () => {
 		const { kafka, close } = await getTestInstance({
+			brokers: ["localhost:1"],
+			connect: { attempts: 1, retryDelayMs: 10 },
+			reconnection: { enabled: false },
 			topics: defineTopics({
 				userRegistered: {
 					name: "user.registered",
@@ -1494,7 +1519,7 @@ describe("client - publish", () => {
 
 		await expect(
 			kafka.publish({ topic: "userRegistered", event: { userId: "u1" } }),
-		).rejects.toThrow(KAFKA_ERROR_CODES.NOT_CONNECTED);
+		).rejects.toThrow(KAFKA_ERROR_CODES.BROKER_UNREACHABLE);
 	});
 
 	it("should send a batch in one request, tied by one correlation id", async () => {
