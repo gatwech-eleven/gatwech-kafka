@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0-beta.0] - 2026-11-19
+
 ### Breaking
 - **API**: the 0.x API is replaced by `createKafka(options)`, `defineTopics` and the client's `publish`, `publishBatch`, `consume`, `provision`, `healthCheck`, `connect` and `disconnect`. Removed: `KafkaClient`, `createKafkaClient` and its extensions, `createServicePublisherFactory`, `createEventPublisher`, `createDLQPublisher`, `consumeWithRetryAndDLQ`, `connectWithRetry`, `partitionAnalysisExtension` and the topic provisioning script. See "Upgrading from 0.x" in the README.
 - **Lifecycle**: every operation connects the client first, and `consume` waits until a connection has provisioned the topics, so it can be called before the brokers are up. `connect()` is an optional warm-up, and `createKafka` still opens nothing. The `NOT_CONNECTED` error code is removed.
