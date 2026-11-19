@@ -15,34 +15,34 @@ describe("client - public types", () => {
 	it("types an event from the schema of the topic it names", () => {
 		const check = () => {
 			const kafka = createKafka({
-				clientId: "payvo-auth-service",
+				clientId: "example-service",
 				brokers: ["localhost:9092"],
 				topics: defineTopics({
-					userRegistered: {
-						name: "user.registered",
-						schema: z.object({ userId: z.string(), email: z.string() }),
-						key: (event) => event.userId,
+					example: {
+						name: "example.created",
+						schema: z.object({ id: z.string(), label: z.string() }),
+						key: (event) => event.id,
 					},
 				}),
 			});
 
 			expectTypeOf(kafka.publish).returns.resolves.toBeVoid();
 			void kafka.publish({
-				topic: "userRegistered",
-				event: { userId: "u1", email: "a@b.c" },
+				topic: "example",
+				event: { id: "u1", label: "first" },
 			});
 			void kafka.publish({
-				topic: "userRegistered",
-				// @ts-expect-error email is a string
-				event: { userId: "u1", email: 1 },
+				topic: "example",
+				// @ts-expect-error label is a string
+				event: { id: "u1", label: 1 },
 			});
 			void kafka.publish({
-				topic: "userRegistered",
-				// @ts-expect-error userId is missing
-				event: { email: "a@b.c" },
+				topic: "example",
+				// @ts-expect-error id is missing
+				event: { label: "first" },
 			});
 			// @ts-expect-error the event goes under `event`
-			void kafka.publish({ topic: "userRegistered", userId: "u1" });
+			void kafka.publish({ topic: "example", id: "u1" });
 		};
 		void check;
 	});
@@ -50,28 +50,28 @@ describe("client - public types", () => {
 	it("types every event of a batch from the same schema", () => {
 		const check = () => {
 			const kafka = createKafka({
-				clientId: "payvo-auth-service",
+				clientId: "example-service",
 				brokers: ["localhost:9092"],
 				topics: defineTopics({
-					userRegistered: {
-						name: "user.registered",
-						schema: z.object({ userId: z.string(), email: z.string() }),
-						key: (event) => event.userId,
+					example: {
+						name: "example.created",
+						schema: z.object({ id: z.string(), label: z.string() }),
+						key: (event) => event.id,
 					},
 				}),
 			});
 
 			void kafka.publishBatch({
-				topic: "userRegistered",
+				topic: "example",
 				events: [
-					{ userId: "u1", email: "a@b.c" },
-					{ userId: "u2", email: "d@e.f" },
+					{ id: "u1", label: "first" },
+					{ id: "u2", label: "second" },
 				],
 			});
 			void kafka.publishBatch({
-				topic: "userRegistered",
-				// @ts-expect-error the second event has no email
-				events: [{ userId: "u1", email: "a@b.c" }, { userId: "u2" }],
+				topic: "example",
+				// @ts-expect-error the second event has no label
+				events: [{ id: "u1", label: "first" }, { id: "u2" }],
 			});
 		};
 		void check;
@@ -80,30 +80,30 @@ describe("client - public types", () => {
 	it("only names topics the client was given", () => {
 		const check = () => {
 			const kafka = createKafka({
-				clientId: "payvo-auth-service",
+				clientId: "example-service",
 				brokers: ["localhost:9092"],
 				topics: defineTopics({
-					userRegistered: {
-						name: "user.registered",
-						schema: z.object({ userId: z.string() }),
-						key: (event) => event.userId,
+					example: {
+						name: "example.created",
+						schema: z.object({ id: z.string() }),
+						key: (event) => event.id,
 					},
 				}),
 			});
 			const withoutTopics = createKafka({
-				clientId: "payvo-auth-service",
+				clientId: "example-service",
 				brokers: ["localhost:9092"],
 			});
 
 			// @ts-expect-error there is no such topic
-			void kafka.publish({ topic: "userDeleted", event: {} });
+			void kafka.publish({ topic: "missing", event: {} });
 			void kafka.consume({
 				// @ts-expect-error there is no such topic
-				topic: "userDeleted",
+				topic: "missing",
 				handler: async () => {},
 			});
 			// @ts-expect-error a client with no topics has none to name
-			void withoutTopics.publish({ topic: "userRegistered", event: {} });
+			void withoutTopics.publish({ topic: "example", event: {} });
 		};
 		void check;
 	});
@@ -111,22 +111,22 @@ describe("client - public types", () => {
 	it("types the event a handler receives from the same schema", () => {
 		const check = () => {
 			const kafka = createKafka({
-				clientId: "payvo-wallet-service",
+				clientId: "example-service",
 				brokers: ["localhost:9092"],
 				topics: defineTopics({
-					userRegistered: {
-						name: "user.registered",
-						schema: z.object({ userId: z.string(), age: z.coerce.number() }),
-						key: (event) => event.userId,
+					example: {
+						name: "example.created",
+						schema: z.object({ id: z.string(), count: z.coerce.number() }),
+						key: (event) => event.id,
 					},
 				}),
 			});
 
 			const consumer = kafka.consume({
-				topic: "userRegistered",
+				topic: "example",
 				handler: async ({ event, partition, topic, correlationId, source }) => {
-					// The handler gets what the schema outputs, so `age` is parsed
-					expectTypeOf(event).toEqualTypeOf<{ userId: string; age: number }>();
+					// The handler gets what the schema outputs, so `count` is parsed
+					expectTypeOf(event).toEqualTypeOf<{ id: string; count: number }>();
 					expectTypeOf(partition).toBeNumber();
 					expectTypeOf(topic).toBeString();
 					expectTypeOf(correlationId).toEqualTypeOf<string | undefined>();
@@ -140,29 +140,68 @@ describe("client - public types", () => {
 		void check;
 	});
 
+	it("shares the event of each topic through $Infer, as its handler receives it", () => {
+		const kafka = createKafka({
+			clientId: "example-service",
+			brokers: ["localhost:9092"],
+			topics: defineTopics({
+				example: {
+					name: "example.created",
+					schema: z.object({ id: z.string(), count: z.coerce.number() }),
+					key: (event) => event.id,
+				},
+				another: {
+					name: "another.created",
+					schema: z.object({ id: z.string() }),
+					key: (event) => event.id,
+				},
+			}),
+		});
+
+		expectTypeOf<typeof kafka.$Infer.example>().toEqualTypeOf<{
+			id: string;
+			count: number;
+		}>();
+		expectTypeOf<typeof kafka.$Infer.another>().toEqualTypeOf<{
+			id: string;
+		}>();
+		// @ts-expect-error there is no such topic
+		void kafka.$Infer.missing;
+		expect(kafka.$Infer).toEqual({});
+	});
+
+	it("shares no event through $Infer for a client without topics", () => {
+		const kafka = createKafka({
+			clientId: "example-service",
+			brokers: ["localhost:9092"],
+		});
+
+		expectTypeOf(kafka.$Infer).toEqualTypeOf<{}>();
+	});
+
 	it("reads a topic with nothing but the topic and a handler", () => {
 		const check = () => {
 			const kafka = createKafka({
-				clientId: "payvo-auth-service",
+				clientId: "example-service",
 				brokers: ["localhost:9092"],
 				topics: defineTopics({
-					userRegistered: {
-						name: "user.registered",
-						schema: z.object({ userId: z.string() }),
-						key: (event) => event.userId,
+					example: {
+						name: "example.created",
+						schema: z.object({ id: z.string() }),
+						key: (event) => event.id,
 					},
 				}),
 			});
 
 			void kafka.consume({
-				topic: "userRegistered",
+				topic: "example",
 				handler: async ({ event }) => {
-					expectTypeOf(event.userId).toBeString();
+					expectTypeOf(event.id).toBeString();
 				},
 			});
 			void kafka.consume({
-				topic: "userRegistered",
-				groupId: "payvo-auth-service.legacy-group",
+				topic: "example",
+				groupId: "example-service.legacy-group",
 				retry: { attempts: 5 },
 				dlq: { attempts: 2 },
 				session: { timeoutMs: 45_000 },
@@ -175,11 +214,11 @@ describe("client - public types", () => {
 	it("types a topic's key from its event", () => {
 		const check = () => {
 			defineTopics({
-				userRegistered: {
-					name: "user.registered",
-					schema: z.object({ userId: z.string() }),
-					// @ts-expect-error the event has no `id`
-					key: (event) => event.id,
+				example: {
+					name: "example.created",
+					schema: z.object({ id: z.string() }),
+					// @ts-expect-error the event has no `name`
+					key: (event) => event.name,
 				},
 			});
 		};
@@ -188,31 +227,30 @@ describe("client - public types", () => {
 
 	it("lets a topic keep its declared name inside a namespace", () => {
 		const check = () => {
-			// The auth service's topics, as they are on the broker: two carry the
-			// namespace and the rest are bare
+			// A service whose topics are partly namespaced: one keeps its bare name
 			const kafka = createKafka({
-				clientId: "payvo-auth-service",
+				clientId: "example-service",
 				brokers: ["localhost:9092"],
 				namespace: "prod",
 				topics: defineTopics({
-					userRegistered: {
-						name: "user.registered",
+					example: {
+						name: "example.created",
 						namespaced: false,
-						schema: z.object({ userId: z.string() }),
-						key: (event) => event.userId,
+						schema: z.object({ id: z.string() }),
+						key: (event) => event.id,
 					},
-					kycStatusUpdated: {
-						name: "user.kyc.status.updated",
-						schema: z.object({ userId: z.string(), status: z.string() }),
-						key: (event) => event.userId,
+					another: {
+						name: "another.created",
+						schema: z.object({ id: z.string(), status: z.string() }),
+						key: (event) => event.id,
 					},
 				}),
 			});
 
-			expectTypeOf(kafka.topics.userRegistered.namespaced).toBeBoolean();
+			expectTypeOf(kafka.topics.example.namespaced).toBeBoolean();
 			void kafka.publish({
-				topic: "kycStatusUpdated",
-				event: { userId: "u1", status: "approved" },
+				topic: "another",
+				event: { id: "o1", status: "shipped" },
 			});
 		};
 		void check;
@@ -221,34 +259,34 @@ describe("client - public types", () => {
 	it("keeps the topics' types on the instance", () => {
 		const check = () => {
 			const kafka = createKafka({
-				clientId: "payvo-auth-service",
+				clientId: "example-service",
 				brokers: ["localhost:9092"],
 				namespace: "prod",
 				topics: defineTopics({
-					userRegistered: {
-						name: "user.registered",
-						schema: z.object({ userId: z.string() }),
-						key: (event) => event.userId,
+					example: {
+						name: "example.created",
+						schema: z.object({ id: z.string() }),
+						key: (event) => event.id,
 					},
 				}),
 			});
 
-			expectTypeOf(kafka.topics.userRegistered.name).toBeString();
-			expectTypeOf(kafka.topics.userRegistered.retentionMs).toBeNumber();
+			expectTypeOf(kafka.topics.example.name).toBeString();
+			expectTypeOf(kafka.topics.example.retentionMs).toBeNumber();
 		};
 		void check;
 	});
 
 	it("needs a client id and brokers, and nothing else", () => {
 		const check = () => {
-			createKafka({ clientId: "payvo-auth-service", brokers: ["a:9092"] });
+			createKafka({ clientId: "example-service", brokers: ["a:9092"] });
 			createKafka({
-				clientId: "payvo-auth-service",
+				clientId: "example-service",
 				brokers: ["a:9092"],
 				enabled: false,
 			});
 			// @ts-expect-error brokers are required
-			createKafka({ clientId: "payvo-auth-service" });
+			createKafka({ clientId: "example-service" });
 			// @ts-expect-error clientId is required
 			createKafka({ brokers: ["a:9092"] });
 		};
@@ -258,7 +296,7 @@ describe("client - public types", () => {
 	it("exposes its error codes on the instance", () => {
 		const check = () => {
 			const kafka = createKafka({
-				clientId: "payvo-auth-service",
+				clientId: "example-service",
 				brokers: ["a:9092"],
 			});
 
@@ -795,10 +833,10 @@ describe("client - provision", () => {
 	it("should create each topic with its settings, and a DLQ for each", async () => {
 		const { kafka, namespace, describeTopic, close } = await getTestInstance({
 			topics: defineTopics({
-				userRegistered: {
-					name: "user.registered",
-					schema: z.object({ userId: z.string() }),
-					key: (event) => event.userId,
+				example: {
+					name: "example.created",
+					schema: z.object({ id: z.string() }),
+					key: (event) => event.id,
 					partitions: 2,
 					retentionMs: 60_000,
 					cleanupPolicy: "delete",
@@ -809,8 +847,8 @@ describe("client - provision", () => {
 
 		await kafka.connect();
 
-		const topic = await describeTopic(`${namespace}.user.registered`);
-		const dlq = await describeTopic(`${namespace}.user.registered.dlq`);
+		const topic = await describeTopic(`${namespace}.example.created`);
+		const dlq = await describeTopic(`${namespace}.example.created.dlq`);
 		expect(topic).toEqual({
 			partitions: 2,
 			retentionMs: 60_000,
@@ -827,28 +865,28 @@ describe("client - provision", () => {
 		const { kafka, uniqueName, namespace, describeTopic, close } =
 			await getTestInstance({
 				topics: defineTopics({
-					userCreated: {
-						name: "user.created",
+					another: {
+						name: "another.created",
 						namespaced: false,
-						schema: z.object({ userId: z.string() }),
-						key: (event) => event.userId,
+						schema: z.object({ id: z.string() }),
+						key: (event) => event.id,
 					},
 				}),
 			});
 		onTestFinished(close);
-		const name = uniqueName("user.created");
+		const name = uniqueName("another.created");
 		// A bare name is shared by every client of the broker, so this one is
 		// declared under a name no other test uses
 		const bare = createKafka({
-			clientId: "payvo-test-bare",
+			clientId: "test-kafka-bare",
 			brokers: kafka.options.brokers,
 			namespace,
 			topics: defineTopics({
-				userCreated: {
+				another: {
 					name,
 					namespaced: false,
-					schema: z.object({ userId: z.string() }),
-					key: (event) => event.userId,
+					schema: z.object({ id: z.string() }),
+					key: (event) => event.id,
 				},
 			}),
 		});
@@ -865,10 +903,10 @@ describe("client - provision", () => {
 		const { kafka, namespace, describeTopic, close } = await getTestInstance({
 			provisioning: { partitions: 2 },
 			topics: defineTopics({
-				userRegistered: {
-					name: "user.registered",
-					schema: z.object({ userId: z.string() }),
-					key: (event) => event.userId,
+				example: {
+					name: "example.created",
+					schema: z.object({ id: z.string() }),
+					key: (event) => event.id,
 				},
 			}),
 		});
@@ -876,7 +914,7 @@ describe("client - provision", () => {
 
 		await kafka.connect();
 
-		const topic = await describeTopic(`${namespace}.user.registered`);
+		const topic = await describeTopic(`${namespace}.example.created`);
 		expect(topic?.partitions).toBe(2);
 	}, 30_000);
 
@@ -884,10 +922,10 @@ describe("client - provision", () => {
 		const { kafka, brokers, namespace, describeTopic, close } =
 			await getTestInstance({
 				topics: defineTopics({
-					userRegistered: {
-						name: "user.registered",
-						schema: z.object({ userId: z.string() }),
-						key: (event) => event.userId,
+					example: {
+						name: "example.created",
+						schema: z.object({ id: z.string() }),
+						key: (event) => event.id,
 						retentionMs: 60_000,
 					},
 				}),
@@ -896,7 +934,7 @@ describe("client - provision", () => {
 		await kafka.connect();
 		await kafka.disconnect();
 		const again = createKafka({
-			clientId: "payvo-test-again",
+			clientId: "test-kafka-again",
 			brokers,
 			namespace,
 			topics: kafka.options.topics,
@@ -906,17 +944,17 @@ describe("client - provision", () => {
 		await again.connect();
 		await again.provision();
 
-		const topic = await describeTopic(`${namespace}.user.registered`);
+		const topic = await describeTopic(`${namespace}.example.created`);
 		expect(topic).toMatchObject({ retentionMs: 60_000 });
 	}, 30_000);
 
 	it("should connect the client when it provisions before anything connected it", async () => {
 		const { kafka, namespace, describeTopic, close } = await getTestInstance({
 			topics: defineTopics({
-				userRegistered: {
-					name: "user.registered",
-					schema: z.object({ userId: z.string() }),
-					key: (event) => event.userId,
+				example: {
+					name: "example.created",
+					schema: z.object({ id: z.string() }),
+					key: (event) => event.id,
 				},
 			}),
 		});
@@ -924,7 +962,7 @@ describe("client - provision", () => {
 
 		await kafka.provision();
 
-		expect(await describeTopic(`${namespace}.user.registered`)).toBeDefined();
+		expect(await describeTopic(`${namespace}.example.created`)).toBeDefined();
 		expect((await kafka.healthCheck()).connected).toBe(true);
 	}, 30_000);
 
@@ -943,10 +981,10 @@ describe("client - provision, topics that exist", () => {
 		const { kafka, brokers, namespace, describeTopic, close } =
 			await getTestInstance({
 				topics: defineTopics({
-					userRegistered: {
-						name: "user.registered",
-						schema: z.object({ userId: z.string() }),
-						key: (event) => event.userId,
+					example: {
+						name: "example.created",
+						schema: z.object({ id: z.string() }),
+						key: (event) => event.id,
 						partitions: 1,
 					},
 				}),
@@ -954,17 +992,17 @@ describe("client - provision, topics that exist", () => {
 		onTestFinished(close);
 		await kafka.connect();
 		expect(
-			(await describeTopic(`${namespace}.user.registered`))?.partitions,
+			(await describeTopic(`${namespace}.example.created`))?.partitions,
 		).toBe(1);
 		const raised = createKafka({
-			clientId: "payvo-test-raised",
+			clientId: "test-kafka-raised",
 			brokers,
 			namespace,
 			topics: defineTopics({
-				userRegistered: {
-					name: "user.registered",
-					schema: z.object({ userId: z.string() }),
-					key: (event) => event.userId,
+				example: {
+					name: "example.created",
+					schema: z.object({ id: z.string() }),
+					key: (event) => event.id,
 					partitions: 3,
 				},
 			}),
@@ -974,7 +1012,7 @@ describe("client - provision, topics that exist", () => {
 		await raised.connect();
 
 		expect(
-			(await describeTopic(`${namespace}.user.registered`))?.partitions,
+			(await describeTopic(`${namespace}.example.created`))?.partitions,
 		).toBe(3);
 	}, 60_000);
 
@@ -982,10 +1020,10 @@ describe("client - provision, topics that exist", () => {
 		const { kafka, brokers, namespace, describeTopic, close } =
 			await getTestInstance({
 				topics: defineTopics({
-					userRegistered: {
-						name: "user.registered",
-						schema: z.object({ userId: z.string() }),
-						key: (event) => event.userId,
+					example: {
+						name: "example.created",
+						schema: z.object({ id: z.string() }),
+						key: (event) => event.id,
 						partitions: 3,
 					},
 				}),
@@ -993,14 +1031,14 @@ describe("client - provision, topics that exist", () => {
 		onTestFinished(close);
 		await kafka.connect();
 		const fewer = createKafka({
-			clientId: "payvo-test-fewer",
+			clientId: "test-kafka-fewer",
 			brokers,
 			namespace,
 			topics: defineTopics({
-				userRegistered: {
-					name: "user.registered",
-					schema: z.object({ userId: z.string() }),
-					key: (event) => event.userId,
+				example: {
+					name: "example.created",
+					schema: z.object({ id: z.string() }),
+					key: (event) => event.id,
 					partitions: 1,
 				},
 			}),
@@ -1010,7 +1048,7 @@ describe("client - provision, topics that exist", () => {
 		await expect(fewer.connect()).resolves.toBeUndefined();
 
 		expect(
-			(await describeTopic(`${namespace}.user.registered`))?.partitions,
+			(await describeTopic(`${namespace}.example.created`))?.partitions,
 		).toBe(3);
 	}, 60_000);
 
@@ -1018,10 +1056,10 @@ describe("client - provision, topics that exist", () => {
 		const { kafka, brokers, namespace, describeTopic, close } =
 			await getTestInstance({
 				topics: defineTopics({
-					userRegistered: {
-						name: "user.registered",
-						schema: z.object({ userId: z.string() }),
-						key: (event) => event.userId,
+					example: {
+						name: "example.created",
+						schema: z.object({ id: z.string() }),
+						key: (event) => event.id,
 						retentionMs: 60_000,
 						cleanupPolicy: "delete",
 					},
@@ -1030,14 +1068,14 @@ describe("client - provision, topics that exist", () => {
 		onTestFinished(close);
 		await kafka.connect();
 		const changed = createKafka({
-			clientId: "payvo-test-changed",
+			clientId: "test-kafka-changed",
 			brokers,
 			namespace,
 			topics: defineTopics({
-				userRegistered: {
-					name: "user.registered",
-					schema: z.object({ userId: z.string() }),
-					key: (event) => event.userId,
+				example: {
+					name: "example.created",
+					schema: z.object({ id: z.string() }),
+					key: (event) => event.id,
 					retentionMs: 120_000,
 					cleanupPolicy: "compact,delete",
 				},
@@ -1050,7 +1088,7 @@ describe("client - provision, topics that exist", () => {
 		// The broker applies a change of configs a moment after it accepts it
 		await vi.waitFor(
 			async () =>
-				expect(await describeTopic(`${namespace}.user.registered`)).toMatchObject({
+				expect(await describeTopic(`${namespace}.example.created`)).toMatchObject({
 					retentionMs: 120_000,
 					cleanupPolicy: "compact,delete",
 				}),
@@ -1062,17 +1100,17 @@ describe("client - provision, topics that exist", () => {
 		const { kafka, brokers, namespace, describeTopic, close } =
 			await getTestInstance({
 				topics: defineTopics({
-					userRegistered: {
-						name: "user.registered",
-						schema: z.object({ userId: z.string() }),
-						key: (event) => event.userId,
+					example: {
+						name: "example.created",
+						schema: z.object({ id: z.string() }),
+						key: (event) => event.id,
 					},
 				}),
 			});
 		onTestFinished(close);
 		const others = Array.from({ length: 5 }, (_, index) =>
 			createKafka({
-				clientId: `payvo-test-other-${index}`,
+				clientId: `test-kafka-other-${index}`,
 				brokers,
 				namespace,
 				topics: kafka.options.topics,
@@ -1087,20 +1125,20 @@ describe("client - provision, topics that exist", () => {
 			...others.map((other) => other.connect()),
 		]);
 
-		expect(await describeTopic(`${namespace}.user.registered`)).toBeDefined();
-		expect(await describeTopic(`${namespace}.user.registered.dlq`)).toBeDefined();
+		expect(await describeTopic(`${namespace}.example.created`)).toBeDefined();
+		expect(await describeTopic(`${namespace}.example.created.dlq`)).toBeDefined();
 	}, 60_000);
 
 	it("should keep the declaration of a DLQ that is declared as a topic", async () => {
 		const { kafka, namespace, describeTopic, close } = await getTestInstance({
 			topics: defineTopics({
-				userRegistered: {
-					name: "user.registered",
-					schema: z.object({ userId: z.string() }),
-					key: (event) => event.userId,
+				example: {
+					name: "example.created",
+					schema: z.object({ id: z.string() }),
+					key: (event) => event.id,
 				},
-				userRegisteredDlq: {
-					name: "user.registered.dlq",
+				exampleDlq: {
+					name: "example.created.dlq",
 					schema: z.object({ errorMessage: z.string() }),
 					key: (event) => event.errorMessage,
 					partitions: 2,
@@ -1112,7 +1150,7 @@ describe("client - provision, topics that exist", () => {
 
 		await kafka.connect();
 
-		expect(await describeTopic(`${namespace}.user.registered.dlq`)).toMatchObject(
+		expect(await describeTopic(`${namespace}.example.created.dlq`)).toMatchObject(
 			{ partitions: 2, retentionMs: 123_000 },
 		);
 	}, 60_000);
@@ -1141,10 +1179,10 @@ describe("client - healthCheck", () => {
 	it("should leave the client usable for what comes after it", async () => {
 		const { kafka, namespace, describeTopic, close } = await getTestInstance({
 			topics: defineTopics({
-				userRegistered: {
-					name: "user.registered",
-					schema: z.object({ userId: z.string() }),
-					key: (event) => event.userId,
+				example: {
+					name: "example.created",
+					schema: z.object({ id: z.string() }),
+					key: (event) => event.id,
 				},
 			}),
 		});
@@ -1156,7 +1194,7 @@ describe("client - healthCheck", () => {
 		await kafka.provision();
 
 		expect(await kafka.healthCheck()).toMatchObject({ healthy: true });
-		expect(await describeTopic(`${namespace}.user.registered`)).toBeDefined();
+		expect(await describeTopic(`${namespace}.example.created`)).toBeDefined();
 	}, 30_000);
 
 	it("should report a client that has disconnected", async () => {
@@ -1203,10 +1241,10 @@ describe("client - enabled", () => {
 				enabled: false,
 				brokers: ["localhost:1"],
 				topics: defineTopics({
-					userRegistered: {
-						name: "user.registered",
-						schema: z.object({ userId: z.string() }),
-						key: (event) => event.userId,
+					example: {
+						name: "example.created",
+						schema: z.object({ id: z.string() }),
+						key: (event) => event.id,
 					},
 				}),
 			});
@@ -1233,10 +1271,10 @@ describe("client - publish", () => {
 	it("should publish an event to its topic", async () => {
 		const { kafka, namespace, readMessages, close } = await getTestInstance({
 			topics: defineTopics({
-				userRegistered: {
-					name: "user.registered",
-					schema: z.object({ userId: z.string(), email: z.string() }),
-					key: (event) => event.userId,
+				example: {
+					name: "example.created",
+					schema: z.object({ id: z.string(), label: z.string() }),
+					key: (event) => event.id,
 				},
 			}),
 		});
@@ -1244,17 +1282,17 @@ describe("client - publish", () => {
 		await kafka.connect();
 
 		await kafka.publish({
-			topic: "userRegistered",
-			event: { userId: "u1", email: "a@b.c" },
+			topic: "example",
+			event: { id: "u1", label: "first" },
 		});
 
-		const messages = await readMessages(`${namespace}.user.registered`, {
+		const messages = await readMessages(`${namespace}.example.created`, {
 			within: 1_500,
 		});
 		expect(messages).toHaveLength(1);
 		expect(JSON.parse(messages[0]?.value ?? "")).toMatchObject({
-			userId: "u1",
-			email: "a@b.c",
+			id: "u1",
+			label: "first",
 			metadata: { source: kafka.options.clientId },
 		});
 	}, 30_000);
@@ -1262,10 +1300,10 @@ describe("client - publish", () => {
 	it("should key the message by the topic's key", async () => {
 		const { kafka, namespace, readMessages, close } = await getTestInstance({
 			topics: defineTopics({
-				userRegistered: {
-					name: "user.registered",
-					schema: z.object({ userId: z.string(), email: z.string() }),
-					key: (event) => event.userId,
+				example: {
+					name: "example.created",
+					schema: z.object({ id: z.string(), label: z.string() }),
+					key: (event) => event.id,
 				},
 			}),
 		});
@@ -1273,11 +1311,11 @@ describe("client - publish", () => {
 		await kafka.connect();
 
 		await kafka.publish({
-			topic: "userRegistered",
-			event: { userId: "u1", email: "a@b.c" },
+			topic: "example",
+			event: { id: "u1", label: "first" },
 		});
 
-		const messages = await readMessages(`${namespace}.user.registered`, {
+		const messages = await readMessages(`${namespace}.example.created`, {
 			within: 1_500,
 		});
 		expect(messages[0]?.key).toBe("u1");
@@ -1286,24 +1324,24 @@ describe("client - publish", () => {
 	it("should write the headers that consumers read today", async () => {
 		const { kafka, namespace, readMessages, close } = await getTestInstance({
 			topics: defineTopics({
-				userRegistered: {
-					name: "user.registered",
-					schema: z.object({ userId: z.string() }),
-					key: (event) => event.userId,
+				example: {
+					name: "example.created",
+					schema: z.object({ id: z.string() }),
+					key: (event) => event.id,
 				},
 			}),
 		});
 		onTestFinished(close);
 		await kafka.connect();
 
-		await kafka.publish({ topic: "userRegistered", event: { userId: "u1" } });
+		await kafka.publish({ topic: "example", event: { id: "u1" } });
 
-		const [message] = await readMessages(`${namespace}.user.registered`, {
+		const [message] = await readMessages(`${namespace}.example.created`, {
 			within: 1_500,
 		});
 		const body = JSON.parse(message?.value ?? "");
 		expect(message?.headers["event-version"]).toBe("1.0");
-		expect(message?.headers["event-type"]).toBe(`${namespace}.user.registered`);
+		expect(message?.headers["event-type"]).toBe(`${namespace}.example.created`);
 		expect(message?.headers.source).toBe(kafka.options.clientId);
 		expect(message?.headers["correlation-id"]).toBe(body.metadata.correlationId);
 		expect(body.metadata.correlationId).toMatch(/^evt_/);
@@ -1313,10 +1351,10 @@ describe("client - publish", () => {
 	it("should use the correlation id it is given", async () => {
 		const { kafka, namespace, readMessages, close } = await getTestInstance({
 			topics: defineTopics({
-				userRegistered: {
-					name: "user.registered",
-					schema: z.object({ userId: z.string() }),
-					key: (event) => event.userId,
+				example: {
+					name: "example.created",
+					schema: z.object({ id: z.string() }),
+					key: (event) => event.id,
 				},
 			}),
 		});
@@ -1324,12 +1362,12 @@ describe("client - publish", () => {
 		await kafka.connect();
 
 		await kafka.publish({
-			topic: "userRegistered",
-			event: { userId: "u1" },
+			topic: "example",
+			event: { id: "u1" },
 			correlationId: "request-42",
 		});
 
-		const [message] = await readMessages(`${namespace}.user.registered`, {
+		const [message] = await readMessages(`${namespace}.example.created`, {
 			within: 1_500,
 		});
 		expect(message?.headers["correlation-id"]).toBe("request-42");
@@ -1341,10 +1379,10 @@ describe("client - publish", () => {
 	it("should add the headers it is given", async () => {
 		const { kafka, namespace, readMessages, close } = await getTestInstance({
 			topics: defineTopics({
-				userRegistered: {
-					name: "user.registered",
-					schema: z.object({ userId: z.string() }),
-					key: (event) => event.userId,
+				example: {
+					name: "example.created",
+					schema: z.object({ id: z.string() }),
+					key: (event) => event.id,
 				},
 			}),
 		});
@@ -1352,12 +1390,12 @@ describe("client - publish", () => {
 		await kafka.connect();
 
 		await kafka.publish({
-			topic: "userRegistered",
-			event: { userId: "u1" },
+			topic: "example",
+			event: { id: "u1" },
 			headers: { "x-request-id": "r1" },
 		});
 
-		const [message] = await readMessages(`${namespace}.user.registered`, {
+		const [message] = await readMessages(`${namespace}.example.created`, {
 			within: 1_500,
 		});
 		expect(message?.headers["x-request-id"]).toBe("r1");
@@ -1367,10 +1405,10 @@ describe("client - publish", () => {
 	it("should send what the schema outputs", async () => {
 		const { kafka, namespace, readMessages, close } = await getTestInstance({
 			topics: defineTopics({
-				userRegistered: {
-					name: "user.registered",
-					schema: z.object({ userId: z.string(), age: z.coerce.number() }),
-					key: (event) => event.userId,
+				example: {
+					name: "example.created",
+					schema: z.object({ id: z.string(), count: z.coerce.number() }),
+					key: (event) => event.id,
 				},
 			}),
 		});
@@ -1378,26 +1416,26 @@ describe("client - publish", () => {
 		await kafka.connect();
 
 		await kafka.publish({
-			topic: "userRegistered",
-			event: { userId: "u1", age: "42" },
+			topic: "example",
+			event: { id: "u1", count: "42" },
 		});
 
-		const [message] = await readMessages(`${namespace}.user.registered`, {
+		const [message] = await readMessages(`${namespace}.example.created`, {
 			within: 1_500,
 		});
-		expect(JSON.parse(message?.value ?? "").age).toBe(42);
+		expect(JSON.parse(message?.value ?? "").count).toBe(42);
 	}, 30_000);
 
 	it("should keep the metadata an event carries", async () => {
 		const { kafka, namespace, readMessages, close } = await getTestInstance({
 			topics: defineTopics({
-				userRegistered: {
-					name: "user.registered",
+				example: {
+					name: "example.created",
 					schema: z.object({
-						userId: z.string(),
+						id: z.string(),
 						metadata: z.object({ schemaHash: z.string() }).optional(),
 					}),
-					key: (event) => event.userId,
+					key: (event) => event.id,
 				},
 			}),
 		});
@@ -1405,11 +1443,11 @@ describe("client - publish", () => {
 		await kafka.connect();
 
 		await kafka.publish({
-			topic: "userRegistered",
-			event: { userId: "u1", metadata: { schemaHash: "abc" } },
+			topic: "example",
+			event: { id: "u1", metadata: { schemaHash: "abc" } },
 		});
 
-		const [message] = await readMessages(`${namespace}.user.registered`, {
+		const [message] = await readMessages(`${namespace}.example.created`, {
 			within: 1_500,
 		});
 		expect(message?.headers["schema-hash"]).toBe("abc");
@@ -1422,10 +1460,10 @@ describe("client - publish", () => {
 	it("should date the message by the timestamp of the event", async () => {
 		const { kafka, namespace, readMessages, close } = await getTestInstance({
 			topics: defineTopics({
-				userRegistered: {
-					name: "user.registered",
-					schema: z.object({ userId: z.string(), timestamp: z.number() }),
-					key: (event) => event.userId,
+				example: {
+					name: "example.created",
+					schema: z.object({ id: z.string(), timestamp: z.number() }),
+					key: (event) => event.id,
 				},
 			}),
 		});
@@ -1433,11 +1471,11 @@ describe("client - publish", () => {
 		await kafka.connect();
 
 		await kafka.publish({
-			topic: "userRegistered",
-			event: { userId: "u1", timestamp: 1_700_000_000_000 },
+			topic: "example",
+			event: { id: "u1", timestamp: 1_700_000_000_000 },
 		});
 
-		const [message] = await readMessages(`${namespace}.user.registered`, {
+		const [message] = await readMessages(`${namespace}.example.created`, {
 			within: 1_500,
 		});
 		expect(message?.headers.timestamp).toBe("2023-11-14T22:13:20.000Z");
@@ -1446,10 +1484,10 @@ describe("client - publish", () => {
 	it("should refuse an event the schema rejects, and send nothing", async () => {
 		const { kafka, namespace, readMessages, close } = await getTestInstance({
 			topics: defineTopics({
-				userRegistered: {
-					name: "user.registered",
-					schema: z.object({ userId: z.string() }),
-					key: (event) => event.userId,
+				example: {
+					name: "example.created",
+					schema: z.object({ id: z.string() }),
+					key: (event) => event.id,
 				},
 			}),
 		});
@@ -1457,14 +1495,14 @@ describe("client - publish", () => {
 		await kafka.connect();
 
 		const error = await kafka
-			.publish({ topic: "userRegistered", event: { userId: 1 as any } })
+			.publish({ topic: "example", event: { id: 1 as any } })
 			.catch((reason) => reason);
 
 		expect(error).toBeInstanceOf(KafkaError);
 		expect(error.message).toBe(KAFKA_ERROR_CODES.INVALID_EVENT);
 		expect(error.cause).toBeInstanceOf(z.ZodError);
 		expect(
-			await readMessages(`${namespace}.user.registered`, { within: 1_000 }),
+			await readMessages(`${namespace}.example.created`, { within: 1_000 }),
 		).toEqual([]);
 	}, 30_000);
 
@@ -1474,28 +1512,28 @@ describe("client - publish", () => {
 		await kafka.connect();
 
 		const error = await (kafka as any)
-			.publish({ topic: "userRegistered", event: {} })
+			.publish({ topic: "example", event: {} })
 			.catch((reason: unknown) => reason);
 
 		expect(error.message).toBe(KAFKA_ERROR_CODES.TOPIC_NOT_DECLARED);
-		expect(error.cause).toBe("userRegistered");
+		expect(error.cause).toBe("example");
 	});
 
 	it("should connect the client on its first publish", async () => {
 		const { kafka, namespace, readMessages, close } = await getTestInstance({
 			topics: defineTopics({
-				userRegistered: {
-					name: "user.registered",
-					schema: z.object({ userId: z.string() }),
-					key: (event) => event.userId,
+				example: {
+					name: "example.created",
+					schema: z.object({ id: z.string() }),
+					key: (event) => event.id,
 				},
 			}),
 		});
 		onTestFinished(close);
 
-		await kafka.publish({ topic: "userRegistered", event: { userId: "u1" } });
+		await kafka.publish({ topic: "example", event: { id: "u1" } });
 
-		const messages = await readMessages(`${namespace}.user.registered`, {
+		const messages = await readMessages(`${namespace}.example.created`, {
 			within: 1_500,
 		});
 		expect(messages).toHaveLength(1);
@@ -1508,27 +1546,27 @@ describe("client - publish", () => {
 			connect: { attempts: 1, retryDelayMs: 10 },
 			reconnection: { enabled: false },
 			topics: defineTopics({
-				userRegistered: {
-					name: "user.registered",
-					schema: z.object({ userId: z.string() }),
-					key: (event) => event.userId,
+				example: {
+					name: "example.created",
+					schema: z.object({ id: z.string() }),
+					key: (event) => event.id,
 				},
 			}),
 		});
 		onTestFinished(close);
 
 		await expect(
-			kafka.publish({ topic: "userRegistered", event: { userId: "u1" } }),
+			kafka.publish({ topic: "example", event: { id: "u1" } }),
 		).rejects.toThrow(KAFKA_ERROR_CODES.FAILED_TO_CONNECT);
 	});
 
 	it("should send a batch in one request, tied by one correlation id", async () => {
 		const { kafka, namespace, readMessages, close } = await getTestInstance({
 			topics: defineTopics({
-				userRegistered: {
-					name: "user.registered",
-					schema: z.object({ userId: z.string() }),
-					key: (event) => event.userId,
+				example: {
+					name: "example.created",
+					schema: z.object({ id: z.string() }),
+					key: (event) => event.id,
 				},
 			}),
 		});
@@ -1536,11 +1574,11 @@ describe("client - publish", () => {
 		await kafka.connect();
 
 		await kafka.publishBatch({
-			topic: "userRegistered",
-			events: [{ userId: "u1" }, { userId: "u2" }, { userId: "u3" }],
+			topic: "example",
+			events: [{ id: "u1" }, { id: "u2" }, { id: "u3" }],
 		});
 
-		const messages = await readMessages(`${namespace}.user.registered`, {
+		const messages = await readMessages(`${namespace}.example.created`, {
 			within: 1_500,
 		});
 		expect(messages.map((message) => message.key).sort()).toEqual([
@@ -1557,10 +1595,10 @@ describe("client - publish", () => {
 	it("should send none of a batch when one event is rejected", async () => {
 		const { kafka, namespace, readMessages, close } = await getTestInstance({
 			topics: defineTopics({
-				userRegistered: {
-					name: "user.registered",
-					schema: z.object({ userId: z.string() }),
-					key: (event) => event.userId,
+				example: {
+					name: "example.created",
+					schema: z.object({ id: z.string() }),
+					key: (event) => event.id,
 				},
 			}),
 		});
@@ -1569,23 +1607,23 @@ describe("client - publish", () => {
 
 		await expect(
 			kafka.publishBatch({
-				topic: "userRegistered",
-				events: [{ userId: "u1" }, { userId: 2 as any }],
+				topic: "example",
+				events: [{ id: "u1" }, { id: 2 as any }],
 			}),
 		).rejects.toThrow(KAFKA_ERROR_CODES.INVALID_EVENT);
 
 		expect(
-			await readMessages(`${namespace}.user.registered`, { within: 1_000 }),
+			await readMessages(`${namespace}.example.created`, { within: 1_000 }),
 		).toEqual([]);
 	}, 30_000);
 
 	it("should send nothing for an empty batch", async () => {
 		const { kafka, close } = await getTestInstance({
 			topics: defineTopics({
-				userRegistered: {
-					name: "user.registered",
-					schema: z.object({ userId: z.string() }),
-					key: (event) => event.userId,
+				example: {
+					name: "example.created",
+					schema: z.object({ id: z.string() }),
+					key: (event) => event.id,
 				},
 			}),
 		});
@@ -1593,7 +1631,7 @@ describe("client - publish", () => {
 		await kafka.connect();
 
 		await expect(
-			kafka.publishBatch({ topic: "userRegistered", events: [] }),
+			kafka.publishBatch({ topic: "example", events: [] }),
 		).resolves.toBeUndefined();
 	}, 30_000);
 
@@ -1601,42 +1639,42 @@ describe("client - publish", () => {
 		const { kafka, namespace, describeTopic, deleteTopic, close } =
 			await getTestInstance({
 				topics: defineTopics({
-					userRegistered: {
-						name: "user.registered",
-						schema: z.object({ userId: z.string() }),
-						key: (event) => event.userId,
+					example: {
+						name: "example.created",
+						schema: z.object({ id: z.string() }),
+						key: (event) => event.id,
 					},
 				}),
 			});
 		onTestFinished(close);
 		await kafka.connect();
-		await deleteTopic(`${namespace}.user.registered`);
+		await deleteTopic(`${namespace}.example.created`);
 
 		const error = await kafka
-			.publish({ topic: "userRegistered", event: { userId: "u1" } })
+			.publish({ topic: "example", event: { id: "u1" } })
 			.catch((reason) => reason);
 
 		expect(error.message).toBe(KAFKA_ERROR_CODES.TOPIC_NOT_PROVISIONED);
-		expect(await describeTopic(`${namespace}.user.registered`)).toBeUndefined();
+		expect(await describeTopic(`${namespace}.example.created`)).toBeUndefined();
 	}, 60_000);
 
 	it("should not count a topic that's gone against the circuit", async () => {
 		const { kafka, namespace, deleteTopic, close } = await getTestInstance({
 			circuitBreaker: { failureThreshold: 1 },
 			topics: defineTopics({
-				userRegistered: {
-					name: "user.registered",
-					schema: z.object({ userId: z.string() }),
-					key: (event) => event.userId,
+				example: {
+					name: "example.created",
+					schema: z.object({ id: z.string() }),
+					key: (event) => event.id,
 				},
 			}),
 		});
 		onTestFinished(close);
 		await kafka.connect();
-		await deleteTopic(`${namespace}.user.registered`);
+		await deleteTopic(`${namespace}.example.created`);
 
 		await kafka
-			.publish({ topic: "userRegistered", event: { userId: "u1" } })
+			.publish({ topic: "example", event: { id: "u1" } })
 			.catch(() => undefined);
 
 		expect(await kafka.healthCheck()).toMatchObject({ circuit: "closed" });
@@ -1647,10 +1685,10 @@ describe("client - publish", () => {
 			compression: "none",
 			circuitBreaker: { failureThreshold: 1 },
 			topics: defineTopics({
-				userRegistered: {
-					name: "user.registered",
-					schema: z.object({ userId: z.string(), body: z.string() }),
-					key: (event) => event.userId,
+				example: {
+					name: "example.created",
+					schema: z.object({ id: z.string(), body: z.string() }),
+					key: (event) => event.id,
 				},
 			}),
 		});
@@ -1659,9 +1697,9 @@ describe("client - publish", () => {
 
 		const failed = await kafka
 			.publish({
-				topic: "userRegistered",
+				topic: "example",
 				// The broker takes a message of 1 MB at most
-				event: { userId: "u1", body: randomBytes(1_500_000).toString("base64") },
+				event: { id: "u1", body: randomBytes(1_500_000).toString("base64") },
 			})
 			.catch((reason) => reason);
 
@@ -1670,8 +1708,8 @@ describe("client - publish", () => {
 		expect(await kafka.healthCheck()).toMatchObject({ circuit: "open" });
 		await expect(
 			kafka.publish({
-				topic: "userRegistered",
-				event: { userId: "u2", body: "small" },
+				topic: "example",
+				event: { id: "u2", body: "small" },
 			}),
 		).rejects.toThrow(KAFKA_ERROR_CODES.CIRCUIT_OPEN);
 	}, 60_000);
@@ -1680,10 +1718,10 @@ describe("client - publish", () => {
 		const { kafka, countLogs, close } = await getTestInstance({
 			enabled: false,
 			topics: defineTopics({
-				userRegistered: {
-					name: "user.registered",
-					schema: z.object({ userId: z.string() }),
-					key: (event) => event.userId,
+				example: {
+					name: "example.created",
+					schema: z.object({ id: z.string() }),
+					key: (event) => event.id,
 				},
 			}),
 		});
@@ -1691,7 +1729,7 @@ describe("client - publish", () => {
 		await kafka.connect();
 
 		await expect(
-			kafka.publish({ topic: "userRegistered", event: { userId: "u1" } }),
+			kafka.publish({ topic: "example", event: { id: "u1" } }),
 		).resolves.toBeUndefined();
 
 		expect(countLogs("Kafka is disabled; not publishing")).toBe(1);
@@ -1710,20 +1748,20 @@ describe("client - logger tag", () => {
 			mockWarn.mockRestore();
 		});
 		const kafka = createKafka({
-			clientId: "payvo-test",
+			clientId: "test-kafka",
 			brokers: ["localhost:1"],
 			enabled: false,
 			logger: { level: "warn", disableColors: true },
 			topics: defineTopics({
-				userRegistered: {
-					name: "user.registered",
-					schema: z.object({ userId: z.string() }),
-					key: (event) => event.userId,
+				example: {
+					name: "example.created",
+					schema: z.object({ id: z.string() }),
+					key: (event) => event.id,
 				},
 			}),
 		});
 
-		await kafka.publish({ topic: "userRegistered", event: { userId: "u1" } });
+		await kafka.publish({ topic: "example", event: { id: "u1" } });
 
 		expect(mockWarn).toHaveBeenCalledTimes(1);
 		expect(String(mockWarn.mock.calls[0]?.[0])).toContain("[Payvo Kafka]:");
@@ -1737,29 +1775,29 @@ describe("client - logger tag", () => {
 			mockWarn.mockRestore();
 		});
 		const kafka = createKafka({
-			clientId: "payvo-test",
+			clientId: "test-kafka",
 			brokers: ["localhost:1"],
 			enabled: false,
-			logger: { level: "warn", disableColors: true, tag: "wallet-service" },
+			logger: { level: "warn", disableColors: true, tag: "example-service" },
 			topics: defineTopics({
-				userRegistered: {
-					name: "user.registered",
-					schema: z.object({ userId: z.string() }),
-					key: (event) => event.userId,
+				example: {
+					name: "example.created",
+					schema: z.object({ id: z.string() }),
+					key: (event) => event.id,
 				},
 			}),
 		});
 
-		await kafka.publish({ topic: "userRegistered", event: { userId: "u1" } });
+		await kafka.publish({ topic: "example", event: { id: "u1" } });
 
 		expect(mockWarn).toHaveBeenCalledTimes(1);
-		expect(String(mockWarn.mock.calls[0]?.[0])).toContain("[wallet-service]:");
+		expect(String(mockWarn.mock.calls[0]?.[0])).toContain("[example-service]:");
 	});
 });
 
 describe("client - options", () => {
 	it("should refuse a client with no brokers", () => {
-		expect(() => createKafka({ clientId: "payvo-test", brokers: [] })).toThrow(
+		expect(() => createKafka({ clientId: "test-kafka", brokers: [] })).toThrow(
 			KAFKA_ERROR_CODES.BROKERS_REQUIRED,
 		);
 	});
@@ -1776,7 +1814,7 @@ describe("client - options", () => {
 
 		try {
 			createKafka({
-				clientId: "payvo-test",
+				clientId: "test-kafka",
 				brokers: ["localhost:1"],
 				// The logger asks the terminal about colours unless told not to
 				logger: { disabled: true, disableColors: true },

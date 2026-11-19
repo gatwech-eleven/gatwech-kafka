@@ -9,10 +9,10 @@ describe("consumer - handler", () => {
 	it("should call the handler with the event the schema parsed", async () => {
 		const { kafka, namespace, joined, close } = await getTestInstance({
 			topics: defineTopics({
-				userRegistered: {
-					name: "user.registered",
-					schema: z.object({ userId: z.string(), age: z.coerce.number() }),
-					key: (event) => event.userId,
+				example: {
+					name: "example.created",
+					schema: z.object({ id: z.string(), count: z.coerce.number() }),
+					key: (event) => event.id,
 				},
 			}),
 		});
@@ -20,14 +20,14 @@ describe("consumer - handler", () => {
 		await kafka.connect();
 		const mockHandler = vi.fn(async (_ctx: unknown) => {});
 		const consumer = await kafka.consume({
-			topic: "userRegistered",
+			topic: "example",
 			handler: mockHandler,
 		});
 		await joined(consumer.groupId);
 
 		await kafka.publish({
-			topic: "userRegistered",
-			event: { userId: "u1", age: "42" },
+			topic: "example",
+			event: { id: "u1", count: "42" },
 		});
 
 		await vi.waitFor(() => expect(mockHandler).toHaveBeenCalledTimes(1), {
@@ -35,8 +35,8 @@ describe("consumer - handler", () => {
 			interval: 200,
 		});
 		expect(mockHandler.mock.calls[0]?.[0]).toMatchObject({
-			event: { userId: "u1", age: 42 },
-			topic: `${namespace}.user.registered`,
+			event: { id: "u1", count: 42 },
+			topic: `${namespace}.example.created`,
 			partition: expect.any(Number),
 			offset: "0",
 			key: "u1",
@@ -46,10 +46,10 @@ describe("consumer - handler", () => {
 	it("should tell the handler where the message came from", async () => {
 		const { kafka, joined, close } = await getTestInstance({
 			topics: defineTopics({
-				userRegistered: {
-					name: "user.registered",
-					schema: z.object({ userId: z.string() }),
-					key: (event) => event.userId,
+				example: {
+					name: "example.created",
+					schema: z.object({ id: z.string() }),
+					key: (event) => event.id,
 				},
 			}),
 		});
@@ -57,14 +57,14 @@ describe("consumer - handler", () => {
 		await kafka.connect();
 		const mockHandler = vi.fn(async (_ctx: unknown) => {});
 		const consumer = await kafka.consume({
-			topic: "userRegistered",
+			topic: "example",
 			handler: mockHandler,
 		});
 		await joined(consumer.groupId);
 
 		await kafka.publish({
-			topic: "userRegistered",
-			event: { userId: "u1" },
+			topic: "example",
+			event: { id: "u1" },
 			correlationId: "request-42",
 			headers: { "x-request-id": "r1" },
 		});
@@ -83,10 +83,10 @@ describe("consumer - handler", () => {
 	it("should name the group after the client and the topic", async () => {
 		const { kafka, close } = await getTestInstance({
 			topics: defineTopics({
-				userRegistered: {
-					name: "user.registered",
-					schema: z.object({ userId: z.string() }),
-					key: (event) => event.userId,
+				example: {
+					name: "example.created",
+					schema: z.object({ id: z.string() }),
+					key: (event) => event.id,
 				},
 			}),
 		});
@@ -94,20 +94,20 @@ describe("consumer - handler", () => {
 		await kafka.connect();
 
 		const consumer = await kafka.consume({
-			topic: "userRegistered",
+			topic: "example",
 			handler: async () => {},
 		});
 
-		expect(consumer.groupId).toBe(`${kafka.options.clientId}.userRegistered`);
+		expect(consumer.groupId).toBe(`${kafka.options.clientId}.example`);
 	}, 60_000);
 
 	it("should use the group it is given", async () => {
 		const { kafka, joined, groupMembers, close } = await getTestInstance({
 			topics: defineTopics({
-				userRegistered: {
-					name: "user.registered",
-					schema: z.object({ userId: z.string() }),
-					key: (event) => event.userId,
+				example: {
+					name: "example.created",
+					schema: z.object({ id: z.string() }),
+					key: (event) => event.id,
 				},
 			}),
 		});
@@ -115,64 +115,64 @@ describe("consumer - handler", () => {
 		await kafka.connect();
 
 		const consumer = await kafka.consume({
-			topic: "userRegistered",
-			groupId: "payvo-test.legacy-group",
+			topic: "example",
+			groupId: "test-kafka.legacy-group",
 			handler: async () => {},
 		});
-		await joined("payvo-test.legacy-group");
+		await joined("test-kafka.legacy-group");
 
-		expect(consumer.groupId).toBe("payvo-test.legacy-group");
-		expect(await groupMembers("payvo-test.legacy-group")).toBe(1);
+		expect(consumer.groupId).toBe("test-kafka.legacy-group");
+		expect(await groupMembers("test-kafka.legacy-group")).toBe(1);
 	}, 60_000);
 
 	it("should skip what was published before the group joined", async () => {
 		const { kafka, joined, close } = await getTestInstance({
 			topics: defineTopics({
-				userRegistered: {
-					name: "user.registered",
-					schema: z.object({ userId: z.string() }),
-					key: (event) => event.userId,
+				example: {
+					name: "example.created",
+					schema: z.object({ id: z.string() }),
+					key: (event) => event.id,
 				},
 			}),
 		});
 		onTestFinished(close);
 		await kafka.connect();
-		await kafka.publish({ topic: "userRegistered", event: { userId: "early" } });
+		await kafka.publish({ topic: "example", event: { id: "early" } });
 		const mockHandler = vi.fn(async (_ctx: unknown) => {});
 		const consumer = await kafka.consume({
-			topic: "userRegistered",
+			topic: "example",
 			handler: mockHandler,
 		});
 		await joined(consumer.groupId);
 
-		await kafka.publish({ topic: "userRegistered", event: { userId: "late" } });
+		await kafka.publish({ topic: "example", event: { id: "late" } });
 
 		await vi.waitFor(() => expect(mockHandler).toHaveBeenCalledTimes(1), {
 			timeout: 20_000,
 			interval: 200,
 		});
 		expect(mockHandler.mock.calls[0]?.[0]).toMatchObject({
-			event: { userId: "late" },
+			event: { id: "late" },
 		});
 	}, 60_000);
 
 	it("should read what was published before when it starts from the beginning", async () => {
 		const { kafka, close } = await getTestInstance({
 			topics: defineTopics({
-				userRegistered: {
-					name: "user.registered",
-					schema: z.object({ userId: z.string() }),
-					key: (event) => event.userId,
+				example: {
+					name: "example.created",
+					schema: z.object({ id: z.string() }),
+					key: (event) => event.id,
 				},
 			}),
 		});
 		onTestFinished(close);
 		await kafka.connect();
-		await kafka.publish({ topic: "userRegistered", event: { userId: "early" } });
+		await kafka.publish({ topic: "example", event: { id: "early" } });
 		const mockHandler = vi.fn(async (_ctx: unknown) => {});
 
 		await kafka.consume({
-			topic: "userRegistered",
+			topic: "example",
 			fromBeginning: true,
 			handler: mockHandler,
 		});
@@ -182,7 +182,7 @@ describe("consumer - handler", () => {
 			interval: 200,
 		});
 		expect(mockHandler.mock.calls[0]?.[0]).toMatchObject({
-			event: { userId: "early" },
+			event: { id: "early" },
 		});
 	}, 60_000);
 });
@@ -195,10 +195,10 @@ describe("consumer - retries and the DLQ", () => {
 		const { kafka, namespace, joined, committedOffset, readMessages, close } =
 			await getTestInstance({
 				topics: defineTopics({
-					userRegistered: {
-						name: "user.registered",
-						schema: z.object({ userId: z.string() }),
-						key: (event) => event.userId,
+					example: {
+						name: "example.created",
+						schema: z.object({ id: z.string() }),
+						key: (event) => event.id,
 					},
 				}),
 			});
@@ -209,24 +209,24 @@ describe("consumer - retries and the DLQ", () => {
 			.mockRejectedValueOnce(new Error("first"))
 			.mockRejectedValueOnce(new Error("second"));
 		const consumer = await kafka.consume({
-			topic: "userRegistered",
+			topic: "example",
 			retry: { attempts: 3, backoffMs: 10 },
 			handler: mockHandler,
 		});
 		await joined(consumer.groupId);
 
-		await kafka.publish({ topic: "userRegistered", event: { userId: "u1" } });
+		await kafka.publish({ topic: "example", event: { id: "u1" } });
 
 		await vi.waitFor(
 			async () =>
 				expect(
-					await committedOffset(consumer.groupId, `${namespace}.user.registered`),
+					await committedOffset(consumer.groupId, `${namespace}.example.created`),
 				).toBe(1),
 			{ timeout: 20_000, interval: 300 },
 		);
 		expect(mockHandler).toHaveBeenCalledTimes(3);
 		expect(
-			await readMessages(`${namespace}.user.registered.dlq`, { within: 1_000 }),
+			await readMessages(`${namespace}.example.created.dlq`, { within: 1_000 }),
 		).toEqual([]);
 	}, 60_000);
 
@@ -234,10 +234,10 @@ describe("consumer - retries and the DLQ", () => {
 		const { kafka, namespace, joined, committedOffset, readMessages, close } =
 			await getTestInstance({
 				topics: defineTopics({
-					userRegistered: {
-						name: "user.registered",
-						schema: z.object({ userId: z.string() }),
-						key: (event) => event.userId,
+					example: {
+						name: "example.created",
+						schema: z.object({ id: z.string() }),
+						key: (event) => event.id,
 					},
 				}),
 			});
@@ -247,23 +247,23 @@ describe("consumer - retries and the DLQ", () => {
 			throw new Error("boom", { cause: new Error("database unreachable") });
 		});
 		const consumer = await kafka.consume({
-			topic: "userRegistered",
+			topic: "example",
 			retry: { attempts: 2, backoffMs: 10 },
 			handler: mockHandler,
 		});
 		await joined(consumer.groupId);
 
-		await kafka.publish({ topic: "userRegistered", event: { userId: "u1" } });
+		await kafka.publish({ topic: "example", event: { id: "u1" } });
 
 		await vi.waitFor(
 			async () =>
 				expect(
-					await committedOffset(consumer.groupId, `${namespace}.user.registered`),
+					await committedOffset(consumer.groupId, `${namespace}.example.created`),
 				).toBe(1),
 			{ timeout: 20_000, interval: 300 },
 		);
 		expect(mockHandler).toHaveBeenCalledTimes(2);
-		const entries = await readMessages(`${namespace}.user.registered.dlq`, {
+		const entries = await readMessages(`${namespace}.example.created.dlq`, {
 			within: 1_500,
 		});
 		expect(entries).toHaveLength(1);
@@ -271,9 +271,9 @@ describe("consumer - retries and the DLQ", () => {
 			reason: "handler",
 			errorMessage: "boom",
 			errorCause: "database unreachable",
-			originalTopic: `${namespace}.user.registered`,
+			originalTopic: `${namespace}.example.created`,
 			consumerGroup: consumer.groupId,
-			originalValue: { userId: "u1" },
+			originalValue: { id: "u1" },
 		});
 	}, 60_000);
 
@@ -288,10 +288,10 @@ describe("consumer - retries and the DLQ", () => {
 			close,
 		} = await getTestInstance({
 			topics: defineTopics({
-				userRegistered: {
-					name: "user.registered",
-					schema: z.object({ userId: z.string() }),
-					key: (event) => event.userId,
+				example: {
+					name: "example.created",
+					schema: z.object({ id: z.string() }),
+					key: (event) => event.id,
 				},
 			}),
 		});
@@ -299,28 +299,28 @@ describe("consumer - retries and the DLQ", () => {
 		await kafka.connect();
 		const mockHandler = vi.fn(async (_ctx: unknown) => {});
 		const consumer = await kafka.consume({
-			topic: "userRegistered",
+			topic: "example",
 			handler: mockHandler,
 		});
 		await joined(consumer.groupId);
 
-		await send(`${namespace}.user.registered`, [JSON.stringify({ userId: 1 })]);
+		await send(`${namespace}.example.created`, [JSON.stringify({ id: 1 })]);
 
 		await vi.waitFor(
 			async () =>
 				expect(
-					await committedOffset(consumer.groupId, `${namespace}.user.registered`),
+					await committedOffset(consumer.groupId, `${namespace}.example.created`),
 				).toBe(1),
 			{ timeout: 20_000, interval: 300 },
 		);
 		expect(mockHandler).not.toHaveBeenCalled();
-		const entries = await readMessages(`${namespace}.user.registered.dlq`, {
+		const entries = await readMessages(`${namespace}.example.created.dlq`, {
 			within: 1_500,
 		});
 		expect(JSON.parse(entries[0]?.value ?? "")).toMatchObject({
 			reason: "schema",
-			validationIssues: [{ path: "userId", code: "invalid_type" }],
-			originalValue: { userId: 1 },
+			validationIssues: [{ path: "id", code: "invalid_type" }],
+			originalValue: { id: 1 },
 		});
 	}, 60_000);
 
@@ -335,31 +335,31 @@ describe("consumer - retries and the DLQ", () => {
 			close,
 		} = await getTestInstance({
 			topics: defineTopics({
-				userRegistered: {
-					name: "user.registered",
-					schema: z.object({ userId: z.string() }),
-					key: (event) => event.userId,
+				example: {
+					name: "example.created",
+					schema: z.object({ id: z.string() }),
+					key: (event) => event.id,
 				},
 			}),
 		});
 		onTestFinished(close);
 		await kafka.connect();
 		const consumer = await kafka.consume({
-			topic: "userRegistered",
+			topic: "example",
 			handler: async () => {},
 		});
 		await joined(consumer.groupId);
 
-		await send(`${namespace}.user.registered`, ["not json"]);
+		await send(`${namespace}.example.created`, ["not json"]);
 
 		await vi.waitFor(
 			async () =>
 				expect(
-					await committedOffset(consumer.groupId, `${namespace}.user.registered`),
+					await committedOffset(consumer.groupId, `${namespace}.example.created`),
 				).toBe(1),
 			{ timeout: 20_000, interval: 300 },
 		);
-		const entries = await readMessages(`${namespace}.user.registered.dlq`, {
+		const entries = await readMessages(`${namespace}.example.created.dlq`, {
 			within: 1_500,
 		});
 		expect(JSON.parse(entries[0]?.value ?? "")).toMatchObject({
@@ -380,10 +380,10 @@ describe("consumer - retries and the DLQ", () => {
 			close,
 		} = await getTestInstance({
 			topics: defineTopics({
-				userRegistered: {
-					name: "user.registered",
-					schema: z.object({ userId: z.string() }),
-					key: (event) => event.userId,
+				example: {
+					name: "example.created",
+					schema: z.object({ id: z.string() }),
+					key: (event) => event.id,
 				},
 			}),
 		});
@@ -391,7 +391,7 @@ describe("consumer - retries and the DLQ", () => {
 		await kafka.connect();
 		const dlqTopic = await createTopic();
 		const consumer = await kafka.consume({
-			topic: "userRegistered",
+			topic: "example",
 			retry: { attempts: 1, backoffMs: 10 },
 			dlq: { topic: dlqTopic },
 			handler: async () => {
@@ -400,18 +400,18 @@ describe("consumer - retries and the DLQ", () => {
 		});
 		await joined(consumer.groupId);
 
-		await kafka.publish({ topic: "userRegistered", event: { userId: "u1" } });
+		await kafka.publish({ topic: "example", event: { id: "u1" } });
 
 		await vi.waitFor(
 			async () =>
 				expect(
-					await committedOffset(consumer.groupId, `${namespace}.user.registered`),
+					await committedOffset(consumer.groupId, `${namespace}.example.created`),
 				).toBe(1),
 			{ timeout: 20_000, interval: 300 },
 		);
 		expect(await readMessages(dlqTopic, { within: 1_500 })).toHaveLength(1);
 		expect(
-			await readMessages(`${namespace}.user.registered.dlq`, { within: 1_000 }),
+			await readMessages(`${namespace}.example.created.dlq`, { within: 1_000 }),
 		).toEqual([]);
 	}, 60_000);
 
@@ -419,36 +419,36 @@ describe("consumer - retries and the DLQ", () => {
 		const { kafka, namespace, joined, committedOffset, close } =
 			await getTestInstance({
 				topics: defineTopics({
-					userRegistered: {
-						name: "user.registered",
-						schema: z.object({ userId: z.string() }),
-						key: (event) => event.userId,
+					example: {
+						name: "example.created",
+						schema: z.object({ id: z.string() }),
+						key: (event) => event.id,
 					},
 				}),
 			});
 		onTestFinished(close);
 		await kafka.connect();
 		const mockHandler = vi.fn(async (ctx: unknown) => {
-			if ((ctx as { event: { userId: string } }).event.userId === "bad") {
+			if ((ctx as { event: { id: string } }).event.id === "bad") {
 				throw new Error("boom");
 			}
 		});
 		const consumer = await kafka.consume({
-			topic: "userRegistered",
+			topic: "example",
 			retry: { attempts: 1, backoffMs: 10 },
 			handler: mockHandler,
 		});
 		await joined(consumer.groupId);
 
 		await kafka.publishBatch({
-			topic: "userRegistered",
-			events: [{ userId: "bad" }, { userId: "good" }],
+			topic: "example",
+			events: [{ id: "bad" }, { id: "good" }],
 		});
 
 		await vi.waitFor(
 			async () =>
 				expect(
-					await committedOffset(consumer.groupId, `${namespace}.user.registered`),
+					await committedOffset(consumer.groupId, `${namespace}.example.created`),
 				).toBe(2),
 			{ timeout: 20_000, interval: 300 },
 		);
@@ -464,10 +464,10 @@ describe("consumer - a DLQ that can't be published to", () => {
 		const { kafka, namespace, joined, committedOffset, close } =
 			await getTestInstance({
 				topics: defineTopics({
-					userRegistered: {
-						name: "user.registered",
-						schema: z.object({ userId: z.string() }),
-						key: (event) => event.userId,
+					example: {
+						name: "example.created",
+						schema: z.object({ id: z.string() }),
+						key: (event) => event.id,
 					},
 				}),
 			});
@@ -477,14 +477,14 @@ describe("consumer - a DLQ that can't be published to", () => {
 			throw new Error("boom");
 		});
 		const consumer = await kafka.consume({
-			topic: "userRegistered",
+			topic: "example",
 			retry: { attempts: 2, backoffMs: 10 },
 			dlq: { topic: `${namespace}.no.such.dlq`, attempts: 1 },
 			handler: mockHandler,
 		});
 		await joined(consumer.groupId);
 
-		await kafka.publish({ topic: "userRegistered", event: { userId: "u1" } });
+		await kafka.publish({ topic: "example", event: { id: "u1" } });
 
 		await vi.waitFor(() => expect(consumer.paused()).toHaveLength(1), {
 			timeout: 60_000,
@@ -495,7 +495,7 @@ describe("consumer - a DLQ that can't be published to", () => {
 		expect(mockHandler).toHaveBeenCalledTimes(callsWhenPaused);
 		expect(callsWhenPaused).toBe(2);
 		expect(
-			await committedOffset(consumer.groupId, `${namespace}.user.registered`),
+			await committedOffset(consumer.groupId, `${namespace}.example.created`),
 		).toBe(-1);
 	}, 120_000);
 
@@ -510,10 +510,10 @@ describe("consumer - a DLQ that can't be published to", () => {
 			close,
 		} = await getTestInstance({
 			topics: defineTopics({
-				userRegistered: {
-					name: "user.registered",
-					schema: z.object({ userId: z.string() }),
-					key: (event) => event.userId,
+				example: {
+					name: "example.created",
+					schema: z.object({ id: z.string() }),
+					key: (event) => event.id,
 				},
 			}),
 		});
@@ -521,7 +521,7 @@ describe("consumer - a DLQ that can't be published to", () => {
 		await kafka.connect();
 		const dlqTopic = `${namespace}.late.dlq`;
 		const consumer = await kafka.consume({
-			topic: "userRegistered",
+			topic: "example",
 			retry: { attempts: 1, backoffMs: 10 },
 			dlq: { topic: dlqTopic, attempts: 1 },
 			handler: async () => {
@@ -529,7 +529,7 @@ describe("consumer - a DLQ that can't be published to", () => {
 			},
 		});
 		await joined(consumer.groupId);
-		await kafka.publish({ topic: "userRegistered", event: { userId: "u1" } });
+		await kafka.publish({ topic: "example", event: { id: "u1" } });
 		await vi.waitFor(() => expect(consumer.paused()).toHaveLength(1), {
 			timeout: 60_000,
 			interval: 300,
@@ -541,7 +541,7 @@ describe("consumer - a DLQ that can't be published to", () => {
 		await vi.waitFor(
 			async () =>
 				expect(
-					await committedOffset(consumer.groupId, `${namespace}.user.registered`),
+					await committedOffset(consumer.groupId, `${namespace}.example.created`),
 				).toBe(1),
 			{ timeout: 60_000, interval: 500 },
 		);
@@ -557,10 +557,10 @@ describe("consumer - session", () => {
 	it("should refuse retries that back off for longer than the session lasts", async () => {
 		const { kafka, close } = await getTestInstance({
 			topics: defineTopics({
-				userRegistered: {
-					name: "user.registered",
-					schema: z.object({ userId: z.string() }),
-					key: (event) => event.userId,
+				example: {
+					name: "example.created",
+					schema: z.object({ id: z.string() }),
+					key: (event) => event.id,
 				},
 			}),
 		});
@@ -569,7 +569,7 @@ describe("consumer - session", () => {
 
 		const error = await kafka
 			.consume({
-				topic: "userRegistered",
+				topic: "example",
 				retry: { attempts: 10, backoffMs: 10_000 },
 				session: { timeoutMs: 6_000, heartbeatIntervalMs: 1_000 },
 				handler: async () => {},
@@ -583,10 +583,10 @@ describe("consumer - session", () => {
 	it("should accept retries that fit in the session", async () => {
 		const { kafka, close } = await getTestInstance({
 			topics: defineTopics({
-				userRegistered: {
-					name: "user.registered",
-					schema: z.object({ userId: z.string() }),
-					key: (event) => event.userId,
+				example: {
+					name: "example.created",
+					schema: z.object({ id: z.string() }),
+					key: (event) => event.id,
 				},
 			}),
 		});
@@ -594,7 +594,7 @@ describe("consumer - session", () => {
 		await kafka.connect();
 
 		const consumer = await kafka.consume({
-			topic: "userRegistered",
+			topic: "example",
 			retry: { attempts: 3, backoffMs: 1_000 },
 			session: { timeoutMs: 10_000, heartbeatIntervalMs: 1_000 },
 			handler: async () => {},
@@ -606,10 +606,10 @@ describe("consumer - session", () => {
 	it("should refuse a heartbeat that isn't shorter than the session", async () => {
 		const { kafka, close } = await getTestInstance({
 			topics: defineTopics({
-				userRegistered: {
-					name: "user.registered",
-					schema: z.object({ userId: z.string() }),
-					key: (event) => event.userId,
+				example: {
+					name: "example.created",
+					schema: z.object({ id: z.string() }),
+					key: (event) => event.id,
 				},
 			}),
 		});
@@ -618,7 +618,7 @@ describe("consumer - session", () => {
 
 		await expect(
 			kafka.consume({
-				topic: "userRegistered",
+				topic: "example",
 				session: { timeoutMs: 5_000, heartbeatIntervalMs: 5_000 },
 				handler: async () => {},
 			}),
@@ -633,17 +633,17 @@ describe("consumer - lifecycle", () => {
 	it("should leave its group when the client disconnects", async () => {
 		const { kafka, joined, groupMembers, close } = await getTestInstance({
 			topics: defineTopics({
-				userRegistered: {
-					name: "user.registered",
-					schema: z.object({ userId: z.string() }),
-					key: (event) => event.userId,
+				example: {
+					name: "example.created",
+					schema: z.object({ id: z.string() }),
+					key: (event) => event.id,
 				},
 			}),
 		});
 		onTestFinished(close);
 		await kafka.connect();
 		const consumer = await kafka.consume({
-			topic: "userRegistered",
+			topic: "example",
 			handler: async () => {},
 		});
 		await joined(consumer.groupId);
@@ -660,17 +660,17 @@ describe("consumer - lifecycle", () => {
 	it("should leave its group when it is disconnected, and be disconnectable again", async () => {
 		const { kafka, joined, groupMembers, close } = await getTestInstance({
 			topics: defineTopics({
-				userRegistered: {
-					name: "user.registered",
-					schema: z.object({ userId: z.string() }),
-					key: (event) => event.userId,
+				example: {
+					name: "example.created",
+					schema: z.object({ id: z.string() }),
+					key: (event) => event.id,
 				},
 			}),
 		});
 		onTestFinished(close);
 		await kafka.connect();
 		const consumer = await kafka.consume({
-			topic: "userRegistered",
+			topic: "example",
 			handler: async () => {},
 		});
 		await joined(consumer.groupId);
@@ -687,10 +687,10 @@ describe("consumer - lifecycle", () => {
 	it("should stop calling the handler once disconnected", async () => {
 		const { kafka, namespace, joined, send, close } = await getTestInstance({
 			topics: defineTopics({
-				userRegistered: {
-					name: "user.registered",
-					schema: z.object({ userId: z.string() }),
-					key: (event) => event.userId,
+				example: {
+					name: "example.created",
+					schema: z.object({ id: z.string() }),
+					key: (event) => event.id,
 				},
 			}),
 		});
@@ -698,15 +698,13 @@ describe("consumer - lifecycle", () => {
 		await kafka.connect();
 		const mockHandler = vi.fn(async (_ctx: unknown) => {});
 		const consumer = await kafka.consume({
-			topic: "userRegistered",
+			topic: "example",
 			handler: mockHandler,
 		});
 		await joined(consumer.groupId);
 		await consumer.disconnect();
 
-		await send(`${namespace}.user.registered`, [
-			JSON.stringify({ userId: "u1" }),
-		]);
+		await send(`${namespace}.example.created`, [JSON.stringify({ id: "u1" })]);
 		await new Promise((resolve) => setTimeout(resolve, 3_000));
 
 		expect(mockHandler).not.toHaveBeenCalled();
@@ -718,20 +716,20 @@ describe("consumer - lifecycle", () => {
 		await kafka.connect();
 
 		const error = await (kafka as any)
-			.consume({ topic: "userRegistered", handler: async () => {} })
+			.consume({ topic: "example", handler: async () => {} })
 			.catch((reason: unknown) => reason);
 
 		expect(error.message).toBe(KAFKA_ERROR_CODES.TOPIC_NOT_DECLARED);
-		expect(error.cause).toBe("userRegistered");
+		expect(error.cause).toBe("example");
 	});
 
 	it("should connect the client itself when nothing has connected it yet", async () => {
 		const { kafka, joined, countLogs, close } = await getTestInstance({
 			topics: defineTopics({
-				userRegistered: {
-					name: "user.registered",
-					schema: z.object({ userId: z.string() }),
-					key: (event) => event.userId,
+				example: {
+					name: "example.created",
+					schema: z.object({ id: z.string() }),
+					key: (event) => event.id,
 				},
 			}),
 		});
@@ -739,11 +737,11 @@ describe("consumer - lifecycle", () => {
 		const mockHandler = vi.fn(async (_ctx: unknown) => {});
 
 		const consumer = await kafka.consume({
-			topic: "userRegistered",
+			topic: "example",
 			handler: mockHandler,
 		});
 		await joined(consumer.groupId);
-		await kafka.publish({ topic: "userRegistered", event: { userId: "u1" } });
+		await kafka.publish({ topic: "example", event: { id: "u1" } });
 
 		await vi.waitFor(() => expect(mockHandler).toHaveBeenCalledTimes(1), {
 			timeout: 20_000,
@@ -752,7 +750,7 @@ describe("consumer - lifecycle", () => {
 		expect(countLogs("Waiting for Kafka before consuming")).toBe(1);
 		expect((await kafka.healthCheck()).connected).toBe(true);
 		expect(mockHandler.mock.calls[0]?.[0]).toMatchObject({
-			event: { userId: "u1" },
+			event: { id: "u1" },
 		});
 	}, 60_000);
 
@@ -771,10 +769,10 @@ describe("consumer - lifecycle", () => {
 			connect: { attempts: 1, retryDelayMs: 10 },
 			reconnection: { intervalMs: 200 },
 			topics: defineTopics({
-				userRegistered: {
-					name: "user.registered",
-					schema: z.object({ userId: z.string() }),
-					key: (event) => event.userId,
+				example: {
+					name: "example.created",
+					schema: z.object({ id: z.string() }),
+					key: (event) => event.id,
 				},
 			}),
 		});
@@ -799,13 +797,13 @@ describe("consumer - lifecycle", () => {
 		);
 
 		const consuming = kafka.consume({
-			topic: "userRegistered",
+			topic: "example",
 			handler: mockHandler,
 		});
 		await new Promise<void>((resolve) => forwarder.listen(port, resolve));
 		const consumer = await consuming;
 		await joined(consumer.groupId);
-		await kafka.publish({ topic: "userRegistered", event: { userId: "u1" } });
+		await kafka.publish({ topic: "example", event: { id: "u1" } });
 
 		await vi.waitFor(() => expect(mockHandler).toHaveBeenCalledTimes(1), {
 			timeout: 20_000,
@@ -816,17 +814,17 @@ describe("consumer - lifecycle", () => {
 	it("should consume nothing when it is disconnected before it connects", async () => {
 		const { kafka, countLogs, close } = await getTestInstance({
 			topics: defineTopics({
-				userRegistered: {
-					name: "user.registered",
-					schema: z.object({ userId: z.string() }),
-					key: (event) => event.userId,
+				example: {
+					name: "example.created",
+					schema: z.object({ id: z.string() }),
+					key: (event) => event.id,
 				},
 			}),
 		});
 		onTestFinished(close);
 
 		const consuming = kafka.consume({
-			topic: "userRegistered",
+			topic: "example",
 			handler: async () => {},
 		});
 		await kafka.disconnect();
@@ -840,10 +838,10 @@ describe("consumer - lifecycle", () => {
 	it("should refuse settings that would get it removed from its group at once, without waiting to connect", async () => {
 		const { kafka, close } = await getTestInstance({
 			topics: defineTopics({
-				userRegistered: {
-					name: "user.registered",
-					schema: z.object({ userId: z.string() }),
-					key: (event) => event.userId,
+				example: {
+					name: "example.created",
+					schema: z.object({ id: z.string() }),
+					key: (event) => event.id,
 				},
 			}),
 		});
@@ -851,7 +849,7 @@ describe("consumer - lifecycle", () => {
 
 		await expect(
 			kafka.consume({
-				topic: "userRegistered",
+				topic: "example",
 				handler: async () => {},
 				session: { timeoutMs: 6_000, heartbeatIntervalMs: 6_000 },
 			}),
@@ -862,10 +860,10 @@ describe("consumer - lifecycle", () => {
 		const { kafka, countLogs, close } = await getTestInstance({
 			enabled: false,
 			topics: defineTopics({
-				userRegistered: {
-					name: "user.registered",
-					schema: z.object({ userId: z.string() }),
-					key: (event) => event.userId,
+				example: {
+					name: "example.created",
+					schema: z.object({ id: z.string() }),
+					key: (event) => event.id,
 				},
 			}),
 		});
@@ -873,7 +871,7 @@ describe("consumer - lifecycle", () => {
 		await kafka.connect();
 
 		const consumer = await kafka.consume({
-			topic: "userRegistered",
+			topic: "example",
 			handler: async () => {},
 		});
 

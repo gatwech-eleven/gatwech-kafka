@@ -9,7 +9,7 @@ export interface KafkaOptions {
 	/**
 	 * Names this service to the broker and in its logs
 	 *
-	 * @example "orders-service"
+	 * @example "example-service"
 	 */
 	clientId: string;
 	/**
@@ -38,7 +38,7 @@ export interface KafkaOptions {
 	 * that share a broker apart, without the topic declarations reading the
 	 * environment. A topic opts out with `namespaced: false`
 	 *
-	 * @example "prod" makes `user.registered` `prod.user.registered`
+	 * @example "prod" makes `example.created` `prod.example.created`
 	 * @default undefined, topics keep their declared names
 	 */
 	namespace?: string | undefined;
@@ -46,7 +46,7 @@ export interface KafkaOptions {
 	 * Where this client logs: a `Logger` from `@gatwech/core/env`. Nothing is
 	 * read from the environment
 	 *
-	 * @example { level: "info", tag: "orders-service" }
+	 * @example { level: "info", tag: "example-service" }
 	 * @default its lines are tagged "Payvo Kafka"
 	 */
 	logger?: Logger | undefined;
@@ -223,8 +223,8 @@ export type Kafka<Options extends KafkaOptions = KafkaOptions> = {
 	 *
 	 * @example
 	 * await kafka.publish({
-	 * 	topic: "userRegistered",
-	 * 	event: { userId, email },
+	 * 	topic: "example",
+	 * 	event: { id, label },
 	 * });
 	 */
 	publish: <Name extends keyof InferTopics<Options> & string>(options: {
@@ -232,7 +232,7 @@ export type Kafka<Options extends KafkaOptions = KafkaOptions> = {
 		 * The key of the topic in the `topics` option of `createKafka`. The
 		 * topic's schema checks the event, and its `key` picks the partition
 		 *
-		 * @example "userRegistered"
+		 * @example "example"
 		 */
 		topic: Name;
 		/**
@@ -262,7 +262,7 @@ export type Kafka<Options extends KafkaOptions = KafkaOptions> = {
 		/**
 		 * The key of the topic in the `topics` option of `createKafka`
 		 *
-		 * @example "userRegistered"
+		 * @example "example"
 		 */
 		topic: Name;
 		/**
@@ -299,10 +299,10 @@ export type Kafka<Options extends KafkaOptions = KafkaOptions> = {
 	 *
 	 * @example
 	 * await kafka.consume({
-	 * 	groupId: "wallet-service.user-registered",
-	 * 	topic: "userRegistered",
+	 * 	groupId: "example-service.example",
+	 * 	topic: "example",
 	 * 	handler: async ({ event }) => {
-	 * 		await createWallet(event.userId);
+	 * 		await store(event);
 	 * 	},
 	 * });
 	 */
@@ -314,14 +314,14 @@ export type Kafka<Options extends KafkaOptions = KafkaOptions> = {
 		 * that has no committed offset starts where `fromBeginning` says, so
 		 * naming a group that exists keeps its place
 		 *
-		 * @example "wallet-service.user-registered"
-		 * @default `${clientId}.${topic}`, e.g. "wallet-service.userRegistered"
+		 * @example "example-service.example"
+		 * @default `${clientId}.${topic}`, e.g. "example-service.example"
 		 */
 		groupId?: string | undefined;
 		/**
 		 * The key of the topic to read in the `topics` option of `createKafka`
 		 *
-		 * @example "userRegistered"
+		 * @example "example"
 		 */
 		topic: Name;
 		/**
@@ -450,4 +450,16 @@ export type Kafka<Options extends KafkaOptions = KafkaOptions> = {
 	topics: InferTopics<Options>;
 	options: Options;
 	$ERROR_CODES: typeof KAFKA_ERROR_CODES;
+	/**
+	 * Share types: the event of each topic, by its key, as a handler receives
+	 * it (what the topic's schema outputs). It holds nothing at runtime
+	 *
+	 * @example
+	 * type Example = typeof kafka.$Infer.example;
+	 */
+	$Infer: {
+		[Name in keyof InferTopics<Options>]: z.output<
+			InferTopic<Options, Name>["schema"]
+		>;
+	};
 };

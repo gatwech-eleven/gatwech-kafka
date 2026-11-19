@@ -39,7 +39,7 @@ export const getTestInstance = async <
 
 	const logs: { level: string; message: string }[] = [];
 	const kafka = createKafka({
-		clientId: `payvo-test-${id}`,
+		clientId: `test-kafka-${id}`,
 		brokers,
 		namespace,
 		connect: { attempts: 2, retryDelayMs: 50 },
